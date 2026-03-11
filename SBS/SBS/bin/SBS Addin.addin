@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>SBS</Name>
+    <Assembly>SBS\SBS.dll</Assembly>
+    <AddInId>9ebdfe41-c563-4369-88c3-cecd14465053</AddInId>
+    <FullClassName>SBS.AppTools</FullClassName>
+    <VendorId>BI Innovations</VendorId>
+    <VendorDescription>BI Innovations</VendorDescription>
+  </AddIn>
+</RevitAddIns>

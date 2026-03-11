@@ -1,0 +1,137 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "H:\\Projects\\bi-bim-tools\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|h:\\projects\\bi-bim-tools\\bi bim tools\\views\\1cdataview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\views\\1cdataview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|h:\\projects\\bi-bim-tools\\bi bim tools\\views\\1cpasswordvalidation.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\views\\1cpasswordvalidation.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|h:\\projects\\bi-bim-tools\\bi bim tools\\views\\1cprojectsview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\views\\1cprojectsview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|h:\\projects\\bi-bim-tools\\bi bim tools\\kvartirografia\\kvartiraview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\kvartirografia\\kvartiraview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|h:\\projects\\bi-bim-tools\\bi bim tools\\pricecheck\\pricecheckcalculation.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\pricecheck\\pricecheckcalculation.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|H:\\Projects\\bi-bim-tools\\bi bim tools\\pricecheck\\formulas.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\pricecheck\\formulas.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|H:\\Projects\\bi-bim-tools\\bi bim tools\\apartpages\\apartpageview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{07DA51D3-4EDC-412D-BCA3-2F4DFB8C76A2}|BI BIM Tools\\BI BIM Tools.csproj|solutionrelative:bi bim tools\\apartpages\\apartpageview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "1CDataView.xaml.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Views\\1CDataView.xaml.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\Views\\1CDataView.xaml.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Views\\1CDataView.xaml.cs",
+              "RelativeToolTip": "BI BIM Tools\\Views\\1CDataView.xaml.cs",
+              "ViewState": "AgIAAHsBAAAAAAAAAAAawI8BAABCAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-02T03:51:08.673Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "1CPasswordValidation.xaml.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Views\\1CPasswordValidation.xaml.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\Views\\1CPasswordValidation.xaml.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Views\\1CPasswordValidation.xaml.cs",
+              "RelativeToolTip": "BI BIM Tools\\Views\\1CPasswordValidation.xaml.cs",
+              "ViewState": "AgIAAAQAAAAAAAAAAAAiwDcAAAAzAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-02T03:51:00.334Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "1CProjectsView.xaml.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Views\\1CProjectsView.xaml.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\Views\\1CProjectsView.xaml.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Views\\1CProjectsView.xaml.cs",
+              "RelativeToolTip": "BI BIM Tools\\Views\\1CProjectsView.xaml.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABoAAAAXAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-02T03:50:37.659Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "KvartiraView.xaml.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Kvartirografia\\KvartiraView.xaml.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\Kvartirografia\\KvartiraView.xaml.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\Kvartirografia\\KvartiraView.xaml.cs",
+              "RelativeToolTip": "BI BIM Tools\\Kvartirografia\\KvartiraView.xaml.cs",
+              "ViewState": "AgIAAMwDAAAAAAAAAAAmwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-02T03:50:11.822Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Formulas.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\PriceCheck\\Formulas.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\PriceCheck\\Formulas.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\PriceCheck\\Formulas.cs",
+              "RelativeToolTip": "BI BIM Tools\\PriceCheck\\Formulas.cs",
+              "ViewState": "AgIAABIAAAAAAAAAAAAvwDQAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-29T06:17:42.791Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "PriceCheckCalculation.xaml.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\PriceCheck\\PriceCheckCalculation.xaml.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\PriceCheck\\PriceCheckCalculation.xaml.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\PriceCheck\\PriceCheckCalculation.xaml.cs",
+              "RelativeToolTip": "BI BIM Tools\\PriceCheck\\PriceCheckCalculation.xaml.cs",
+              "ViewState": "AgIAAIQAAAAAAAAAAAAEwJMAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-29T06:16:16.335Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "ApartPageView.xaml.cs",
+              "DocumentMoniker": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\ApartPages\\ApartPageView.xaml.cs",
+              "RelativeDocumentMoniker": "BI BIM Tools\\ApartPages\\ApartPageView.xaml.cs",
+              "ToolTip": "H:\\Projects\\bi-bim-tools\\BI BIM Tools\\ApartPages\\ApartPageView.xaml.cs",
+              "RelativeToolTip": "BI BIM Tools\\ApartPages\\ApartPageView.xaml.cs",
+              "ViewState": "AgIAAK0BAAAAAAAAAAAAAMQBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-27T03:27:09.682Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
