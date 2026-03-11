@@ -4,7 +4,7 @@
 library
 C#
 .cs
-D:\Проекты\Проекты\SmartRemont\2025\Программы\sbs\SBS\obj\Debug\
+C:\Users\Bekzhan-SmartRemont\Desktop\sbs\sbs\SBS\obj\Debug\
 SBS
 none
 false
@@ -12,9 +12,9 @@ DEBUG;TRACE
 
 2-523781199
 
-17-1161128260
-55-355441150
+19-795925733
+55162512097
 Views\ViewContainer.xaml;Views\ExportSettingsDialog.xaml;
 
-False
+True
 

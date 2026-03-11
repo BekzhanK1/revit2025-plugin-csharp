@@ -1,4 +1,4 @@
-﻿using Autodesk.Revit.DB.Events;
+using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
 using SBS.Views;
@@ -112,6 +112,9 @@ namespace SBS
             RibbonPanel ribbonPanel1 = application.CreateRibbonPanel(tabName, "Параметры");
             Bi_etaj_button(ribbonPanel1);
             ExportAllElements_button(ribbonPanel1);
+            ExportSmartRemont_button(ribbonPanel1);
+            ExportSmartRemontSchedules_button(ribbonPanel1);
+            ExportSmartRemontDiagnostics_button(ribbonPanel1);
         }
 
         void Bi_etaj_button(RibbonPanel ribbonPanel)
@@ -130,6 +133,33 @@ namespace SBS
             BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
             btn.Image = btn.LargeImage = btnImage;
             btn.ToolTip = "Экспорт всех элементов модели в JSON";
+        }
+
+        void ExportSmartRemont_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("SBS SmartRemont стены", "SmartRemont\nстены", _thisAssemblyPath, typeof(Commands.ExportSmartRemontCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Экспорт стен для SmartRemont в JSON";
+        }
+
+        void ExportSmartRemontSchedules_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("SBS SmartRemont спецификации", "SmartRemont\nспецификации", _thisAssemblyPath, typeof(Commands.ExportSmartRemontSchedulesCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Экспорт спецификаций отделки для SmartRemont";
+        }
+
+        void ExportSmartRemontDiagnostics_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("SBS SmartRemont диагностика", "SmartRemont\nдиагностика", _thisAssemblyPath, typeof(Commands.ExportSmartRemontDiagnosticsCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Полная диагностика модели для SmartRemont";
         }
     }
 }

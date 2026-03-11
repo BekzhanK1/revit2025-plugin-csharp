@@ -318,7 +318,7 @@ namespace SBS.Commands
                     if (param.IsShared && !settings.ExportSharedParams)
                         continue;
 
-                    var groupName = param.Definition.ParameterGroup.ToString();
+                    var groupName = GetParameterGroupName(param);
 
                     // Фильтруем по группе параметра
                     if (!settings.ShouldExportParameter(groupName))
@@ -385,6 +385,47 @@ namespace SBS.Commands
             catch
             {
                 return param?.StorageType.ToString() ?? "Unknown";
+            }
+        }
+
+        private string GetParameterGroupName(Parameter param)
+        {
+            try
+            {
+                var groupTypeId = param?.Definition?.GetGroupTypeId()?.TypeId ?? string.Empty;
+                if (string.IsNullOrEmpty(groupTypeId))
+                    return string.Empty;
+
+                // Нормализуем имена групп под старый формат PG_*,
+                // чтобы существующая фильтрация настроек работала как раньше.
+                if (groupTypeId.Contains("geometry"))
+                    return "PG_GEOMETRY";
+                if (groupTypeId.Contains("materials"))
+                    return "PG_MATERIALS";
+                if (groupTypeId.Contains("construction"))
+                    return "PG_CONSTRUCTION";
+                if (groupTypeId.Contains("identity"))
+                    return "PG_IDENTITY_DATA";
+                if (groupTypeId.Contains("phasing"))
+                    return "PG_PHASING";
+                if (groupTypeId.Contains("structural"))
+                    return "PG_STRUCTURAL";
+                if (groupTypeId.Contains("analytical"))
+                    return "PG_ANALYTICAL_MODEL";
+                if (groupTypeId.Contains("electrical"))
+                    return "PG_ELECTRICAL";
+                if (groupTypeId.Contains("mechanical"))
+                    return "PG_MECHANICAL";
+                if (groupTypeId.Contains("plumbing"))
+                    return "PG_PLUMBING";
+                if (groupTypeId.Contains("graphics"))
+                    return "PG_GRAPHICS";
+
+                return groupTypeId;
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
 
