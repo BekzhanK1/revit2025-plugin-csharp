@@ -113,8 +113,11 @@ namespace SBS
             Bi_etaj_button(ribbonPanel1);
             ExportAllElements_button(ribbonPanel1);
             ExportSmartRemont_button(ribbonPanel1);
+            ExportSmartRemontRooms_button(ribbonPanel1);
+            ExportSmartRemontRoomsStructure_button(ribbonPanel1);
             ExportSmartRemontSchedules_button(ribbonPanel1);
             ExportSmartRemontDiagnostics_button(ribbonPanel1);
+            TestSmartRemontHybrid_button(ribbonPanel1);
         }
 
         void Bi_etaj_button(RibbonPanel ribbonPanel)
@@ -144,6 +147,24 @@ namespace SBS
             btn.ToolTip = "Экспорт стен для SmartRemont в JSON";
         }
 
+        void ExportSmartRemontRooms_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("SBS SmartRemont помещения", "SmartRemont\nпомещения", _thisAssemblyPath, typeof(Commands.ExportSmartRemontRoomsCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Экспорт помещений (комнат) для SmartRemont в JSON";
+        }
+
+        void ExportSmartRemontRoomsStructure_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("SR Экспорт комнат", "SR экспорт\nкомнат", _thisAssemblyPath, typeof(Commands.ExportSmartRemontRoomsStructureCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Экспорт структуры помещений (комнат) для SmartRemont в JSON";
+        }
+
         void ExportSmartRemontSchedules_button(RibbonPanel ribbonPanel)
         {
             PushButtonData btnData = new PushButtonData("SBS SmartRemont спецификации", "SmartRemont\nспецификации", _thisAssemblyPath, typeof(Commands.ExportSmartRemontSchedulesCommand).FullName);
@@ -160,6 +181,15 @@ namespace SBS
             BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
             btn.Image = btn.LargeImage = btnImage;
             btn.ToolTip = "Полная диагностика модели для SmartRemont";
+        }
+
+        void TestSmartRemontHybrid_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("ТЕСТ SBS + SR", "ТЕСТ\nSBS + SR", _thisAssemblyPath, typeof(Commands.TestSbsSmartRemontCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Тестовый гибридный экспорт отделочных материалов по комнатам";
         }
     }
 }

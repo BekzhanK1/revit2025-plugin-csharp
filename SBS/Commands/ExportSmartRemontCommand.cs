@@ -20,9 +20,6 @@ namespace SBS.Commands
         private const string CeilingFinishParam = "BI_Отделка_Потолок";
         private const string BaseboardFinishParam = "BI_Отделка_Плинтус";
 
-        private const double SqFtToSqM = 0.092903;
-        private const double FtToM = 0.3048;
-
         public override Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             base.Execute(commandData, ref message, elements);
@@ -119,14 +116,16 @@ namespace SBS.Commands
             return 0d;
         }
 
-        private static double ToRoundedSqM(double areaInSqFt)
+        private static double ToRoundedSqM(double areaInInternalUnits)
         {
-            return Math.Round(areaInSqFt * SqFtToSqM, 2);
+            var areaM2 = UnitUtils.ConvertFromInternalUnits(areaInInternalUnits, UnitTypeId.SquareMeters);
+            return Math.Round(areaM2, 2);
         }
 
-        private static double ToRoundedM(double lengthInFt)
+        private static double ToRoundedM(double lengthInInternalUnits)
         {
-            return Math.Round(lengthInFt * FtToM, 2);
+            var lengthM = UnitUtils.ConvertFromInternalUnits(lengthInInternalUnits, UnitTypeId.Meters);
+            return Math.Round(lengthM, 2);
         }
 
         private static (string ApartmentNumber, SmartRemontWallDto Wall) MapWallToDto(Wall wall)

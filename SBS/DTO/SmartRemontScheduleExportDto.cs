@@ -37,6 +37,11 @@ namespace SBS.DTO
         public string MaterialName { get; set; }
         public double? Quantity { get; set; }
         public string Unit { get; set; }
+        public int? RoomRevitId { get; set; }
+        public string RoomUniqueId { get; set; }
+        public string RoomNumber { get; set; }
+        public string RoomName { get; set; }
+        public string RoomLevelName { get; set; }
         public Dictionary<string, string> RawValues { get; set; }
     }
 }

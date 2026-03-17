@@ -1,5 +1,6 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
 using Newtonsoft.Json;
 using SBS.DTO;
@@ -61,6 +62,7 @@ namespace SBS.Commands
         private static readonly string[] MaterialNameAliases = { "материал", "наименование", "тип", "типоразмер" };
         private static readonly string[] QuantityAliases   = { "кол-во", "количество", "площадь", "длина", "объем", "quantity", "число" };
         private static readonly string[] UnitAliases       = { "ед.", "ед.изм", "единица", "unit" };
+        private static readonly string[] LevelAliases      = { "уровень" };
 
         public override Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -68,6 +70,32 @@ namespace SBS.Commands
 
             try
             {
+                // 0. Проверяем наличие всех требуемых сметных спецификаций.
+                var allScheduleNames = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewSchedule))
+                    .Cast<ViewSchedule>()
+                    .Where(s => s != null && !s.IsTemplate)
+                    .Select(s => s.Name)
+                    .ToList();
+
+                var missing = BillableScheduleNames
+                    .Where(required => !allScheduleNames.Contains(required, StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (missing.Any())
+                {
+                    var list = string.Join("\n - ", missing);
+                    TaskDialog.Show(
+                        "SmartRemont Export",
+                        "В проекте отсутствуют необходимые таблицы:\n" +
+                        " - " + list + "\n\n" +
+                        "Пожалуйста, создайте их по шаблону.");
+                    return Result.Cancelled;
+                }
+
+                // 1. Собираем все помещения и строим карту по подписи (уровень + имя + площадь).
+                var roomBySignature = BuildRoomSignatureMap(doc);
+
                 var schedules = new FilteredElementCollector(doc)
                     .OfClass(typeof(ViewSchedule))
                     .Cast<ViewSchedule>()
@@ -82,6 +110,9 @@ namespace SBS.Commands
                     return Result.Cancelled;
                 }
 
+                // 2. По экспликациям помещений строим сопоставления "подпись помещения" -> реальный Room.
+                var expRoomMatches = BuildExplicationRoomMatches(schedules, roomBySignature);
+
                 var sourceSummary = new List<ScheduleSummaryDto>();
                 var normalizedItems = new List<(string ApartmentNumber, string RoomKey, SmartRemontWorkItemDto WorkItem)>();
                 var billableCount  = 0;
@@ -95,7 +126,7 @@ namespace SBS.Commands
                     if (BillableScheduleNames.Contains(schedule.Name, StringComparer.OrdinalIgnoreCase))
                     {
                         billableCount++;
-                        normalizedItems.AddRange(ParseScheduleRows(schedule.Name, rows));
+                        normalizedItems.AddRange(ParseScheduleRows(schedule.Name, rows, expRoomMatches));
                     }
                     else if (ReferenceOnlyScheduleNames.Contains(schedule.Name, StringComparer.OrdinalIgnoreCase))
                     {
@@ -280,8 +311,18 @@ namespace SBS.Commands
             return "Отделка";
         }
 
+        private class RoomMatchInfo
+        {
+            public int RevitId { get; set; }
+            public string UniqueId { get; set; }
+            public string RoomNumber { get; set; }
+            public string RoomName { get; set; }
+            public double AreaM2 { get; set; }
+            public string LevelName { get; set; }
+        }
+
         private static List<(string ApartmentNumber, string RoomKey, SmartRemontWorkItemDto WorkItem)>
-            ParseScheduleRows(string scheduleName, List<Dictionary<string, string>> rows)
+            ParseScheduleRows(string scheduleName, List<Dictionary<string, string>> rows, Dictionary<string, RoomMatchInfo> roomMatches)
         {
             var result     = new List<(string, string, SmartRemontWorkItemDto)>();
             var discipline = GetDiscipline(scheduleName);
@@ -308,7 +349,7 @@ namespace SBS.Commands
                     continue;
                 }
 
-                var mapped = MapToWorkItem(scheduleName, discipline, row, currentSection, currentWorkGroup);
+                var mapped = MapToWorkItem(scheduleName, discipline, row, currentSection, currentWorkGroup, roomMatches);
                 if (mapped.WorkItem == null) continue;
 
                 result.Add(mapped);
@@ -320,7 +361,8 @@ namespace SBS.Commands
         private static (string ApartmentNumber, string RoomKey, SmartRemontWorkItemDto WorkItem) MapToWorkItem(
             string scheduleName, string discipline,
             Dictionary<string, string> values,
-            string currentSection, string currentWorkGroup)
+            string currentSection, string currentWorkGroup,
+            Dictionary<string, RoomMatchInfo> roomMatches)
         {
             var apartment = GetByAliases(values, ApartmentAliases);
 
@@ -377,6 +419,10 @@ namespace SBS.Commands
             if (string.IsNullOrWhiteSpace(materialName) || materialName == "-")
                 materialName = GetFirstMeaningfulTextValue(values, materialCode);
 
+            // Фильтрация черновых материалов (газобетон, бетон, кирпич и т.п.)
+            if (IsRoughMaterial(materialName))
+                return (apartment, room, null);
+
             // Сантехника: skip technical rows (empty name = only height data)
             if (discipline == "Сантехника" && string.IsNullOrWhiteSpace(materialName))
                 return (apartment, room, null);
@@ -398,6 +444,17 @@ namespace SBS.Commands
                 Unit           = unit,
                 RawValues      = values
             };
+
+            // Попытка сопоставить работу с конкретным Room по имени + площади.
+            var roomMatch = TryMatchRoom(room, values, roomMatches);
+            if (roomMatch != null)
+            {
+                workItem.RoomRevitId   = roomMatch.RevitId;
+                workItem.RoomUniqueId  = roomMatch.UniqueId;
+                workItem.RoomNumber    = roomMatch.RoomNumber;
+                workItem.RoomName      = roomMatch.RoomName;
+                workItem.RoomLevelName = roomMatch.LevelName;
+            }
 
             if (string.IsNullOrWhiteSpace(workItem.MaterialName) && !workItem.Quantity.HasValue)
                 return (apartment, room, null);
@@ -458,6 +515,134 @@ namespace SBS.Commands
         private static string GetFirstNonEmptyValue(Dictionary<string, string> values)
             => values.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim() ?? string.Empty;
 
+        private static string BuildRoomSignature(string levelName, string roomName, double areaM2)
+        {
+            var level = (levelName ?? string.Empty).Trim().ToLowerInvariant();
+            var name  = (roomName ?? string.Empty).Trim().ToLowerInvariant();
+            var areaRounded = Math.Round(areaM2, 2);
+            return $"{level}_{name}_{areaRounded:F2}";
+        }
+
+        private static Dictionary<string, RoomMatchInfo> BuildRoomSignatureMap(Document doc)
+        {
+            var result = new Dictionary<string, RoomMatchInfo>(StringComparer.OrdinalIgnoreCase);
+
+            var rooms = new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_Rooms)
+                .WhereElementIsNotElementType()
+                .OfType<Autodesk.Revit.DB.Architecture.Room>()
+                .Where(r => r != null && r.Area > 0)
+                .ToList();
+
+            foreach (var room in rooms)
+            {
+                var levelName = string.Empty;
+                if (room.LevelId != ElementId.InvalidElementId)
+                {
+                    var level = doc.GetElement(room.LevelId) as Level;
+                    levelName = level?.Name ?? string.Empty;
+                }
+
+                var nameParam = room.get_Parameter(BuiltInParameter.ROOM_NAME);
+                var areaParam = room.get_Parameter(BuiltInParameter.ROOM_AREA);
+                if (nameParam == null || areaParam == null || !areaParam.HasValue) continue;
+
+                var name = nameParam.AsString() ?? string.Empty;
+                var areaInternal = areaParam.AsDouble();
+                if (string.IsNullOrWhiteSpace(name) || areaInternal <= 0) continue;
+
+                var areaM2 = UnitUtils.ConvertFromInternalUnits(areaInternal, UnitTypeId.SquareMeters);
+                var signature = BuildRoomSignature(levelName, name, areaM2);
+
+                if (result.ContainsKey(signature)) continue; // избегаем неоднозначных совпадений
+
+                result[signature] = new RoomMatchInfo
+                {
+                    RevitId   = room.Id.IntegerValue,
+                    UniqueId  = room.UniqueId ?? string.Empty,
+                    RoomNumber = room.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? string.Empty,
+                    RoomName   = name,
+                    AreaM2     = Math.Round(areaM2, 2),
+                    LevelName  = levelName
+                };
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, RoomMatchInfo> BuildExplicationRoomMatches(
+            List<ViewSchedule> schedules,
+            Dictionary<string, RoomMatchInfo> roomBySignature)
+        {
+            var result = new Dictionary<string, RoomMatchInfo>(StringComparer.OrdinalIgnoreCase);
+            if (roomBySignature.Count == 0) return result;
+
+            foreach (var schedule in schedules.Where(s =>
+                         ReferenceOnlyScheduleNames.Contains(s.Name, StringComparer.OrdinalIgnoreCase)))
+            {
+                var rows = ReadScheduleRows(schedule);
+                if (rows.Count == 0) continue;
+
+                var labels = ExtractColumnLabels(rows);
+                var labeledRows = rows.Select(r => ApplyColumnLabels(r, labels)).ToList();
+
+                foreach (var row in labeledRows)
+                {
+                    if (IsTotalRow(row) || IsColumnLabelRow(row) || IsSectionRow(row)) continue;
+
+                    var roomName = GetByAliases(row, RoomAliases);
+                    if (string.IsNullOrWhiteSpace(roomName)) continue;
+
+                    var levelName = GetByAliases(row, LevelAliases);
+                    var area = GetAreaForRoomMatch(row);
+                    if (!area.HasValue) continue;
+
+                    var signature = BuildRoomSignature(levelName, roomName, area.Value);
+                    if (!roomBySignature.TryGetValue(signature, out var roomInfo)) continue;
+                    if (result.ContainsKey(signature)) continue;
+
+                    result[signature] = roomInfo;
+                }
+            }
+
+            return result;
+        }
+
+        private static double? GetAreaForRoomMatch(Dictionary<string, string> values)
+        {
+            foreach (var pair in values)
+            {
+                var key = pair.Key?.ToLowerInvariant() ?? string.Empty;
+                if (!key.Contains("площад")) continue;
+
+                var val = pair.Value?.Trim();
+                var num = ParseNullableDouble(val);
+                if (num.HasValue && num.Value > 0)
+                    return num.Value;
+            }
+
+            return null;
+        }
+
+        private static RoomMatchInfo TryMatchRoom(
+            string roomName,
+            Dictionary<string, string> values,
+            Dictionary<string, RoomMatchInfo> roomMatches)
+        {
+            if (roomMatches == null || roomMatches.Count == 0) return null;
+            if (string.IsNullOrWhiteSpace(roomName)) return null;
+
+            var area = GetAreaForRoomMatch(values);
+            if (!area.HasValue) return null;
+
+            var levelName = GetByAliases(values, LevelAliases);
+            var signature = BuildRoomSignature(levelName, roomName, area.Value);
+
+            return roomMatches.TryGetValue(signature, out var match)
+                ? match
+                : null;
+        }
+
         // Prefer decimal values in non-primary columns; fallback to small integers
         private static string GetBestQuantityCandidate(Dictionary<string, string> values)
         {
@@ -514,6 +699,25 @@ namespace SBS.Commands
                 return t;
             }
             return string.Empty;
+        }
+
+        private static bool IsRoughMaterial(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            var t = text.Trim().ToLowerInvariant();
+            string[] roughTokens =
+            {
+                "газобетон",
+                "газоблок",
+                "бетон",
+                "кирпич",
+                "арматур",    // арматура, арматурный
+                "минвата",
+                "минераловат",
+                "утеплител"   // утеплитель, утепление
+            };
+
+            return roughTokens.Any(token => t.Contains(token));
         }
 
         private static string InferUnitFromColumnKeys(Dictionary<string, string> values)
