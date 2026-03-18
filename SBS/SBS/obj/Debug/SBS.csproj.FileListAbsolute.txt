@@ -142,3 +142,5 @@ D:\Проекты\Проекты\SmartRemont\2025\Программы\sbs\SBS\obj
 D:\Проекты\Проекты\SmartRemont\2025\Программы\sbs\SBS\obj\Debug\SBS.pdb
 D:\Проекты\Проекты\SmartRemont\2025\Программы\sbs\SBS\obj\Debug\Views\ExportSettingsDialog.baml
 D:\Проекты\Проекты\SmartRemont\2025\Программы\sbs\SBS\obj\Debug\Views\ExportSettingsDialog.g.cs
+C:\Users\Bekzhan-SmartRemont\Desktop\sbs\sbs\SBS\SBS\obj\Debug\SBS.csproj.AssemblyReference.cache
+C:\Users\Bekzhan-SmartRemont\Desktop\sbs\sbs\SBS\SBS\obj\Debug\SBS.csproj.CoreCompileInputs.cache

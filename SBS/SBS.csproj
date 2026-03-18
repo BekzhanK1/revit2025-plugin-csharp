@@ -35,14 +35,7 @@
     <Compile Include="Configs.cs" />
     <Compile Include="AppTools.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
-    <Compile Include="Commands\SbsWallsCommand.cs" />
-    <Compile Include="Commands\ExportAllElementsCommand.cs" />
-    <Compile Include="Commands\ExportSmartRemontCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
-    <Compile Include="Commands\ExportSmartRemontRoomsStructureCommand.cs" />
-    <Compile Include="Commands\ExportSmartRemontSchedulesCommand.cs" />
-    <Compile Include="Commands\ExportSmartRemontDiagnosticsCommand.cs" />
-    <Compile Include="Commands\TestSbsSmartRemontCommand.cs" />
     <Compile Include="DTO\WallInfoDto.cs" />
     <Compile Include="DTO\WallLinesDto.cs" />
     <Compile Include="DTO\WallStructureDto.cs" />

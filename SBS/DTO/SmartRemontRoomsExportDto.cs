@@ -10,7 +10,7 @@ namespace SBS.DTO
 
     public class SmartRemontRoomDto
     {
-        public int RevitId { get; set; }
+        public long RevitId { get; set; }
         public string UniqueId { get; set; }
         public string ApartmentNumber { get; set; }
         public string Number { get; set; }
@@ -19,6 +19,11 @@ namespace SBS.DTO
         public double AreaM2 { get; set; }
         public double PerimeterM { get; set; }
         public double HeightM { get; set; }
+        public string FloorFinish { get; set; }
+        public string WallFinish { get; set; }
+        public string CeilingFinish { get; set; }
+        public string Level { get; set; }
+        public string IfcGUID { get; set; }
 
         // Список списков: первый - внешние стены, остальные - колонны внутри
         public List<List<SmartRemontRoomPointDto>> Contours { get; set; } 

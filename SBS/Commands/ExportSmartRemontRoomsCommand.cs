@@ -16,7 +16,12 @@ namespace SBS.Commands
     [Regeneration(RegenerationOption.Manual)]
     public class ExportSmartRemontRoomsCommand : BaseCommand
     {
-        private const string ApartmentNumberParam = "BI_Квартира_Номер";
+        private const string ApartmentNumberParam = "ADSK_Номер квартиры";
+        private const string FloorFinishParam = "Отделка пола";
+        private const string WallFinishParam = "Отделка стен";
+        private const string CeilingFinishParam = "Отделка потолка";
+        private const string LevelParam = "Уровень";
+        private const string IfcGuidParam = "IfcGUID";
 
         public override Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -24,16 +29,28 @@ namespace SBS.Commands
 
             try
             {
+                var targetPhase = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Phase))
+                    .Cast<Phase>()
+                    .FirstOrDefault(p => p.Name.Equals("После монтажных работ", StringComparison.OrdinalIgnoreCase));
+
+                if (targetPhase == null)
+                {
+                    TaskDialog.Show("SmartRemont Rooms", "Ошибка: Фаза \"После монтажных работ\" не найдена в проекте.");
+                    return Result.Failed;
+                }
+
+                // Collect rooms created in the "После монтажных работ" phase
                 var rooms = new FilteredElementCollector(doc)
                     .OfCategory(BuiltInCategory.OST_Rooms)
                     .WhereElementIsNotElementType()
                     .OfType<Room>()
-                    .Where(r => r != null && r.Area > 0)
+                    .Where(r => r != null && r.Area > 0 && r.get_Parameter(BuiltInParameter.ROOM_PHASE)?.AsElementId() == targetPhase.Id)
                     .ToList();
 
                 if (!rooms.Any())
                 {
-                    TaskDialog.Show("SmartRemont Rooms", "Не найдено размещенных помещений для выгрузки.");
+                    TaskDialog.Show("SmartRemont Rooms", "Не найдено размещенных помещений в стадии \"После монтажных работ\" для выгрузки.");
                     return Result.Succeeded;
                 }
 
@@ -103,6 +120,11 @@ namespace SBS.Commands
             var doc = room.Document;
 
             var apartmentNumber = GetParameterString(room, ApartmentNumberParam);
+            var floorFinish = GetParameterString(room, FloorFinishParam);
+            var wallFinish = GetParameterString(room, WallFinishParam);
+            var ceilingFinish = GetParameterString(room, CeilingFinishParam);
+            var levelStr = GetParameterString(room, LevelParam);
+            var ifcGuid = GetParameterString(room, IfcGuidParam);
 
             var nameParam = room.get_Parameter(BuiltInParameter.ROOM_NAME);
             var numberParam = room.get_Parameter(BuiltInParameter.ROOM_NUMBER);
@@ -126,7 +148,7 @@ namespace SBS.Commands
 
             return new SmartRemontRoomDto
             {
-                RevitId = room.Id.IntegerValue,
+                RevitId = room.Id.Value,
                 UniqueId = room.UniqueId ?? string.Empty,
                 ApartmentNumber = string.IsNullOrWhiteSpace(apartmentNumber) ? string.Empty : apartmentNumber,
                 Number = numberParam?.AsString() ?? string.Empty,
@@ -135,6 +157,11 @@ namespace SBS.Commands
                 AreaM2 = Math.Round(UnitUtils.ConvertFromInternalUnits(areaInternal, UnitTypeId.SquareMeters), 2),
                 PerimeterM = Math.Round(UnitUtils.ConvertFromInternalUnits(perimeterInternal, UnitTypeId.Meters), 2),
                 HeightM = Math.Round(UnitUtils.ConvertFromInternalUnits(heightInternal, UnitTypeId.Meters), 2),
+                FloorFinish = string.IsNullOrWhiteSpace(floorFinish) ? string.Empty : floorFinish,
+                WallFinish = string.IsNullOrWhiteSpace(wallFinish) ? string.Empty : wallFinish,
+                CeilingFinish = string.IsNullOrWhiteSpace(ceilingFinish) ? string.Empty : ceilingFinish,
+                Level = string.IsNullOrWhiteSpace(levelStr) ? string.Empty : levelStr,
+                IfcGUID = string.IsNullOrWhiteSpace(ifcGuid) ? string.Empty : ifcGuid,
                 Contours = GetRoomContours(room)
             };
         }
