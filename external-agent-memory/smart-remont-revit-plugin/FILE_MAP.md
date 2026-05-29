@@ -9,7 +9,6 @@
 | `SBS.sln` | Solution Visual Studio / `dotnet build` |
 | `deploy/` | Пример `.addin` для Revit |
 | `external-agent-memory/` | Память между сессиями агентов |
-| `packages/` | Legacy NuGet (старый проект), **игнорировать** |
 
 ## Активный проект `SBS/`
 
@@ -52,7 +51,6 @@
 | `AuthDtos.cs` | Login request/response |
 | `SmartRemontRoomsExportDto.cs` | JSON экспорта помещений + `SmartRemontWorkItemDto` |
 | `ScheduleMappingConfig.cs` | Маппинг колонок спецификаций (*.mapping.json) |
-| Остальные `*Dto.cs` | Стены, параметры, геометрия (часть legacy/будущее) |
 
 ### Views/
 
@@ -63,8 +61,6 @@
 | `ExportSmartRemontRoomsWindow.xaml` | **Основное** окно экспорта (фаза, комнаты, спецификации, JSON) |
 | `AuthView.xaml` | UserControl для dockable pane |
 | `ViewContainer.xaml` | Host для dockable pane |
-| `ExportSettingsDialog.xaml` | Диалог настроек (legacy, проверить использование) |
-
 ### Resources/
 
 | Файл | Назначение |
@@ -98,10 +94,6 @@ Runtime-файлы плагина (рядом с DLL):
 - `auth.session.json` — сохранённые токены
 - `logs/{Month}/` — Serilog
 
-## Не трогать без необходимости
+## Удалено (май 2026)
 
-| Путь | Причина |
-|------|---------|
-| `SBS/SBS/` | Старый .NET 4.8 проект другой команды |
-| `SBS/schedules/*.csv` | Тестовые данные спецификаций |
-| `SBS/.cursor/plans/` | Черновики планов |
+Legacy очищен: `SBS/SBS/`, `packages/`, `SBS/packages/`, тестовые CSV в `schedules/`, неиспользуемые DTO и `ExportSettingsDialog`.

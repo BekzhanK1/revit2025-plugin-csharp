@@ -15,13 +15,9 @@
 - **Стек:** C# / .NET 8, WPF, Revit API, Newtonsoft.Json, Serilog.
 - **Сборка:** `SmartRemont.ExportRooms.dll` (папка проекта — `SBS/`).
 
-## Активный код vs legacy
+## Где код
 
-| Работай здесь | Не трогай |
-|---------------|-----------|
-| `SBS/*.cs`, `SBS/Views/`, `SBS/SBS.csproj` | `SBS/SBS/` (старый .NET 4.8) |
-| `SBS.sln` | `SBS/SBS.sln` |
-| `deploy/*.addin` | `packages/`, `SBS/packages/` (legacy NuGet) |
+Весь активный код — в `SBS/` + `SBS.sln`. Legacy (`SBS/SBS/`, `packages/`) удалён.
 
 ## Архитектура (кратко)
 

@@ -13,7 +13,6 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <RevitAddinDeployDir>C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\</RevitAddinDeployDir>
-    <!-- dotnet build -p:DeployToRevit=true (закройте Revit, иначе DLL заблокирована) -->
     <DeployToRevit Condition="'$(DeployToRevit)' == ''">false</DeployToRevit>
   </PropertyGroup>
 
@@ -38,6 +37,8 @@
     <Compile Include="Configs.cs" />
     <Compile Include="ExportRoomsApplication.cs" />
     <Compile Include="DTO\AuthDtos.cs" />
+    <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
+    <Compile Include="DTO\ScheduleMappingConfig.cs" />
     <Compile Include="Models\AuthSession.cs" />
     <Compile Include="Models\RemontOption.cs" />
     <Compile Include="Services\AuthService.cs" />
@@ -46,29 +47,9 @@
     <Compile Include="Services\RemontService.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
-    <Compile Include="DTO\WallInfoDto.cs" />
-    <Compile Include="DTO\WallLinesDto.cs" />
-    <Compile Include="DTO\WallStructureDto.cs" />
-    <Compile Include="DTO\SmartRemontWallExportDto.cs" />
-    <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
-    <Compile Include="DTO\ScheduleMappingConfig.cs" />
-    <Compile Include="DTO\MaterialInfoDto.cs" />
-    <Compile Include="DTO\SmartRemontModelDiagnosticsDto.cs" />
-    <Compile Include="DTO\RevitElementDto.cs" />
-    <Compile Include="DTO\ParameterDto.cs" />
-    <Compile Include="DTO\GeometryLineDto.cs" />
-    <Compile Include="DTO\BoundingBoxDto.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Properties\Settings.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-      <DependentUpon>Settings.settings</DependentUpon>
-    </Compile>
     <Compile Include="Views\ViewContainer.xaml.cs">
       <DependentUpon>ViewContainer.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Views\ExportSettingsDialog.xaml.cs">
-      <DependentUpon>ExportSettingsDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\ExportSmartRemontRoomsWindow.xaml.cs">
       <DependentUpon>ExportSmartRemontRoomsWindow.xaml</DependentUpon>
@@ -86,10 +67,6 @@
 
   <ItemGroup>
     <None Include="app.config" />
-    <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
   </ItemGroup>
 
   <ItemGroup>
@@ -98,10 +75,6 @@
 
   <ItemGroup>
     <Page Include="Views\ViewContainer.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Views\ExportSettingsDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

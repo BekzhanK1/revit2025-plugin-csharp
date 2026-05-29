@@ -103,13 +103,7 @@ revit/
     └── Resources/
 ```
 
-### Не путать
-
-| Путь | Статус |
-|------|--------|
-| `SBS/` + `SBS.sln` | ✅ Активная разработка (.NET 8) |
-| `SBS/SBS/` | ❌ Старый .NET 4.8 проект, не в solution |
-| `packages/`, `SBS/packages/` | ❌ Legacy NuGet |
+Активный код только в `SBS/` (сборка `SmartRemont.ExportRooms.dll`). Legacy-папки удалены.
 
 ## Отладка
 

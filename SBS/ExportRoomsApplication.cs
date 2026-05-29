@@ -6,8 +6,6 @@ using SmartRemont.ExportRooms.Services;
 using SmartRemont.ExportRooms.Views;
 using Serilog;
 using System;
-using System.Configuration;
-using System.Linq;
 using System.Reflection;
 using System.Windows.Media.Imaging;
 
@@ -78,38 +76,6 @@ namespace SmartRemont.ExportRooms
                 AuthService.RestoreSession();
                 _uiApp.RegisterDockablePane(_toolPaneId, "Smart Remont", form);
             }
-        }
-
-        public static T GetSetting<T>(string configName)
-        {
-            var loc = Assembly.GetExecutingAssembly().Location;
-            var config = ConfigurationManager.OpenExeConfiguration($"{loc}");
-            var strValue = config.AppSettings.Settings[configName]?.Value;
-            if (string.IsNullOrEmpty(strValue))
-                return default(T);
-            return (T)System.Convert.ChangeType(strValue, typeof(T));
-        }
-
-        public static T GetUserSetting<T>(string configName)
-        {
-            var props = Properties.Settings.Default.Properties.OfType<SettingsProperty>();
-            if (props.Any(c => c.Name == configName))
-            {
-                return (T)System.Convert.ChangeType(Properties.Settings.Default[configName], typeof(T));
-            }
-            return default(T);
-        }
-
-        public static bool SetUserSetting(string configName, object ob)
-        {
-            var props = Properties.Settings.Default.Properties.OfType<SettingsProperty>();
-            if (props.Any(c => c.Name == configName))
-            {
-                Properties.Settings.Default[configName] = ob;
-                Properties.Settings.Default.Save();
-                return true;
-            }
-            return false;
         }
 
         void AddRibbonPanel(UIControlledApplication application)

@@ -95,13 +95,23 @@ dotnet build SBS.sln -c Release -p:DeployToRevit=true
 - `VisibleByDefault = false` — основной UX через модальные окна.
 - Можно использовать для профиля/выхода, но не обязательна для основного сценария.
 
+### 8. Очистка legacy (май 2026)
+
+Удалено из репозитория:
+
+- `SBS/SBS/` — старый .NET 4.8 проект
+- `packages/`, `SBS/packages/` — legacy NuGet
+- `SBS/schedules/` — тестовые CSV
+- `SBS/publish/`, `SBS/SBS.sln`, `packages.config`
+- Неиспользуемые DTO: стены, RevitElement, diagnostics, TbaDto и др.
+- `ExportSettingsDialog` — не вызывался
+- `Properties/Settings.*` — пустые user settings
+- Лишние ключи в `app.config` (оставлен только `apiOriginUrl`)
+
 ## Что НЕ делали / известные ограничения
 
 - Список ремонтов с API — только мок (`RemontService.GetMockRemonts()`).
 - Refresh token не используется для продления сессии.
-- Папка `SBS/SBS/` — **старый** .NET Framework 4.8 проект, **не** в `SBS.sln`, не собирать.
-- `packages/`, `SBS/packages/` — legacy NuGet, не относятся к активному SDK-проекту.
-- README в корне был устаревшим (Revit 2019) — обновлён в этой задаче.
 
 ## Связанные файлы в репозитории
 
