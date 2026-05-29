@@ -1,7 +1,9 @@
 using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
-using SBS.Views;
+using SmartRemont.ExportRooms.Models;
+using SmartRemont.ExportRooms.Services;
+using SmartRemont.ExportRooms.Views;
 using Serilog;
 using System;
 using System.Configuration;
@@ -9,17 +11,20 @@ using System.Linq;
 using System.Reflection;
 using System.Windows.Media.Imaging;
 
-namespace SBS
+namespace SmartRemont.ExportRooms
 {
-    public class AppTools : IExternalApplication
+    public class ExportRoomsApplication : IExternalApplication
     {
         static string _thisAssemblyPath = Assembly.GetExecutingAssembly().Location;
-        static string _resPath = "pack://application:,,,/SBS;component/Resources/";
+        static string _resPath = "pack://application:,,,/SmartRemont.ExportRooms;component/Resources/";
         public static DockablePaneId _toolPaneId = new DockablePaneId(new Guid("AC230042-0036-436F-8561-344791B10D6E"));
         public static UIControlledApplication _uiApp;
         public static ILogger _logger { get; set; }
         public static Action _viewActivated = null;
         public static string _path { get; set; }
+        public static AuthSession CurrentSession { get; set; }
+        public static Models.RemontOption SelectedRemont { get; set; }
+
         public Result OnStartup(UIControlledApplication application)
         {
             LogInit();
@@ -69,6 +74,8 @@ namespace SBS
                 {
                     Dock = DockPosition.Top
                 };
+                form.AddControl(new AuthView());
+                AuthService.RestoreSession();
                 _uiApp.RegisterDockablePane(_toolPaneId, "Smart Remont", form);
             }
         }
@@ -111,7 +118,6 @@ namespace SBS
             application.CreateRibbonTab(tabName);
             RibbonPanel ribbonPanel1 = application.CreateRibbonPanel(tabName, "Параметры");
             ExportSmartRemontRooms_button(ribbonPanel1);
-            ExportAllSchedules_button(ribbonPanel1);
         }
 
 
@@ -124,16 +130,6 @@ namespace SBS
             btn.Image = btn.LargeImage = btnImage;
             btn.ToolTip = "Экспорт помещений (комнат) для SmartRemont в JSON";
         }
-
-        void ExportAllSchedules_button(RibbonPanel ribbonPanel)
-        {
-            PushButtonData btnData = new PushButtonData("SBS SmartRemont расписание", "SmartRemont\nрасписание", _thisAssemblyPath, typeof(Commands.ExportAllSchedulesCommand).FullName);
-            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
-            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
-            btn.Image = btn.LargeImage = btnImage;
-            btn.ToolTip = "Экспорт всех спецификаций в CSV";
-        }
-
 
     }
 }

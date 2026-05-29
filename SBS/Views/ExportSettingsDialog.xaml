@@ -1,4 +1,4 @@
-<Window x:Class="SBS.Views.ExportSettingsDialog"
+<Window x:Class="SmartRemont.ExportRooms.Views.ExportSettingsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Настройки экспорта" Height="500" Width="450"

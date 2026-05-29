@@ -4,23 +4,26 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <OutputType>Library</OutputType>
-    <RootNamespace>SBS</RootNamespace>
-    <AssemblyName>SBS</AssemblyName>
+    <RootNamespace>SmartRemont.ExportRooms</RootNamespace>
+    <AssemblyName>SmartRemont.ExportRooms</AssemblyName>
     <PlatformTarget>x64</PlatformTarget>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultItems>false</EnableDefaultItems>
     <Nullable>disable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <RevitAddinDeployDir>C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\</RevitAddinDeployDir>
+    <!-- dotnet build -p:DeployToRevit=true (закройте Revit, иначе DLL заблокирована) -->
+    <DeployToRevit Condition="'$(DeployToRevit)' == ''">false</DeployToRevit>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="RevitAPI">
-      <HintPath>C:\Users\Bekzhan-SmartRemont\Desktop\revitapi\RevitAPI.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="RevitAPIUI">
-      <HintPath>C:\Users\Bekzhan-SmartRemont\Desktop\revitapi\RevitAPIUI.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
@@ -33,16 +36,21 @@
 
   <ItemGroup>
     <Compile Include="Configs.cs" />
-    <Compile Include="AppTools.cs" />
+    <Compile Include="ExportRoomsApplication.cs" />
+    <Compile Include="DTO\AuthDtos.cs" />
+    <Compile Include="Models\AuthSession.cs" />
+    <Compile Include="Models\RemontOption.cs" />
+    <Compile Include="Services\AuthService.cs" />
+    <Compile Include="Services\AuthStorage.cs" />
+    <Compile Include="Services\AuthGuard.cs" />
+    <Compile Include="Services\RemontService.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
-    <Compile Include="Commands\ExportAllSchedulesCommand.cs" />
     <Compile Include="DTO\WallInfoDto.cs" />
     <Compile Include="DTO\WallLinesDto.cs" />
     <Compile Include="DTO\WallStructureDto.cs" />
     <Compile Include="DTO\SmartRemontWallExportDto.cs" />
     <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
-    <Compile Include="DTO\SmartRemontScheduleExportDto.cs" />
     <Compile Include="DTO\ScheduleMappingConfig.cs" />
     <Compile Include="DTO\MaterialInfoDto.cs" />
     <Compile Include="DTO\SmartRemontModelDiagnosticsDto.cs" />
@@ -64,6 +72,15 @@
     </Compile>
     <Compile Include="Views\ExportSmartRemontRoomsWindow.xaml.cs">
       <DependentUpon>ExportSmartRemontRoomsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\AuthView.xaml.cs">
+      <DependentUpon>AuthView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\AuthLoginWindow.xaml.cs">
+      <DependentUpon>AuthLoginWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\HomeWindow.xaml.cs">
+      <DependentUpon>HomeWindow.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 
@@ -92,5 +109,32 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Views\AuthView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\AuthLoginWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\HomeWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
   </ItemGroup>
+
+  <Target Name="DeployToRevitAddins" AfterTargets="Build" Condition="'$(DeployToRevit)' == 'true'">
+    <MakeDir Directories="$(RevitAddinDeployDir)" />
+    <ItemGroup>
+      <_DeployFiles Include="$(TargetDir)*.dll" />
+      <_DeployFiles Include="$(TargetDir)*.json" />
+      <_DeployFiles Include="$(TargetDir)*.config" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_DeployFiles)"
+          DestinationFolder="$(RevitAddinDeployDir)"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
+    <Warning Text="Не удалось скопировать в $(RevitAddinDeployDir). Закройте Revit и выполните: dotnet build -p:DeployToRevit=true"
+             Condition="!Exists('$(RevitAddinDeployDir)$(AssemblyName).dll')" />
+  </Target>
 </Project>

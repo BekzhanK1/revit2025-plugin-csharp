@@ -1,9 +1,9 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using SBS.Views;
+using SmartRemont.ExportRooms.Views;
 
-namespace SBS.Commands
+namespace SmartRemont.ExportRooms.Commands
 {
     [Transaction(TransactionMode.Manual)]
     [Regeneration(RegenerationOption.Manual)]
@@ -13,6 +13,9 @@ namespace SBS.Commands
         {
             base.Execute(commandData, ref message, elements);
 
+            if (!EnsureAuthenticated())
+                return Result.Cancelled;
+
             try
             {
                 if (doc == null)
@@ -20,6 +23,11 @@ namespace SBS.Commands
                         TaskDialog.Show("Ошибка", "doc is null после base.Execute()");
                         return Result.Failed;
                     }
+
+                var homeWindow = new HomeWindow();
+                if (homeWindow.ShowDialog() != true)
+                    return Result.Cancelled;
+
                 var window = new ExportSmartRemontRoomsWindow(doc);
                 window.ShowDialog();
 

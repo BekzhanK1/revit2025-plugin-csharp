@@ -2,7 +2,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
 using Microsoft.Win32;
 using Newtonsoft.Json;
-using SBS.DTO;
+using SmartRemont.ExportRooms.DTO;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,7 +15,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace SBS.Views
+namespace SmartRemont.ExportRooms.Views
 {
     // ─── Simple view-models ────────────────────────────────────────────────────
 

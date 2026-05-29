@@ -1,0 +1,50 @@
+<UserControl x:Class="SmartRemont.ExportRooms.Views.AuthView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="White">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Smart Remont"
+                   FontSize="18"
+                   FontWeight="Bold"
+                   Margin="0,0,0,16"/>
+
+        <StackPanel Grid.Row="1" x:Name="LoginPanel">
+            <TextBlock Text="Вход в систему" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <TextBlock Text="Email" Margin="0,0,0,4"/>
+            <TextBox x:Name="EmailTextBox" Height="28" Margin="0,0,0,10"/>
+            <TextBlock Text="Пароль" Margin="0,0,0,4"/>
+            <PasswordBox x:Name="PasswordBox" Height="28" Margin="0,0,0,12" KeyDown="PasswordBox_KeyDown"/>
+            <TextBlock x:Name="ErrorTextBlock"
+                       Foreground="Firebrick"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,10"
+                       Visibility="Collapsed"/>
+            <Button x:Name="LoginButton"
+                    Content="Войти"
+                    Height="32"
+                    IsDefault="True"
+                    Click="LoginButton_Click"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1"
+                    x:Name="WelcomePanel"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed">
+            <TextBlock x:Name="WelcomeTextBlock"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,16"/>
+            <Button Content="Выйти"
+                    Height="32"
+                    HorizontalAlignment="Left"
+                    Click="LogoutButton_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

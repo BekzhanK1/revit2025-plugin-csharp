@@ -1,9 +1,10 @@
-﻿using Autodesk.Revit.Attributes;
+using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using SmartRemont.ExportRooms.Services;
 using System.Windows;
 
-namespace SBS.Commands
+namespace SmartRemont.ExportRooms.Commands
 {
     [Transaction(TransactionMode.Manual)]
     [Regeneration(RegenerationOption.Manual)]
@@ -12,6 +13,7 @@ namespace SBS.Commands
         protected Document doc;
         protected UIDocument uiDoc;
         protected UIApplication uiApp;
+
         public virtual Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             doc = commandData.Application.ActiveUIDocument.Document;
@@ -20,9 +22,13 @@ namespace SBS.Commands
             return Result.Succeeded;
         }
 
+        protected bool EnsureAuthenticated()
+        {
+            return AuthGuard.EnsureAuthenticated();
+        }
+
         protected void ShowInPane(FrameworkElement element)
         {
-
         }
     }
 }

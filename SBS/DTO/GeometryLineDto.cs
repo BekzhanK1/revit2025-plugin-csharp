@@ -1,6 +1,6 @@
 using Autodesk.Revit.DB;
 
-namespace SBS.DTO
+namespace SmartRemont.ExportRooms.DTO
 {
     public class GeometryLineDto
     {

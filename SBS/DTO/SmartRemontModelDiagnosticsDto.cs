@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SBS.DTO
+namespace SmartRemont.ExportRooms.DTO
 {
     public class SmartRemontModelDiagnosticsDto
     {

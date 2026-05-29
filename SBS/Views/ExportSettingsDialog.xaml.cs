@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace SBS.Views
+namespace SmartRemont.ExportRooms.Views
 {
     public partial class ExportSettingsDialog : Window
     {

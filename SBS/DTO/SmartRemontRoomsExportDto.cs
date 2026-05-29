@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SBS.DTO
+namespace SmartRemont.ExportRooms.DTO
 {
     public class SmartRemontRoomsExportDto
     {
@@ -61,5 +61,22 @@ namespace SBS.DTO
     {
         public double X { get; set; }
         public double Y { get; set; }
+    }
+
+    public class SmartRemontWorkItemDto
+    {
+        public string SourceSchedule { get; set; }
+        public string Discipline { get; set; }
+        public string WorkType { get; set; }
+        public string MaterialCode { get; set; }
+        public string MaterialName { get; set; }
+        public double? Quantity { get; set; }
+        public string Unit { get; set; }
+        public int? RoomRevitId { get; set; }
+        public string RoomUniqueId { get; set; }
+        public string RoomNumber { get; set; }
+        public string RoomName { get; set; }
+        public string RoomLevelName { get; set; }
+        public Dictionary<string, string> RawValues { get; set; }
     }
 }

@@ -1,4 +1,4 @@
-namespace SBS.DTO
+namespace SmartRemont.ExportRooms.DTO
 {
     public class MaterialInfoDto
     {
