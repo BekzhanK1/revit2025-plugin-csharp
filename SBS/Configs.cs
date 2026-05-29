@@ -32,6 +32,8 @@ namespace SmartRemont.ExportRooms
 
         public static string QuickSearchUrl => $"{ApiOriginUrl}/client_request/quick_search/";
 
+        public static string RevitEventsCreateUrl => $"{ApiOriginUrl}/common/revit_events/create/";
+
         static string ReadAppSetting(string key)
         {
             var loc = Assembly.GetExecutingAssembly().Location;

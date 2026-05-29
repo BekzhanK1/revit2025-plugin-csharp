@@ -1,0 +1,208 @@
+<Window x:Class="SmartRemont.ExportRooms.Views.RemontHubWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Smart Remont — Ремонт"
+        Width="720"
+        MinWidth="640"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI"
+        Background="#F5F5F5">
+
+    <Window.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="36,32"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.08" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionBlock" TargetType="Border">
+            <Setter Property="Background" Value="#FAFAFA"/>
+            <Setter Property="BorderBrush" Value="#EEEEEE"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="20,18"/>
+            <Setter Property="Margin" Value="0,0,0,24"/>
+        </Style>
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Margin" Value="0,0,0,14"/>
+        </Style>
+
+        <Style x:Key="InfoLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Width" Value="140"/>
+            <Setter Property="Margin" Value="0,0,12,10"/>
+        </Style>
+
+        <Style x:Key="InfoValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#DDDDDD"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#F8FBFF"/>
+                                <Setter Property="BorderBrush" Value="#1B6FC8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryActionButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="BorderBrush" Value="#1B6FC8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#555555"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#F0F0F0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Style="{StaticResource Card}" Margin="24">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Text="Ремонт"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="#1B1B1B"
+                       Margin="0,0,0,24"/>
+
+            <Border Grid.Row="1" Style="{StaticResource SectionBlock}">
+                <StackPanel>
+                    <TextBlock Text="ДАННЫЕ РЕМОНТА" Style="{StaticResource SectionLabel}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="ID заявки" Style="{StaticResource InfoLabel}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="ClientRequestIdText" Style="{StaticResource InfoValue}"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="ID ремонта" Style="{StaticResource InfoLabel}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="RemontIdText" Style="{StaticResource InfoValue}"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Клиент" Style="{StaticResource InfoLabel}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ClientNameText" Style="{StaticResource InfoValue}"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="ЖК" Style="{StaticResource InfoLabel}"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ResidentNameText" Style="{StaticResource InfoValue}"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Квартира" Style="{StaticResource InfoLabel}"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="FlatNumText" Style="{StaticResource InfoValue}"/>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Пакет" Style="{StaticResource InfoLabel}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="PresetNameText" Style="{StaticResource InfoValue}" Margin="0,0,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource SectionBlock}" Margin="0">
+                <StackPanel>
+                    <TextBlock Text="ФУНКЦИИ" Style="{StaticResource SectionLabel}"/>
+                    <Button Content="ДС по изменению квадратуры"
+                            Style="{StaticResource PrimaryActionButton}"
+                            Click="DsAreaChangeButton_Click"/>
+                    <Button Content="Замеры комнат"
+                            Style="{StaticResource ActionButton}"
+                            Click="MeasuresButton_Click"/>
+                    <Button Content="ДС по изменению ТК"
+                            Style="{StaticResource ActionButton}"
+                            Margin="0"
+                            Click="DsTkChangeButton_Click"/>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="3" Margin="0,8,0,0">
+                <TextBlock x:Name="StatusTextBlock"
+                           VerticalAlignment="Center"
+                           FontSize="13"
+                           Foreground="#666666"
+                           TextWrapping="Wrap"/>
+                <Button x:Name="CloseButton"
+                        Content="Закрыть"
+                        Style="{StaticResource SecondaryButton}"
+                        HorizontalAlignment="Right"
+                        IsCancel="True"
+                        Click="CloseButton_Click"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

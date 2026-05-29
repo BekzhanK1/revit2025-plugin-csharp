@@ -38,6 +38,8 @@
     <Compile Include="ExportRoomsApplication.cs" />
     <Compile Include="DTO\AuthDtos.cs" />
     <Compile Include="DTO\QuickSearchDtos.cs" />
+    <Compile Include="DTO\RemontRoomsJsonDto.cs" />
+    <Compile Include="DTO\RevitEventDtos.cs" />
     <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
     <Compile Include="DTO\ScheduleMappingConfig.cs" />
     <Compile Include="Models\AuthSession.cs" />
@@ -46,6 +48,8 @@
     <Compile Include="Services\AuthStorage.cs" />
     <Compile Include="Services\AuthGuard.cs" />
     <Compile Include="Services\RemontService.cs" />
+    <Compile Include="Services\RoomAreaService.cs" />
+    <Compile Include="Services\RevitEventsService.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -64,6 +68,13 @@
     <Compile Include="Views\HomeWindow.xaml.cs">
       <DependentUpon>HomeWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Views\SelectedRemontSummaryWindow.xaml.cs">
+      <DependentUpon>SelectedRemontSummaryWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\RemontHubWindow.xaml.cs">
+      <DependentUpon>RemontHubWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\WindowLayoutHelper.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -92,6 +103,14 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\HomeWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\SelectedRemontSummaryWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\RemontHubWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

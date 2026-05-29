@@ -67,7 +67,11 @@ namespace SmartRemont.ExportRooms.Services
             {
                 ClientRequestId = item.ClientRequestId,
                 RemontId = item.RemontId,
-                Name = FormatDisplayName(item)
+                Name = FormatDisplayName(item),
+                ClientName = item.ClientName?.Trim(),
+                ResidentName = item.ResidentName?.Trim(),
+                FlatNum = item.FlatNum?.Trim(),
+                PresetName = item.PresetName?.Trim()
             };
 
         static string FormatDisplayName(QuickSearchItemDto item)

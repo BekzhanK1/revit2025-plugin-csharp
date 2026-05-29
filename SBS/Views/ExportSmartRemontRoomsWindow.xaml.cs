@@ -163,7 +163,8 @@ namespace SmartRemont.ExportRooms.Views
         public ExportSmartRemontRoomsWindow(Document doc)
         {
             InitializeComponent();
-            
+            WindowLayoutHelper.UseFullWorkAreaHeight(this);
+
             if (doc == null)
                 throw new ArgumentNullException(nameof(doc), "Document is null — окно не может быть открыто");
             

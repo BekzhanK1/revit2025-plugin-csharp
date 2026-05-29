@@ -49,5 +49,8 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("remont_type")]
         public string RemontType { get; set; }
+
+        [JsonProperty("preset_name")]
+        public string PresetName { get; set; }
     }
 }

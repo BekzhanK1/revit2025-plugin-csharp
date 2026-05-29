@@ -13,6 +13,10 @@ namespace SmartRemont.ExportRooms.Models
         }
 
         public string Name { get; set; }
+        public string ClientName { get; set; }
+        public string ResidentName { get; set; }
+        public string FlatNum { get; set; }
+        public string PresetName { get; set; }
 
         public override string ToString() => Name;
     }

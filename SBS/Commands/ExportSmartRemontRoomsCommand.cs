@@ -28,11 +28,12 @@ namespace SmartRemont.ExportRooms.Commands
                 if (homeWindow.ShowDialog() != true)
                     return Result.Cancelled;
 
-                var window = new ExportSmartRemontRoomsWindow(doc);
-                window.ShowDialog();
+                var hubWindow = new RemontHubWindow(doc);
+                if (hubWindow.ShowDialog() != true)
+                    return Result.Cancelled;
 
-                // DialogResult == true means user clicked "Export" and succeeded
-                return window.DialogResult == true ? Result.Succeeded : Result.Cancelled;
+                // ExportSmartRemontRoomsWindow — полный экспорт, временно не используется
+                return Result.Succeeded;
             }
             catch (System.Exception ex)
             {

@@ -14,6 +14,7 @@ namespace SmartRemont.ExportRooms.Views
         public HomeWindow()
         {
             InitializeComponent();
+            WindowLayoutHelper.UseFullWorkAreaHeight(this);
             Loaded += HomeWindow_Loaded;
         }
 

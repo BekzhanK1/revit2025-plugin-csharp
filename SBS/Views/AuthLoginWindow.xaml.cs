@@ -10,6 +10,7 @@ namespace SmartRemont.ExportRooms.Views
         public AuthLoginWindow()
         {
             InitializeComponent();
+            WindowLayoutHelper.UseFullWorkAreaHeight(this);
         }
 
         async void LoginButton_Click(object sender, RoutedEventArgs e)
