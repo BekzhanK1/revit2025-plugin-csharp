@@ -111,6 +111,7 @@ namespace SBS
             application.CreateRibbonTab(tabName);
             RibbonPanel ribbonPanel1 = application.CreateRibbonPanel(tabName, "Параметры");
             ExportSmartRemontRooms_button(ribbonPanel1);
+            ExportAllSchedules_button(ribbonPanel1);
         }
 
 
@@ -122,6 +123,15 @@ namespace SBS
             BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
             btn.Image = btn.LargeImage = btnImage;
             btn.ToolTip = "Экспорт помещений (комнат) для SmartRemont в JSON";
+        }
+
+        void ExportAllSchedules_button(RibbonPanel ribbonPanel)
+        {
+            PushButtonData btnData = new PushButtonData("SBS SmartRemont расписание", "SmartRemont\nрасписание", _thisAssemblyPath, typeof(Commands.ExportAllSchedulesCommand).FullName);
+            PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
+            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            btn.Image = btn.LargeImage = btnImage;
+            btn.ToolTip = "Экспорт всех спецификаций в CSV";
         }
 
 

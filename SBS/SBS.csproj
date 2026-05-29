@@ -36,12 +36,14 @@
     <Compile Include="AppTools.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
+    <Compile Include="Commands\ExportAllSchedulesCommand.cs" />
     <Compile Include="DTO\WallInfoDto.cs" />
     <Compile Include="DTO\WallLinesDto.cs" />
     <Compile Include="DTO\WallStructureDto.cs" />
     <Compile Include="DTO\SmartRemontWallExportDto.cs" />
     <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
     <Compile Include="DTO\SmartRemontScheduleExportDto.cs" />
+    <Compile Include="DTO\ScheduleMappingConfig.cs" />
     <Compile Include="DTO\MaterialInfoDto.cs" />
     <Compile Include="DTO\SmartRemontModelDiagnosticsDto.cs" />
     <Compile Include="DTO\RevitElementDto.cs" />
@@ -59,6 +61,9 @@
     </Compile>
     <Compile Include="Views\ExportSettingsDialog.xaml.cs">
       <DependentUpon>ExportSettingsDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ExportSmartRemontRoomsWindow.xaml.cs">
+      <DependentUpon>ExportSmartRemontRoomsWindow.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 
@@ -80,6 +85,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\ExportSettingsDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ExportSmartRemontRoomsWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

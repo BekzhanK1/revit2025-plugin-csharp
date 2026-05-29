@@ -1,0 +1,18 @@
+---
+description: Rules for the SBS pyRevit extension architecture
+globs: SBS.pyRevit.extension/**
+alwaysApply: false
+---
+
+# SBS pyRevit Extension Rules
+
+- Keep bundle `script.py` files thin. They should mostly call `run_command(...)`, validate prerequisites, and wire services/UI together.
+- Put direct Revit API access in `SBS.pyRevit.extension/lib/sbs_core/revit/`.
+- Put orchestration and export workflows in `SBS.pyRevit.extension/lib/sbs_core/services/`.
+- Put shared typed models and config contracts in `SBS.pyRevit.extension/lib/sbs_core/domain/`.
+- Put JSON and filesystem persistence in `SBS.pyRevit.extension/lib/sbs_core/io/`.
+- Keep WPF and pyRevit UI state handling in `SBS.pyRevit.extension/lib/sbs_core/ui/`; do not move business logic into window classes.
+- Reuse `ensure_document(...)` and `run_command(...)` from `SBS.pyRevit.extension/lib/sbs_core/bootstrap/command.py`.
+- Do not silently break SmartRemont room export JSON compatibility: legacy `PascalCase` payload keys must remain stable unless a new explicit versioned schema is introduced.
+- Do not silently break schedule mapping compatibility: loaders must keep supporting both legacy `PascalCase` and internal `snake_case` keys.
+- When adding a new command, update `SBS.pyRevit.extension/README.md` if you introduce a new shared pattern or invariant, and update `SBS.pyRevit.extension/docs/verification-checklist.md` if user-visible behavior changes.
