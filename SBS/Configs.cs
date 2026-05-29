@@ -30,6 +30,8 @@ namespace SmartRemont.ExportRooms
 
         public static string AuthLoginUrl => $"{ApiOriginUrl}/auth/revit/login/";
 
+        public static string QuickSearchUrl => $"{ApiOriginUrl}/client_request/quick_search/";
+
         static string ReadAppSetting(string key)
         {
             var loc = Assembly.GetExecutingAssembly().Location;
