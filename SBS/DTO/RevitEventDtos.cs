@@ -6,6 +6,7 @@ namespace SmartRemont.ExportRooms.DTO
     public static class RevitEventTypes
     {
         public const string DsAreaChange = "DS_AREA_CHANGE";
+        public const string Measures = "MEASURES";
     }
 
     public class RevitEventCreateRequest
@@ -17,7 +18,7 @@ namespace SmartRemont.ExportRooms.DTO
         public string Type { get; set; }
 
         [JsonProperty("payload")]
-        public DsAreaChangePayloadDto Payload { get; set; }
+        public object Payload { get; set; }
     }
 
     public class DsAreaChangePayloadDto
@@ -33,6 +34,39 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("rooms")]
         public List<RemontRoomAreaDto> Rooms { get; set; } = new();
+    }
+
+    public class MeasuresPayloadDto
+    {
+        [JsonProperty("source")]
+        public string Source { get; set; } = "revit";
+
+        [JsonProperty("version")]
+        public int Version { get; set; } = 1;
+
+        [JsonProperty("rooms")]
+        public List<MeasuresRoomDto> Rooms { get; set; } = new();
+    }
+
+    public class MeasuresRoomDto
+    {
+        [JsonProperty("room_name")]
+        public string RoomName { get; set; }
+
+        [JsonProperty("parameters")]
+        public List<MeasureParamDto> Parameters { get; set; } = new();
+    }
+
+    public class MeasureParamDto
+    {
+        [JsonProperty("param_code")]
+        public string ParamCode { get; set; }
+
+        [JsonProperty("param_name")]
+        public string ParamName { get; set; }
+
+        [JsonProperty("param_value")]
+        public double? ParamValue { get; set; }
     }
 
     public class RevitEventCreateResponse

@@ -1,4 +1,5 @@
 using SmartRemont.ExportRooms.Services;
+using SmartRemont.ExportRooms;
 using System;
 using System.Windows;
 using System.Windows.Input;
@@ -10,6 +11,7 @@ namespace SmartRemont.ExportRooms.Views
         public AuthLoginWindow()
         {
             InitializeComponent();
+            BrandAssets.TryApplyCompanyLogo(CompanyLogoImage);
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
         }
 

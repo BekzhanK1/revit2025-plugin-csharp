@@ -142,11 +142,11 @@ namespace SmartRemont.ExportRooms.Views
 
                 LastSuccessMessage = $"Площади отправлены · {payloadRooms.Count} помещ. · событие #{result?.Id}";
 
-                MessageBox.Show(
-                    $"Площади отправлены.\nПомещений: {payloadRooms.Count}\nВысота стен: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\nСобытие: #{result?.Id}",
-                    "Smart Remont",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                SuccessDialog.Show(
+                    this,
+                    "Успешно отправлено",
+                    "Площади отправлены",
+                    $"Помещений: {payloadRooms.Count}\nВысота стен: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\nСобытие: #{result?.Id}");
 
                 DialogResult = true;
                 Close();

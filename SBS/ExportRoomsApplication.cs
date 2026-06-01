@@ -7,14 +7,12 @@ using SmartRemont.ExportRooms.Views;
 using Serilog;
 using System;
 using System.Reflection;
-using System.Windows.Media.Imaging;
 
 namespace SmartRemont.ExportRooms
 {
     public class ExportRoomsApplication : IExternalApplication
     {
         static string _thisAssemblyPath = Assembly.GetExecutingAssembly().Location;
-        static string _resPath = "pack://application:,,,/SmartRemont.ExportRooms;component/Resources/";
         public static DockablePaneId _toolPaneId = new DockablePaneId(new Guid("AC230042-0036-436F-8561-344791B10D6E"));
         public static UIControlledApplication _uiApp;
         public static ILogger _logger { get; set; }
@@ -90,12 +88,15 @@ namespace SmartRemont.ExportRooms
 
         void ExportSmartRemontRooms_button(RibbonPanel ribbonPanel)
         {
-            PushButtonData btnData = new PushButtonData("SBS SmartRemont помещения", "SmartRemont\nпомещения", _thisAssemblyPath, typeof(Commands.ExportSmartRemontRoomsCommand).FullName);
+            PushButtonData btnData = new PushButtonData(
+                "SmartRemont",
+                "SmartRemont",
+                _thisAssemblyPath,
+                typeof(Commands.ExportSmartRemontRoomsCommand).FullName);
             PushButton btn = ribbonPanel.AddItem(btnData) as PushButton;
-            BitmapImage btnImage = new BitmapImage(new Uri(_resPath + "unit.png"));
+            var btnImage = BrandAssets.LoadBitmap(BrandAssets.RibbonIconFileName);
             btn.Image = btn.LargeImage = btnImage;
-            btn.ToolTip = "Экспорт помещений (комнат) для SmartRemont в JSON";
+            btn.ToolTip = "SmartRemont";
         }
-
     }
 }

@@ -1,5 +1,6 @@
 using Autodesk.Revit.DB;
 using SmartRemont.ExportRooms.Models;
+using SmartRemont.ExportRooms;
 using System.Windows;
 
 namespace SmartRemont.ExportRooms.Views
@@ -12,6 +13,7 @@ namespace SmartRemont.ExportRooms.Views
         public RemontHubWindow(Document doc)
         {
             InitializeComponent();
+            BrandAssets.TryApplyCompanyLogo(CompanyLogoImage);
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
             _doc = doc;
             Loaded += RemontHubWindow_Loaded;
@@ -65,8 +67,18 @@ namespace SmartRemont.ExportRooms.Views
                     isSuccess ? "#1B6FC8" : "#666666"));
         }
 
-        void MeasuresButton_Click(object sender, RoutedEventArgs e) =>
-            ShowInDevelopment();
+        void MeasuresButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new RoomMeasurementsWindow(_doc);
+            window.Owner = this;
+            window.ShowDialog();
+
+            if (window.DialogResult == true)
+            {
+                _completed = true;
+                SetStatus(window.LastSuccessMessage ?? "Замеры отправлены", isSuccess: true);
+            }
+        }
 
         void DsTkChangeButton_Click(object sender, RoutedEventArgs e) =>
             ShowInDevelopment();

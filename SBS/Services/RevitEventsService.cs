@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using SmartRemont.ExportRooms.DTO;
+using SmartRemont.ExportRooms.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,10 +18,60 @@ namespace SmartRemont.ExportRooms.Services
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        public static async Task<RevitEventCreateDataDto> SendDsAreaChangeAsync(
+        public static Task<RevitEventCreateDataDto> SendDsAreaChangeAsync(
             int remontId,
             double wallHeight,
-            IEnumerable<RemontRoomAreaDto> rooms)
+            IEnumerable<RemontRoomAreaDto> rooms) =>
+            SendAsync(remontId, RevitEventTypes.DsAreaChange, new DsAreaChangePayloadDto
+            {
+                Source = "revit",
+                Version = 1,
+                WallHeight = wallHeight,
+                Rooms = rooms?.ToList() ?? new List<RemontRoomAreaDto>()
+            }, "Нет помещений для отправки");
+
+        public static Task<RevitEventCreateDataDto> SendMeasuresAsync(
+            int remontId,
+            IEnumerable<RoomMeasurementsRoomRow> rooms) =>
+            SendAsync(remontId, RevitEventTypes.Measures, BuildMeasuresPayload(rooms),
+                "Нет замеров для отправки");
+
+        static MeasuresPayloadDto BuildMeasuresPayload(IEnumerable<RoomMeasurementsRoomRow> rooms)
+        {
+            var payload = new MeasuresPayloadDto { Source = "revit", Version = 1 };
+            foreach (var room in rooms ?? Enumerable.Empty<RoomMeasurementsRoomRow>())
+            {
+                if (string.IsNullOrWhiteSpace(room?.RoomName))
+                    continue;
+
+                var parameters = (room.Parameters ?? new List<RoomMeasurementParamItem>())
+                    .Where(p => p.param_value.HasValue)
+                    .Select(p => new MeasureParamDto
+                    {
+                        ParamCode = p.param_code,
+                        ParamName = p.param_name,
+                        ParamValue = p.param_value
+                    })
+                    .ToList();
+
+                if (parameters.Count == 0)
+                    continue;
+
+                payload.Rooms.Add(new MeasuresRoomDto
+                {
+                    RoomName = room.RoomName.Trim(),
+                    Parameters = parameters
+                });
+            }
+
+            return payload;
+        }
+
+        static async Task<RevitEventCreateDataDto> SendAsync(
+            int remontId,
+            string eventType,
+            object payload,
+            string emptyPayloadMessage)
         {
             var session = ExportRoomsApplication.CurrentSession;
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
@@ -29,21 +80,17 @@ namespace SmartRemont.ExportRooms.Services
             if (remontId <= 0)
                 throw new InvalidOperationException("Не указан ID ремонта");
 
-            var roomList = rooms?.ToList() ?? new List<RemontRoomAreaDto>();
-            if (roomList.Count == 0)
-                throw new InvalidOperationException("Нет помещений для отправки");
+            if (payload is DsAreaChangePayloadDto areaPayload && (areaPayload.Rooms?.Count ?? 0) == 0)
+                throw new InvalidOperationException(emptyPayloadMessage);
+
+            if (payload is MeasuresPayloadDto measuresPayload && (measuresPayload.Rooms?.Count ?? 0) == 0)
+                throw new InvalidOperationException(emptyPayloadMessage);
 
             var requestBody = new RevitEventCreateRequest
             {
                 RemontId = remontId,
-                Type = RevitEventTypes.DsAreaChange,
-                Payload = new DsAreaChangePayloadDto
-                {
-                    Source = "revit",
-                    Version = 1,
-                    WallHeight = wallHeight,
-                    Rooms = roomList
-                }
+                Type = eventType,
+                Payload = payload
             };
 
             var json = JsonConvert.SerializeObject(requestBody);
