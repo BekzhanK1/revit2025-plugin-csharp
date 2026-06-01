@@ -48,18 +48,21 @@ namespace SmartRemont.ExportRooms.Services
                             extracted = ExtractFlatByRoom(
                                 schedule, headers, rowCount,
                                 entry.RoomColumnsExact, entry.ValueColumnsExact,
+                                entry.RoomBaseNamesFilter,
                                 out roomColUsed, out valueColUsed);
                             break;
                         case ParseMode.GroupedByRoomHeader:
                             extracted = ExtractGroupedByRoom(
                                 schedule, headers, rowCount,
                                 entry.RoomColumnsExact, entry.ValueColumnsExact,
+                                entry.RoomBaseNamesFilter,
                                 out roomColUsed, out valueColUsed);
                             break;
                         case ParseMode.DoorsByRoom:
                             extracted = ExtractDoorsByRoom(
                                 schedule, headers, rowCount,
                                 entry.RoomColumnsExact, entry.ValueColumnsExact,
+                                entry.RoomBaseNamesFilter,
                                 doubleLeafOnly: entry.ParamCode == "DOUBLE_DOOR",
                                 out roomColUsed, out valueColUsed);
                             break;
@@ -102,11 +105,12 @@ namespace SmartRemont.ExportRooms.Services
                 {
                     RoomName = name,
                     Parameters = All
+                        .Where(entry => ParamAppliesToRoom(entry, name))
                         .Select(entry => new RoomMeasurementParamItem
                         {
                             param_code = entry.ParamCode,
                             param_name = entry.ParamName,
-                            param_value = GetParamValue(byKey, entry.ParamCode, name)
+                            param_value = GetParamValue(byKey, entry, name)
                         })
                         .ToList()
                 })
@@ -138,20 +142,44 @@ namespace SmartRemont.ExportRooms.Services
             else if (entry.ParamCode == "DOUBLE_DOOR")
                 cols += ", двуств.: ширина полотна > 1000 мм (или «Дв.» в типе)";
 
+            if (entry.RoomBaseNamesFilter != null && entry.RoomBaseNamesFilter.Count > 0)
+                cols += $", только помещения: {string.Join(", ", entry.RoomBaseNamesFilter)} (базовое имя)";
+
             if (!extracted.HasData)
                 return $"«{schedule.Name}»: {cols} — строк с данными нет";
 
             return $"«{schedule.Name}»: {cols}";
         }
 
-        static double? GetParamValue(Dictionary<string, ExtractResult> byKey, string paramCode, string room)
+        static bool ParamAppliesToRoom(Entry entry, string roomName)
         {
-            if (!byKey.TryGetValue(paramCode, out var r))
+            if (entry.RoomBaseNamesFilter != null && entry.RoomBaseNamesFilter.Count > 0)
+                return RoomNameMatcher.MatchesAnyBaseName(roomName, entry.RoomBaseNamesFilter);
+
+            if (!string.IsNullOrWhiteSpace(entry.FixedRoomName))
+                return RoomNameMatcher.MatchesBaseName(roomName, entry.FixedRoomName);
+
+            return true;
+        }
+
+        static double? GetParamValue(Dictionary<string, ExtractResult> byKey, Entry entry, string room)
+        {
+            if (!ParamAppliesToRoom(entry, room))
                 return null;
+
+            if (!byKey.TryGetValue(entry.ParamCode, out var r))
+                return null;
+
             if (r.ByRoomIntOrEmpty.TryGetValue(room, out var i))
                 return i;
             if (r.ByRoomOrEmpty.TryGetValue(room, out var d))
                 return d;
+
+            if (!string.IsNullOrWhiteSpace(entry.FixedRoomName)
+                && RoomNameMatcher.MatchesBaseName(room, entry.FixedRoomName)
+                && r.ByRoomOrEmpty.TryGetValue(entry.FixedRoomName.Trim(), out d))
+                return d;
+
             return null;
         }
 
@@ -209,6 +237,7 @@ namespace SmartRemont.ExportRooms.Services
             int rowCount,
             IReadOnlyList<string> roomHeaders,
             IReadOnlyList<string> valueHeaders,
+            IReadOnlyList<string> roomBaseNamesFilter,
             out string roomColUsed,
             out string valueColUsed)
         {
@@ -251,7 +280,7 @@ namespace SmartRemont.ExportRooms.Services
                     continue;
 
                 currentRoom = room;
-                AddToMap(result.ByRoom, room, value.Value);
+                AddToMap(result.ByRoom, room, value.Value, roomBaseNamesFilter);
             }
 
             return result;
@@ -310,6 +339,7 @@ namespace SmartRemont.ExportRooms.Services
             int rowCount,
             IReadOnlyList<string> roomHeaders,
             IReadOnlyList<string> valueHeaders,
+            IReadOnlyList<string> roomBaseNamesFilter,
             out string roomColUsed,
             out string valueColUsed)
         {
@@ -334,7 +364,7 @@ namespace SmartRemont.ExportRooms.Services
                 if (string.IsNullOrWhiteSpace(room) || value == null)
                     continue;
 
-                AddToMap(result.ByRoom, room, value.Value);
+                AddToMap(result.ByRoom, room, value.Value, roomBaseNamesFilter);
             }
 
             return result;
@@ -346,6 +376,7 @@ namespace SmartRemont.ExportRooms.Services
             int rowCount,
             IReadOnlyList<string> roomHeaders,
             IReadOnlyList<string> valueHeaders,
+            IReadOnlyList<string> roomBaseNamesFilter,
             bool doubleLeafOnly,
             out string roomColUsed,
             out string valueColUsed)
@@ -371,6 +402,9 @@ namespace SmartRemont.ExportRooms.Services
 
                 var room = (GetCell(schedule, r, colRoom.Value) ?? string.Empty).Trim();
                 if (string.IsNullOrWhiteSpace(room))
+                    continue;
+
+                if (!RoomNameMatcher.IsAllowedRoom(room, roomBaseNamesFilter))
                     continue;
 
                 var type = colType != null ? GetCell(schedule, r, colType.Value) : string.Empty;
@@ -448,8 +482,15 @@ namespace SmartRemont.ExportRooms.Services
             return null;
         }
 
-        static void AddToMap(Dictionary<string, double> map, string room, double value)
+        static void AddToMap(
+            Dictionary<string, double> map,
+            string room,
+            double value,
+            IReadOnlyList<string> roomBaseNamesFilter = null)
         {
+            if (!RoomNameMatcher.IsAllowedRoom(room, roomBaseNamesFilter))
+                return;
+
             if (!map.ContainsKey(room))
                 map[room] = 0;
             map[room] += value;

@@ -27,6 +27,8 @@ namespace SmartRemont.ExportRooms.Services
             public IReadOnlyList<string> RoomColumnsExact { get; init; }
             public string FixedRoomName { get; init; }
             public bool ValueIsInteger { get; init; }
+            /// <summary>Если задано — параметр только для помещений с этим базовым именем (Кухня №2 → Кухня).</summary>
+            public IReadOnlyList<string> RoomBaseNamesFilter { get; init; }
         }
 
         public static IReadOnlyList<Entry> All { get; } = new List<Entry>
@@ -65,7 +67,8 @@ namespace SmartRemont.ExportRooms.Services
                 ScheduleNamesExact = new[] { "Спецификация напольных плиток" },
                 Mode = ParseMode.GroupedByRoomHeader,
                 ValueColumnsExact = new[] { "Площадь, м²" },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" }
+                RoomColumnsExact = new[] { "Помещение", "Помещения" },
+                RoomBaseNamesFilter = new[] { "Прихожая", "Кухня" }
             },
             new Entry
             {
@@ -103,7 +106,8 @@ namespace SmartRemont.ExportRooms.Services
                 Mode = ParseMode.DoorsByRoom,
                 ValueColumnsExact = new[] { "Кол-во, шт" },
                 RoomColumnsExact = new[] { "Помещение" },
-                ValueIsInteger = true
+                ValueIsInteger = true,
+                RoomBaseNamesFilter = new[] { "Гостиная" }
             }
         };
     }

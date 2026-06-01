@@ -53,6 +53,7 @@
     <Compile Include="Services\RoomAreaService.cs" />
     <Compile Include="Services\RoomMeasurementsService.cs" />
     <Compile Include="Services\RoomMeasurementsScheduleMapping.cs" />
+    <Compile Include="Services\RoomNameMatcher.cs" />
     <Compile Include="Services\RevitEventsService.cs" />
     <Compile Include="Services\RevitEventStatusFormatter.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
