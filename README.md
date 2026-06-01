@@ -7,6 +7,7 @@
 | Документ | Для кого | Содержание |
 |----------|----------|------------|
 | **[README.md](README.md)** (этот файл) | Все | Быстрый старт, структура репозитория |
+| **[INSTALL.md](INSTALL.md)** | Установка | Пошаговая установка и обновление в Revit 2025 |
 | **[AGENTS.md](AGENTS.md)** | AI-агенты | Правила работы с кодом, архитектура, что не трогать |
 | **[external-agent-memory/smart-remont-revit-plugin/](external-agent-memory/smart-remont-revit-plugin/)** | Агенты / новые разработчики | История сессии, карта файлов, next steps |
 
@@ -38,25 +39,15 @@ SBS/bin/Release/net8.0-windows/SmartRemont.ExportRooms.dll
 
 ## Установка в Revit
 
-Скопировать содержимое `SBS/bin/Release/net8.0-windows/` в:
+Подробная инструкция: **[INSTALL.md](INSTALL.md)** (манифест `.addin`, папка `Resources`, API, обновление, типичные ошибки).
 
-```
-C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\
-```
-
-Манифест (уже должен быть у пользователя):
-
-```
-C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont.ExportRooms.addin
-```
-
-Образец манифеста в репозитории: [deploy/SmartRemont.ExportRooms.addin](deploy/SmartRemont.ExportRooms.addin)
-
-### Автодеплой (Revit закрыт)
+Кратко: скопировать сборку в `C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\` и положить [deploy/SmartRemont.ExportRooms.addin](deploy/SmartRemont.ExportRooms.addin) в `Addins\2025\`.
 
 ```bash
 dotnet build SBS.sln -c Release -p:DeployToRevit=true
 ```
+
+(автодеплой DLL — только при **закрытом** Revit)
 
 ## Настройка API
 
