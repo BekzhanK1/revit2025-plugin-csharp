@@ -95,4 +95,34 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("created_at")]
         public string CreatedAt { get; set; }
     }
+
+    public class RevitEventStatusResponse
+    {
+        [JsonProperty("data")]
+        public RevitEventStatusDataDto Data { get; set; }
+
+        [JsonProperty("error")]
+        public string Error { get; set; }
+
+        [JsonProperty("status")]
+        public bool Status { get; set; }
+    }
+
+    public class RevitEventStatusDataDto
+    {
+        [JsonProperty("has_event")]
+        public bool HasEvent { get; set; }
+
+        [JsonProperty("event_type_code")]
+        public string EventTypeCode { get; set; }
+
+        [JsonProperty("event_id")]
+        public int? EventId { get; set; }
+
+        [JsonProperty("is_imported")]
+        public bool? IsImported { get; set; }
+
+        [JsonProperty("created_at")]
+        public string CreatedAt { get; set; }
+    }
 }

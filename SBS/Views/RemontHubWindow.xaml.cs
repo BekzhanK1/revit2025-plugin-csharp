@@ -1,7 +1,9 @@
 using Autodesk.Revit.DB;
+using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
+using SmartRemont.ExportRooms.Services;
 using System.Collections.Generic;
-using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -12,6 +14,10 @@ namespace SmartRemont.ExportRooms.Views
         readonly Document _doc;
         bool _completed;
 
+        const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
+        const string MeasuresSubtitle = "Замеры из спецификаций Revit";
+        const string DsTkSubtitle = "Изменение технологической карты";
+
         public RemontHubWindow(Document doc)
         {
             InitializeComponent();
@@ -21,26 +27,18 @@ namespace SmartRemont.ExportRooms.Views
             Loaded += RemontHubWindow_Loaded;
         }
 
-        void RemontHubWindow_Loaded(object sender, RoutedEventArgs e)
+        async void RemontHubWindow_Loaded(object sender, RoutedEventArgs e)
         {
             SetupFeatureButtons();
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
+            await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
 
         void SetupFeatureButtons()
         {
-            ConfigureFeatureButton(
-                DsAreaChangeButton,
-                "\uE8A7",
-                "Отправка площадей помещений в Smart Remont");
-            ConfigureFeatureButton(
-                MeasuresButton,
-                "\uE8B7",
-                "Замеры из спецификаций Revit");
-            ConfigureFeatureButton(
-                DsTkChangeButton,
-                "\uE8A5",
-                "Изменение технологической карты");
+            ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
+            ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
+            ConfigureFeatureButton(DsTkChangeButton, "\uE8A5", DsTkSubtitle);
         }
 
         static void ConfigureFeatureButton(Button button, string iconGlyph, string subtitle)
@@ -50,6 +48,53 @@ namespace SmartRemont.ExportRooms.Views
                 icon.Text = iconGlyph;
             if (button.Template.FindName("FeatureSubtitle", button) is TextBlock sub)
                 sub.Text = subtitle;
+        }
+
+        async Task RefreshEventStatusesAsync()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId == null || remont.RemontId <= 0)
+            {
+                RevitEventStatusUi.ApplyFeatureBadge(DsAreaChangeButton, null);
+                RevitEventStatusUi.ApplyFeatureBadge(MeasuresButton, null);
+                return;
+            }
+
+            var remontId = remont.RemontId.Value;
+            RevitEventStatusDataDto dsStatus = null;
+            RevitEventStatusDataDto measuresStatus = null;
+
+            try
+            {
+                var dsTask = RevitEventsService.GetStatusAsync(remontId, RevitEventTypes.DsAreaChange);
+                var measuresTask = RevitEventsService.GetStatusAsync(remontId, RevitEventTypes.Measures);
+                await Task.WhenAll(dsTask, measuresTask).ConfigureAwait(true);
+                dsStatus = dsTask.Result;
+                measuresStatus = measuresTask.Result;
+            }
+            catch (System.Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить статус revit_events");
+            }
+
+            ApplyFeatureStatus(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle, dsStatus);
+            ApplyFeatureStatus(MeasuresButton, "\uE8B7", MeasuresSubtitle, measuresStatus);
+        }
+
+        static void ApplyFeatureStatus(
+            Button button,
+            string iconGlyph,
+            string baseSubtitle,
+            RevitEventStatusDataDto status)
+        {
+            ConfigureFeatureButton(button, iconGlyph, baseSubtitle);
+
+            var suffix = RevitEventStatusFormatter.FormatSubtitleSuffix(status);
+            if (!string.IsNullOrEmpty(suffix) &&
+                button.Template.FindName("FeatureSubtitle", button) is TextBlock sub)
+                sub.Text = baseSubtitle + " · " + suffix;
+
+            RevitEventStatusUi.ApplyFeatureBadge(button, status);
         }
 
         void BindRemontInfo(RemontOption remont)
@@ -90,7 +135,7 @@ namespace SmartRemont.ExportRooms.Views
         static string DisplayOrDash(string value) =>
             string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
 
-        void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)
+        async void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)
         {
             var summaryWindow = new SelectedRemontSummaryWindow(_doc);
             summaryWindow.Owner = this;
@@ -101,6 +146,8 @@ namespace SmartRemont.ExportRooms.Views
                 _completed = true;
                 SetStatus(summaryWindow.LastSuccessMessage ?? "Площади отправлены", isSuccess: true);
             }
+
+            await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
 
         void SetStatus(string message, bool isSuccess)
@@ -119,7 +166,7 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        void MeasuresButton_Click(object sender, RoutedEventArgs e)
+        async void MeasuresButton_Click(object sender, RoutedEventArgs e)
         {
             var window = new RoomMeasurementsWindow(_doc);
             window.Owner = this;
@@ -130,6 +177,8 @@ namespace SmartRemont.ExportRooms.Views
                 _completed = true;
                 SetStatus(window.LastSuccessMessage ?? "Замеры отправлены", isSuccess: true);
             }
+
+            await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
 
         void DsTkChangeButton_Click(object sender, RoutedEventArgs e) =>

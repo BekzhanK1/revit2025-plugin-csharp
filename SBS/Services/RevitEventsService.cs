@@ -36,6 +36,46 @@ namespace SmartRemont.ExportRooms.Services
             SendAsync(remontId, RevitEventTypes.Measures, BuildMeasuresPayload(rooms),
                 "Нет замеров для отправки");
 
+        public static async Task<RevitEventStatusDataDto> GetStatusAsync(int remontId, string eventType)
+        {
+            var session = ExportRoomsApplication.CurrentSession;
+            if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
+                throw new InvalidOperationException("Требуется авторизация");
+
+            if (remontId <= 0)
+                throw new InvalidOperationException("Не указан ID ремонта");
+
+            if (string.IsNullOrWhiteSpace(eventType))
+                throw new ArgumentException("Не указан тип события", nameof(eventType));
+
+            using var httpRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                Configs.RevitEventStatusUrl(remontId, eventType));
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = TryReadErrorMessage(responseBody)
+                    ?? $"Ошибка запроса статуса ({(int)response.StatusCode})";
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    message = "Сессия истекла. Выйдите и войдите снова.";
+                throw new InvalidOperationException(message);
+            }
+
+            var parsed = JsonConvert.DeserializeObject<RevitEventStatusResponse>(responseBody);
+            if (parsed == null)
+                throw new InvalidOperationException("Сервер вернул некорректный ответ");
+
+            if (!parsed.Status)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка запроса статуса" : parsed.Error);
+
+            return parsed.Data;
+        }
+
         static MeasuresPayloadDto BuildMeasuresPayload(IEnumerable<RoomMeasurementsRoomRow> rooms)
         {
             var payload = new MeasuresPayloadDto { Source = "revit", Version = 1 };

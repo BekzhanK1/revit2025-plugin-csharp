@@ -147,6 +147,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -159,14 +160,37 @@
                        Foreground="#1B1B1B"
                        Margin="0,0,0,8"/>
 
-            <TextBlock Grid.Row="1"
+            <Border x:Name="EventStatusBanner"
+                    Grid.Row="1"
+                    Visibility="Collapsed"
+                    Background="#EFF6FF"
+                    BorderBrush="#BFDBFE"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,12"
+                    Margin="0,0,0,12">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE73E;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="16"
+                               Foreground="#1B6FC8"
+                               VerticalAlignment="Top"
+                               Margin="0,2,10,0"/>
+                    <TextBlock x:Name="EventStatusBannerText"
+                               FontSize="13"
+                               Foreground="#1E40AF"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Grid.Row="2"
                        Text="По каждому помещению: param_name, param_code, param_value из спецификаций Revit."
                        FontSize="13"
                        Foreground="#888888"
                        TextWrapping="Wrap"
                        Margin="0,0,0,20"/>
 
-            <Border Grid.Row="2" Style="{StaticResource SectionBlock}" Margin="0">
+            <Border Grid.Row="3" Style="{StaticResource SectionBlock}" Margin="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -222,7 +246,7 @@
             </Border>
 
             <Border x:Name="MappingPanel"
-                    Grid.Row="3"
+                    Grid.Row="4"
                     Style="{StaticResource SectionBlock}"
                     Padding="14,12"
                     Visibility="Collapsed">
@@ -244,7 +268,7 @@
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Row="4" Margin="0,20,0,0">
+            <Grid Grid.Row="5" Margin="0,20,0,0">
                 <TextBlock x:Name="StatusTextBlock"
                            VerticalAlignment="Center"
                            FontSize="13"

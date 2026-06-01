@@ -1,9 +1,11 @@
 using Autodesk.Revit.DB;
+using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 
@@ -48,8 +50,10 @@ namespace SmartRemont.ExportRooms.Views
             Loaded += RoomMeasurementsWindow_Loaded;
         }
 
-        void RoomMeasurementsWindow_Loaded(object sender, RoutedEventArgs e)
+        async void RoomMeasurementsWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            await LoadEventStatusAsync().ConfigureAwait(true);
+
             _snapshot = RoomMeasurementsService.Collect(_doc);
             var rooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
 
@@ -89,6 +93,25 @@ namespace SmartRemont.ExportRooms.Views
                 SetStatus("Проверьте замеры и нажмите «Отправить».", isError: false);
         }
 
+        async Task LoadEventStatusAsync()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId == null || remont.RemontId <= 0)
+                return;
+
+            try
+            {
+                var status = await RevitEventsService
+                    .GetStatusAsync(remont.RemontId.Value, RevitEventTypes.Measures)
+                    .ConfigureAwait(true);
+                RevitEventStatusUi.ApplyBanner(EventStatusBanner, EventStatusBannerText, status);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить статус MEASURES");
+            }
+        }
+
         static bool HasAnyParamValues(RoomMeasurementsSnapshot snapshot) =>
             snapshot?.Rooms?.Any(r =>
                 r.Parameters != null &&
@@ -126,6 +149,8 @@ namespace SmartRemont.ExportRooms.Views
                 SetStatus($"Отправлено (событие #{result?.Id}){when}", isError: false);
 
                 LastSuccessMessage = $"Замеры отправлены · {roomCount} помещ. · {paramCount} знач. · событие #{result?.Id}";
+
+                await LoadEventStatusAsync().ConfigureAwait(true);
 
                 AppMessageDialog.ShowSuccess(
                     this,

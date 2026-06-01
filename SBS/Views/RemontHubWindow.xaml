@@ -104,6 +104,20 @@
                                             Orientation="Horizontal"
                                             VerticalAlignment="Center"
                                             Margin="12,0,0,0">
+                                    <Border x:Name="SentBadge"
+                                            Background="#DBEAFE"
+                                            BorderBrush="#BFDBFE"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="8,3"
+                                            Margin="0,0,8,0"
+                                            Visibility="Collapsed">
+                                        <TextBlock x:Name="SentBadgeText"
+                                                   Text="Отправлено"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#1D4ED8"/>
+                                    </Border>
                                     <Border x:Name="SoonBadge"
                                             Background="#FEF3C7"
                                             BorderBrush="#FDE68A"

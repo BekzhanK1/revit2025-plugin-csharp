@@ -160,18 +160,42 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
+            <Border x:Name="EventStatusBanner"
+                    Grid.Row="0"
+                    Visibility="Collapsed"
+                    Background="#EFF6FF"
+                    BorderBrush="#BFDBFE"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,12"
+                    Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE73E;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="16"
+                               Foreground="#1B6FC8"
+                               VerticalAlignment="Top"
+                               Margin="0,2,10,0"/>
+                    <TextBlock x:Name="EventStatusBannerText"
+                               FontSize="13"
+                               Foreground="#1E40AF"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Grid.Row="1"
                        Text="Помещения"
                        FontSize="24"
                        FontWeight="SemiBold"
                        Foreground="#1B1B1B"
                        Margin="0,0,0,20"/>
 
-            <Border Grid.Row="1" Style="{StaticResource SectionBlock}">
+            <Border Grid.Row="2" Style="{StaticResource SectionBlock}">
                 <StackPanel>
                     <TextBlock Text="РЕМОНТ" Style="{StaticResource SectionLabel}"/>
                     <Grid>
@@ -197,7 +221,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="2" Style="{StaticResource SectionBlock}" Margin="0">
+            <Border Grid.Row="3" Style="{StaticResource SectionBlock}" Margin="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -233,7 +257,10 @@
                                                 Width="*"/>
                             <DataGridTextColumn Header="Площадь, м²"
                                                 Binding="{Binding AreaDisplay}"
-                                                Width="120"/>
+                                                Width="100"/>
+                            <DataGridTextColumn Header="Выс. стен, м"
+                                                Binding="{Binding HeightDisplay}"
+                                                Width="88"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -268,7 +295,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="3" Margin="0,24,0,0">
+            <Grid Grid.Row="4" Margin="0,24,0,0">
                 <TextBlock x:Name="StatusTextBlock"
                            VerticalAlignment="Center"
                            FontSize="13"

@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 
@@ -18,6 +19,9 @@ namespace SmartRemont.ExportRooms.Views
         public double AreaM2 { get; set; }
         public double WallHeightM { get; set; }
         public string AreaDisplay => AreaM2.ToString("0.##", CultureInfo.InvariantCulture);
+        public string HeightDisplay => WallHeightM > 0d
+            ? WallHeightM.ToString("0.##", CultureInfo.InvariantCulture)
+            : "—";
     }
 
     public partial class SelectedRemontSummaryWindow : Window
@@ -35,9 +39,10 @@ namespace SmartRemont.ExportRooms.Views
             Loaded += SelectedRemontSummaryWindow_Loaded;
         }
 
-        void SelectedRemontSummaryWindow_Loaded(object sender, RoutedEventArgs e)
+        async void SelectedRemontSummaryWindow_Loaded(object sender, RoutedEventArgs e)
         {
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
+            await LoadEventStatusAsync().ConfigureAwait(true);
 
             var rooms = RoomAreaService.CollectRooms(_doc);
             _rows = rooms
@@ -55,8 +60,9 @@ namespace SmartRemont.ExportRooms.Views
             var phaseName = RoomAreaService.GetPreferredPhaseName(_doc);
             PhaseHintText.Text = $"Фаза: {phaseName}";
             var wallHeight = ResolvePayloadWallHeight(_rows);
+            var heightSpread = GetHeightSpreadHint(_rows);
             WallHeightHintText.Text = wallHeight > 0d
-                ? $"Высота потолка: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м"
+                ? $"Высота потолка по стенам (в отправку): {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м{heightSpread}"
                 : "Высота потолка: —";
 
             var totalArea = _rows.Sum(r => r.AreaM2);
@@ -75,6 +81,25 @@ namespace SmartRemont.ExportRooms.Views
                 : System.Windows.Visibility.Visible;
 
             UpdateSendButtonState();
+        }
+
+        async Task LoadEventStatusAsync()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId == null || remont.RemontId <= 0)
+                return;
+
+            try
+            {
+                var status = await RevitEventsService
+                    .GetStatusAsync(remont.RemontId.Value, RevitEventTypes.DsAreaChange)
+                    .ConfigureAwait(true);
+                RevitEventStatusUi.ApplyBanner(EventStatusBanner, EventStatusBannerText, status);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить статус DS_AREA_CHANGE");
+            }
         }
 
         void BindRemontInfo(RemontOption remont)
@@ -142,11 +167,13 @@ namespace SmartRemont.ExportRooms.Views
 
                 LastSuccessMessage = $"Площади отправлены · {payloadRooms.Count} помещ. · событие #{result?.Id}";
 
+                await LoadEventStatusAsync().ConfigureAwait(true);
+
                 AppMessageDialog.ShowSuccess(
                     this,
                     "Успешно отправлено",
                     "Площади отправлены",
-                    $"Помещений: {payloadRooms.Count}\nВысота стен: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\nСобытие: #{result?.Id}");
+                    $"Помещений: {payloadRooms.Count}\nВысота потолка: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\nСобытие: #{result?.Id}");
 
                 DialogResult = true;
                 Close();
@@ -164,6 +191,9 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        /// <summary>
+        /// В API одно поле wall_height на весь payload — берём наиболее частую высоту среди помещений.
+        /// </summary>
         static double ResolvePayloadWallHeight(IEnumerable<RoomAreaRowVm> rows)
         {
             var heights = rows
@@ -180,6 +210,23 @@ namespace SmartRemont.ExportRooms.Views
                 .ThenByDescending(g => g.Key)
                 .Select(g => g.Key)
                 .First();
+        }
+
+        static string GetHeightSpreadHint(IEnumerable<RoomAreaRowVm> rows)
+        {
+            var distinct = rows
+                .Select(r => r.WallHeightM)
+                .Where(h => h > 0d)
+                .Distinct()
+                .OrderBy(h => h)
+                .ToList();
+
+            if (distinct.Count <= 1)
+                return "";
+
+            var min = distinct.First().ToString("0.##", CultureInfo.InvariantCulture);
+            var max = distinct.Last().ToString("0.##", CultureInfo.InvariantCulture);
+            return $" · в таблице: {min}–{max} м";
         }
 
         void SetBusy(bool isBusy)
