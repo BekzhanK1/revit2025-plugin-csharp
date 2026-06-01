@@ -19,6 +19,7 @@ namespace SmartRemont.ExportRooms.Services
 
         public static async Task<RevitEventCreateDataDto> SendDsAreaChangeAsync(
             int remontId,
+            double wallHeight,
             IEnumerable<RemontRoomAreaDto> rooms)
         {
             var session = ExportRoomsApplication.CurrentSession;
@@ -40,6 +41,7 @@ namespace SmartRemont.ExportRooms.Services
                 {
                     Source = "revit",
                     Version = 1,
+                    WallHeight = wallHeight,
                     Rooms = roomList
                 }
             };

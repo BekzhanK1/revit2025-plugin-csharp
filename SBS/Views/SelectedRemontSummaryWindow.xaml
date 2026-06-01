@@ -208,11 +208,17 @@
 
                     <Grid Grid.Row="0" Margin="0,0,0,12">
                         <TextBlock Text="ПЛОЩАДИ" Style="{StaticResource SectionLabel}" Margin="0"/>
-                        <TextBlock x:Name="PhaseHintText"
-                                   HorizontalAlignment="Right"
-                                   FontSize="12"
-                                   Foreground="#999999"
-                                   VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center">
+                            <TextBlock x:Name="WallHeightHintText"
+                                       FontSize="12"
+                                       Foreground="#999999"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock x:Name="PhaseHintText"
+                                       FontSize="12"
+                                       Foreground="#999999"/>
+                        </StackPanel>
                     </Grid>
 
                     <DataGrid Grid.Row="1"

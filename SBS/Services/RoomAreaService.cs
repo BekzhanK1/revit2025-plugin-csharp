@@ -11,6 +11,7 @@ namespace SmartRemont.ExportRooms.Services
         public string RoomNumber { get; set; }
         public string RoomName { get; set; }
         public double AreaM2 { get; set; }
+        public double WallHeightM { get; set; }
     }
 
     public static class RoomAreaService
@@ -52,12 +53,14 @@ namespace SmartRemont.ExportRooms.Services
                     var areaM2 = UnitUtils.ConvertFromInternalUnits(
                         r.get_Parameter(BuiltInParameter.ROOM_AREA)?.AsDouble() ?? 0,
                         UnitTypeId.SquareMeters);
+                    var wallHeightM = GetWallHeightM(r);
 
                     return new RoomAreaItem
                     {
                         RoomNumber = num,
                         RoomName = roomName,
-                        AreaM2 = Math.Round(areaM2, 2)
+                        AreaM2 = Math.Round(areaM2, 2),
+                        WallHeightM = wallHeightM
                     };
                 })
                 .OrderBy(r => ParseRoomNumberSortKey(r.RoomNumber))
@@ -70,6 +73,22 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrWhiteSpace(roomNumber))
                 return int.MaxValue;
             return int.TryParse(roomNumber, out var n) ? n : int.MaxValue - 1;
+        }
+
+        static double GetWallHeightM(Room room)
+        {
+            var heightP = room.get_Parameter(BuiltInParameter.ROOM_HEIGHT);
+            var upperOffsetP = room.get_Parameter(BuiltInParameter.ROOM_UPPER_OFFSET);
+
+            var heightInt = heightP?.AsDouble() ?? 0d;
+            if (heightInt <= 0d && upperOffsetP?.HasValue == true)
+                heightInt = upperOffsetP.AsDouble();
+
+            if (heightInt <= 0d)
+                return 0d;
+
+            var heightM = UnitUtils.ConvertFromInternalUnits(heightInt, UnitTypeId.Meters);
+            return Math.Round(heightM, 2);
         }
 
         static List<Phase> GetPhases(Document doc) =>

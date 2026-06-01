@@ -28,6 +28,9 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("version")]
         public int Version { get; set; } = 1;
 
+        [JsonProperty("wall_height")]
+        public double WallHeight { get; set; }
+
         [JsonProperty("rooms")]
         public List<RemontRoomAreaDto> Rooms { get; set; } = new();
     }

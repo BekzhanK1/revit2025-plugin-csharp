@@ -16,6 +16,7 @@ namespace SmartRemont.ExportRooms.Views
         public string RoomNumber { get; set; }
         public string RoomName { get; set; }
         public double AreaM2 { get; set; }
+        public double WallHeightM { get; set; }
         public string AreaDisplay => AreaM2.ToString("0.##", CultureInfo.InvariantCulture);
     }
 
@@ -44,7 +45,8 @@ namespace SmartRemont.ExportRooms.Views
                 {
                     RoomNumber = string.IsNullOrWhiteSpace(r.RoomNumber) ? "—" : r.RoomNumber,
                     RoomName = r.RoomName,
-                    AreaM2 = r.AreaM2
+                    AreaM2 = r.AreaM2,
+                    WallHeightM = r.WallHeightM
                 })
                 .ToList();
 
@@ -52,6 +54,10 @@ namespace SmartRemont.ExportRooms.Views
 
             var phaseName = RoomAreaService.GetPreferredPhaseName(_doc);
             PhaseHintText.Text = $"Фаза: {phaseName}";
+            var wallHeight = ResolvePayloadWallHeight(_rows);
+            WallHeightHintText.Text = wallHeight > 0d
+                ? $"Высота потолка: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м"
+                : "Высота потолка: —";
 
             var totalArea = _rows.Sum(r => r.AreaM2);
             var count = _rows.Count;
@@ -125,9 +131,10 @@ namespace SmartRemont.ExportRooms.Views
                     RoomName = r.RoomName,
                     RoomAreaM2 = r.AreaM2
                 }).ToList();
+                var wallHeight = ResolvePayloadWallHeight(_rows);
 
                 var result = await RevitEventsService
-                    .SendDsAreaChangeAsync(remont.RemontId.Value, payloadRooms)
+                    .SendDsAreaChangeAsync(remont.RemontId.Value, wallHeight, payloadRooms)
                     .ConfigureAwait(true);
 
                 var when = string.IsNullOrWhiteSpace(result?.CreatedAt) ? "" : $" · {result.CreatedAt}";
@@ -136,7 +143,7 @@ namespace SmartRemont.ExportRooms.Views
                 LastSuccessMessage = $"Площади отправлены · {payloadRooms.Count} помещ. · событие #{result?.Id}";
 
                 MessageBox.Show(
-                    $"Площади отправлены.\nПомещений: {payloadRooms.Count}\nСобытие: #{result?.Id}",
+                    $"Площади отправлены.\nПомещений: {payloadRooms.Count}\nВысота стен: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\nСобытие: #{result?.Id}",
                     "Smart Remont",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -155,6 +162,24 @@ namespace SmartRemont.ExportRooms.Views
                 SetBusy(false);
                 UpdateSendButtonState();
             }
+        }
+
+        static double ResolvePayloadWallHeight(IEnumerable<RoomAreaRowVm> rows)
+        {
+            var heights = rows
+                .Select(r => r.WallHeightM)
+                .Where(h => h > 0d)
+                .ToList();
+
+            if (heights.Count == 0)
+                return 0d;
+
+            return heights
+                .GroupBy(h => h)
+                .OrderByDescending(g => g.Count())
+                .ThenByDescending(g => g.Key)
+                .Select(g => g.Key)
+                .First();
         }
 
         void SetBusy(bool isBusy)
