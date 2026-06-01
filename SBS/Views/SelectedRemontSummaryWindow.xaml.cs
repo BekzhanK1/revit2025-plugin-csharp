@@ -142,7 +142,7 @@ namespace SmartRemont.ExportRooms.Views
 
                 LastSuccessMessage = $"Площади отправлены · {payloadRooms.Count} помещ. · событие #{result?.Id}";
 
-                SuccessDialog.Show(
+                AppMessageDialog.ShowSuccess(
                     this,
                     "Успешно отправлено",
                     "Площади отправлены",

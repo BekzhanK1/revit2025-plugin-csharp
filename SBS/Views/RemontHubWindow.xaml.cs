@@ -1,7 +1,9 @@
 using Autodesk.Revit.DB;
 using SmartRemont.ExportRooms.Models;
-using SmartRemont.ExportRooms;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace SmartRemont.ExportRooms.Views
 {
@@ -19,8 +21,36 @@ namespace SmartRemont.ExportRooms.Views
             Loaded += RemontHubWindow_Loaded;
         }
 
-        void RemontHubWindow_Loaded(object sender, RoutedEventArgs e) =>
+        void RemontHubWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            SetupFeatureButtons();
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
+        }
+
+        void SetupFeatureButtons()
+        {
+            ConfigureFeatureButton(
+                DsAreaChangeButton,
+                "\uE8A7",
+                "Отправка площадей помещений в Smart Remont");
+            ConfigureFeatureButton(
+                MeasuresButton,
+                "\uE8B7",
+                "Замеры из спецификаций Revit");
+            ConfigureFeatureButton(
+                DsTkChangeButton,
+                "\uE8A5",
+                "Изменение технологической карты");
+        }
+
+        static void ConfigureFeatureButton(Button button, string iconGlyph, string subtitle)
+        {
+            button.ApplyTemplate();
+            if (button.Template.FindName("FeatureIcon", button) is TextBlock icon)
+                icon.Text = iconGlyph;
+            if (button.Template.FindName("FeatureSubtitle", button) is TextBlock sub)
+                sub.Text = subtitle;
+        }
 
         void BindRemontInfo(RemontOption remont)
         {
@@ -32,6 +62,7 @@ namespace SmartRemont.ExportRooms.Views
                 ResidentNameText.Text = "—";
                 FlatNumText.Text = "—";
                 PresetNameText.Text = "—";
+                RemontSubtitleText.Text = "Выберите действие";
                 return;
             }
 
@@ -41,6 +72,19 @@ namespace SmartRemont.ExportRooms.Views
             ResidentNameText.Text = DisplayOrDash(remont.ResidentName);
             FlatNumText.Text = DisplayOrDash(remont.FlatNum);
             PresetNameText.Text = DisplayOrDash(remont.PresetName);
+            RemontSubtitleText.Text = BuildSubtitle(remont);
+        }
+
+        static string BuildSubtitle(RemontOption remont)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(remont.ResidentName))
+                parts.Add(remont.ResidentName.Trim());
+            if (!string.IsNullOrWhiteSpace(remont.FlatNum))
+                parts.Add($"кв. {remont.FlatNum.Trim()}");
+            if (!string.IsNullOrWhiteSpace(remont.PresetName))
+                parts.Add(remont.PresetName.Trim());
+            return parts.Count > 0 ? string.Join(" · ", parts) : "Выберите действие";
         }
 
         static string DisplayOrDash(string value) =>
@@ -61,10 +105,18 @@ namespace SmartRemont.ExportRooms.Views
 
         void SetStatus(string message, bool isSuccess)
         {
-            StatusTextBlock.Text = message;
-            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(
-                    isSuccess ? "#1B6FC8" : "#666666"));
+            if (isSuccess)
+            {
+                StatusBanner.Visibility = System.Windows.Visibility.Visible;
+                StatusPlainHost.Visibility = System.Windows.Visibility.Collapsed;
+                StatusTextBlock.Text = message;
+            }
+            else
+            {
+                StatusBanner.Visibility = System.Windows.Visibility.Collapsed;
+                StatusPlainHost.Visibility = System.Windows.Visibility.Visible;
+                StatusPlainText.Text = message;
+            }
         }
 
         void MeasuresButton_Click(object sender, RoutedEventArgs e)
@@ -81,11 +133,11 @@ namespace SmartRemont.ExportRooms.Views
         }
 
         void DsTkChangeButton_Click(object sender, RoutedEventArgs e) =>
-            ShowInDevelopment();
-
-        static void ShowInDevelopment() =>
-            MessageBox.Show("В разработке", "Smart Remont",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            AppMessageDialog.ShowInDevelopment(
+                this,
+                "В разработке",
+                "ДС по изменению ТК",
+                "Раздел находится в разработке. Скоро здесь можно будет оформить изменение технологической карты.");
 
         void CloseButton_Click(object sender, RoutedEventArgs e)
         {

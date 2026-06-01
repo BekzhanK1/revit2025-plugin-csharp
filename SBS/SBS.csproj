@@ -84,6 +84,9 @@
     <Compile Include="Views\SuccessDialog.xaml.cs">
       <DependentUpon>SuccessDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Views\AppMessageDialog.xaml.cs">
+      <DependentUpon>AppMessageDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\WindowLayoutHelper.cs" />
   </ItemGroup>
 
@@ -129,6 +132,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\SuccessDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\AppMessageDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
