@@ -29,6 +29,32 @@ namespace SmartRemont.ExportRooms.Services
             public bool ValueIsInteger { get; init; }
             /// <summary>Если задано — параметр только для помещений с этим базовым именем (Кухня №2 → Кухня).</summary>
             public IReadOnlyList<string> RoomBaseNamesFilter { get; init; }
+            /// <summary>Исключить помещения с этим базовым именем (например балкон из обоев).</summary>
+            public IReadOnlyList<string> RoomBaseNamesExclude { get; init; }
+            /// <summary>Составной параметр — читается отдельно (WALL_AREA_MINUS).</summary>
+            public bool IsMergedParameter { get; init; }
+        }
+
+        /// <summary>WALL_AREA_MINUS: обои — все комнаты кроме балкона; балкон — отдельная ведомость.</summary>
+        public static class WallAreaMinusSources
+        {
+            public static Entry Interior { get; } = new Entry
+            {
+                ScheduleNamesExact = new[] { "Спецификация поклейка обоев с покраской" },
+                Mode = ParseMode.GroupedByRoomHeader,
+                ValueColumnsExact = new[] { "Площадь, м²" },
+                RoomColumnsExact = new[] { "Помещение", "Помещения" },
+                RoomBaseNamesExclude = new[] { "Балкон" }
+            };
+
+            public static Entry Balcony { get; } = new Entry
+            {
+                ScheduleNamesExact = new[] { "Спецификация краски для стен балкона" },
+                Mode = ParseMode.FlatByRoomColumn,
+                ValueColumnsExact = new[] { "Площадь, м²", "Площадь" },
+                RoomColumnsExact = new[] { "Помещение", "Помещения" },
+                RoomBaseNamesFilter = new[] { "Балкон" }
+            };
         }
 
         public static IReadOnlyList<Entry> All { get; } = new List<Entry>
@@ -55,10 +81,12 @@ namespace SmartRemont.ExportRooms.Services
             {
                 ParamCode = "WALL_AREA_MINUS",
                 ParamName = "Площадь стен за минусом площади дверей, проемов и окон",
-                ScheduleNamesExact = new[] { "Спецификация поклейка обоев с покраской" },
-                Mode = ParseMode.GroupedByRoomHeader,
-                ValueColumnsExact = new[] { "Площадь, м²" },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" }
+                ScheduleNamesExact = new[]
+                {
+                    "Спецификация поклейка обоев с покраской",
+                    "Спецификация краски для стен балкона"
+                },
+                IsMergedParameter = true
             },
             new Entry
             {

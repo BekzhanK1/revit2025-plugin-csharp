@@ -55,7 +55,21 @@ namespace SmartRemont.ExportRooms.Services
             return false;
         }
 
-        public static bool IsAllowedRoom(string roomName, IReadOnlyList<string> roomBaseNamesFilter) =>
-            MatchesAnyBaseName(roomName, roomBaseNamesFilter);
+        public static bool IsAllowedRoom(
+            string roomName,
+            IReadOnlyList<string> roomBaseNamesFilter,
+            IReadOnlyList<string> roomBaseNamesExclude = null)
+        {
+            if (!string.IsNullOrWhiteSpace(roomName) && roomBaseNamesExclude != null)
+            {
+                foreach (var excluded in roomBaseNamesExclude)
+                {
+                    if (MatchesBaseName(roomName, excluded))
+                        return false;
+                }
+            }
+
+            return MatchesAnyBaseName(roomName, roomBaseNamesFilter);
+        }
     }
 }
