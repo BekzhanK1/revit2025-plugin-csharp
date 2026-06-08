@@ -13,6 +13,11 @@ namespace SmartRemont.ExportRooms.Services
             @"^(.+?)\s+(?:№\s*)?(\d+)\s*$",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+        /// <summary>«Прихожая (1)», «Кухня (2)» → базовое имя.</summary>
+        static readonly Regex TrailingParenNumberRegex = new(
+            @"^(.+?)\s*\(\s*\d+\s*\)\s*$",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
         public static string GetBaseName(string roomName)
         {
             if (string.IsNullOrWhiteSpace(roomName))
@@ -22,6 +27,10 @@ namespace SmartRemont.ExportRooms.Services
             var numberSignIndex = trimmed.IndexOf('№');
             if (numberSignIndex > 0)
                 return trimmed.Substring(0, numberSignIndex).TrimEnd();
+
+            var paren = TrailingParenNumberRegex.Match(trimmed);
+            if (paren.Success)
+                return paren.Groups[1].Value.TrimEnd();
 
             var m = TrailingNumberRegex.Match(trimmed);
             if (m.Success)

@@ -6,7 +6,7 @@
         MinWidth="680"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
-        ShowInTaskbar="False"
+        ShowInTaskbar="True"
         FontFamily="Segoe UI"
         Background="#F0F2F5">
 
@@ -284,6 +284,16 @@
                         Content="Замеры комнат"
                         Tag="default"
                         Click="MeasuresButton_Click"/>
+                <Button x:Name="MeasuresFromCodeButton"
+                        Style="{StaticResource FeatureCardButton}"
+                        Content="Замеры по коду"
+                        Tag="default"
+                        Click="MeasuresFromCodeButton_Click"/>
+                <Button x:Name="RoomMaterialsButton"
+                        Style="{StaticResource FeatureCardButton}"
+                        Content="Материалы по комнатам"
+                        Tag="default"
+                        Click="RoomMaterialsButton_Click"/>
                 <Button x:Name="DsTkChangeButton"
                         Style="{StaticResource FeatureCardButton}"
                         Content="ДС по изменению ТК"

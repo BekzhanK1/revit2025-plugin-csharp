@@ -16,6 +16,8 @@ namespace SmartRemont.ExportRooms.Views
 
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Замеры из спецификаций Revit";
+        const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
+        const string RoomMaterialsSubtitle = "Краска из ведомости и элементы модели по помещениям";
         const string DsTkSubtitle = "Изменение технологической карты";
 
         public RemontHubWindow(Document doc)
@@ -38,6 +40,8 @@ namespace SmartRemont.ExportRooms.Views
         {
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
+            ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
+            ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
             ConfigureFeatureButton(DsTkChangeButton, "\uE8A5", DsTkSubtitle);
         }
 
@@ -179,6 +183,28 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             await RefreshEventStatusesAsync().ConfigureAwait(true);
+        }
+
+        async void MeasuresFromCodeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new RoomMeasurementsFromCodeWindow(_doc);
+            window.Owner = this;
+            window.ShowDialog();
+
+            if (window.DialogResult == true)
+            {
+                _completed = true;
+                SetStatus(window.LastSuccessMessage ?? "Замеры по коду отправлены", isSuccess: true);
+            }
+
+            await RefreshEventStatusesAsync().ConfigureAwait(true);
+        }
+
+        void RoomMaterialsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new RoomMaterialsWindow(_doc);
+            window.Owner = this;
+            window.ShowDialog();
         }
 
         void DsTkChangeButton_Click(object sender, RoutedEventArgs e) =>

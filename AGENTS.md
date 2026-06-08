@@ -5,8 +5,9 @@
 ## Быстрый onboarding
 
 1. Прочитай [README.md](README.md) — сборка, установка, структура.
-2. Прочитай [external-agent-memory/smart-remont-revit-plugin/SESSION_SUMMARY.md](external-agent-memory/smart-remont-revit-plugin/SESSION_SUMMARY.md) — что уже сделано.
-3. Используй [external-agent-memory/smart-remont-revit-plugin/FILE_MAP.md](external-agent-memory/smart-remont-revit-plugin/FILE_MAP.md) — где лежит код.
+2. Прочитай [agents-external-memory/README.md](agents-external-memory/README.md) — экраны, маппинги, источники данных (актуальная архитектура).
+3. Прочитай [external-agent-memory/smart-remont-revit-plugin/SESSION_SUMMARY.md](external-agent-memory/smart-remont-revit-plugin/SESSION_SUMMARY.md) — что уже сделано в сессиях.
+4. Используй [agents-external-memory/smart-remont-revit-plugin/FILE_MAP.md](agents-external-memory/smart-remont-revit-plugin/FILE_MAP.md) — где лежит код.
 
 ## Что это за проект
 

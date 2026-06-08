@@ -1,0 +1,204 @@
+# Поток пользователя и экраны
+
+## Активный поток (кнопка ленты)
+
+Файл: `SBS/Commands/ExportSmartRemontRoomsCommand.cs`
+
+```
+Лента «Smart Remont» → SmartRemont
+  │
+  ├─► AuthLoginWindow          (если нет сессии — BaseCommand.EnsureAuthenticated)
+  │
+  ├─► HomeWindow               (поиск и выбор ремонта)
+  │     DialogResult = true → SelectedRemont сохранён
+  │
+  └─► RemontHubWindow          (хаб: три действия)
+        DialogResult = true при успешной отправке любого раздела
+```
+
+> **Важно:** `ExportSmartRemontRoomsWindow` в команде **закомментирован / не вызывается**. Полный JSON-экспорт в файлы — отдельный сценарий (окно есть в проекте).
+
+---
+
+## 1. AuthLoginWindow
+
+| | |
+|---|---|
+| **Файлы** | `Views/AuthLoginWindow.xaml`, `AuthView.xaml` (dockable) |
+| **Когда** | Нет `CurrentSession` или истёк токен |
+| **Действие** | `POST {apiOriginUrl}/auth/revit/login/` |
+| **Результат** | `AuthSession` → `ExportRoomsApplication.CurrentSession`, файл `auth.session.json` |
+
+Dockable pane (`ViewContainer` + `AuthView`) зарегистрирован при старте Revit, `VisibleByDefault = false`. Основной UX — модальное окно входа.
+
+---
+
+## 2. HomeWindow
+
+| | |
+|---|---|
+| **Файлы** | `Views/HomeWindow.xaml(.cs)` |
+| **Сервис** | `RemontService.QuickSearchAsync` |
+| **API** | `POST /client_request/quick_search/` |
+
+### UI
+
+- Приветствие: имя из `session.DisplayName`
+- Поиск по **remont_id** или **client_request_id**
+- ComboBox с результатами → кнопка подтверждения
+
+### Результат
+
+`ExportRoomsApplication.SelectedRemont` = `RemontOption`:
+
+- `RemontId`, `ClientRequestId`, `Name`, `ClientName`, `ResidentName`, `FlatNum`, `PresetName`
+
+Без `RemontId > 0` отправка revit_events **недоступна** (кнопки в дочерних окнах disabled).
+
+---
+
+## 3. RemontHubWindow
+
+| | |
+|---|---|
+| **Файлы** | `Views/RemontHubWindow.xaml(.cs)` |
+| **Вход** | `Document` активного проекта |
+
+### Карточки действий
+
+| Кнопка | Окно | Подзаголовок в UI | API event type |
+|--------|------|-------------------|----------------|
+| ДС по изменению квадратуры | `SelectedRemontSummaryWindow` | Отправка площадей помещений в Smart Remont | `DS_AREA_CHANGE` |
+| Замеры комнат | `RoomMeasurementsWindow` | Замеры из спецификаций Revit | `MEASURES` |
+| ДС по изменению ТК | — | В разработке | — |
+
+При загрузке хаба параллельно запрашиваются статусы:
+
+- `GET .../revit_events/status/?remont_id=&type=DS_AREA_CHANGE`
+- `GET .../revit_events/status/?type=MEASURES`
+
+Бейджи на кнопках: `RevitEventStatusUi`, формат даты — `RevitEventStatusFormatter`.
+
+### Отображаемая информация о ремонте
+
+Client request id, remont id, клиент, жилец, квартира, пресет.
+
+---
+
+## 4. SelectedRemontSummaryWindow — ДС площади
+
+| | |
+|---|---|
+| **Файлы** | `Views/SelectedRemontSummaryWindow.xaml(.cs)` |
+| **Сбор данных** | `RoomAreaService.CollectRooms(doc)` |
+| **Отправка** | `RevitEventsService.SendDsAreaChangeAsync` |
+
+### Что показывает
+
+- Таблица: номер, имя помещения, площадь м², высота потолка по комнате
+- Подсказка фазы: **«После монтажных работ»** (или первая фаза)
+- Одна **общая** `wall_height` в payload (мода/максимум высот по строкам — см. `ResolvePayloadWallHeight`)
+- Итого площадь и количество помещений
+- Баннер статуса последнего события `DS_AREA_CHANGE`
+
+### Источник данных
+
+**Не ведомости.** Элементы `Room`:
+
+- `ROOM_AREA`, `ROOM_NAME`, `ROOM_NUMBER`
+- фаза `ROOM_PHASE`
+- высота: расчёт по стенам помещения, иначе параметры Room
+
+Подробнее: [DATA_SOURCES.md](DATA_SOURCES.md).
+
+---
+
+## 5. RoomMeasurementsWindow — замеры
+
+| | |
+|---|---|
+| **Файлы** | `Views/RoomMeasurementsWindow.xaml(.cs)` |
+| **Сбор** | `RoomMeasurementsService.Collect(doc)` при `Loaded` |
+| **Отправка** | `RevitEventsService.SendMeasuresAsync` |
+
+### Что показывает
+
+- Список помещений → список параметров (`param_code`, `param_name`, значение)
+- Блок **«Источники»** (`Sources`): по каждому параметру — ожидаемая ведомость, найденная ведомость, колонки, статус
+- Переключатель видимости маппинга (справочный текст из `RoomMeasurementsScheduleMapping`)
+- Баннер статуса `MEASURES`
+
+### Payload
+
+`MeasuresPayloadDto`: `rooms[]` → `room_name` + `parameters[]` с `param_code`, `param_name`, `param_value`.
+
+Отправляются только параметры с непустым `param_value`.
+
+Подробнее: [ROOM_MEASUREMENTS_MAPPING.md](ROOM_MEASUREMENTS_MAPPING.md).
+
+---
+
+## 6. ExportSmartRemontRoomsWindow — экспорт JSON (вне основного потока)
+
+| | |
+|---|---|
+| **Файлы** | `Views/ExportSmartRemontRoomsWindow.xaml(.cs)` |
+| **Выход** | Файл `SmartRemont_Rooms_*.json` на рабочем столе |
+| **Побочный файл** | `{имя_экспорта}.mapping.json` |
+
+### Секции UI
+
+1. Фаза, фильтры помещений, превью комнат
+2. Маппинг **произвольных** shared-параметров Room (номер квартиры, отделка, IFC…)
+3. Опции: контуры, отделка (пол/потолок/GenericModel)
+4. **DataGrid спецификаций** — включить/выключить, Discipline, WorkType, имена колонок
+5. Путь выходного JSON, кнопка экспорта
+
+### Результат JSON
+
+`SmartRemontRoomsExportDto`:
+
+- `rooms[]` — из `Room` + опционально finishes/contours
+- `workItems[]` — из **включённых** ведомостей по пользовательскому маппингу
+
+Не путать с автоматическими замерами `MEASURES`: другой маппинг, другой выход (файл vs API).
+
+Подробнее: [EXPORT_SCHEDULES_MAPPING.md](EXPORT_SCHEDULES_MAPPING.md).
+
+---
+
+## 7. Вспомогательные UI
+
+| Окно / control | Назначение |
+|----------------|------------|
+| `SuccessDialog` | Успешная отправка |
+| `AppMessageDialog` | Сообщения, «в разработке» |
+| `ViewContainer` + `AuthView` | Dockable pane |
+| `WindowLayoutHelper` | Высота окна ~ рабочая область |
+
+---
+
+## Диаграмма данных по экранам
+
+```mermaid
+flowchart LR
+  subgraph hub [RemontHubWindow]
+    A[ДС площади]
+    B[Замеры]
+    C[ДС ТК stub]
+  end
+
+  A --> R[Room API]
+  B --> S[ViewSchedule tables]
+  C --> X[—]
+
+  R --> API1[DS_AREA_CHANGE]
+  S --> API2[MEASURES]
+
+  subgraph file [Export window - отдельно]
+    R2[Room API]
+    S2[ViewSchedule user mapping]
+    R2 --> JSON[rooms in file]
+    S2 --> JSON2[workItems in file]
+  end
+```

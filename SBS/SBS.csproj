@@ -41,11 +41,13 @@
     <Compile Include="DTO\QuickSearchDtos.cs" />
     <Compile Include="DTO\RemontRoomsJsonDto.cs" />
     <Compile Include="DTO\RevitEventDtos.cs" />
+    <Compile Include="DTO\MaterialValidationDtos.cs" />
     <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
     <Compile Include="DTO\ScheduleMappingConfig.cs" />
     <Compile Include="Models\AuthSession.cs" />
     <Compile Include="Models\RemontOption.cs" />
     <Compile Include="Models\RoomMeasurementsModels.cs" />
+    <Compile Include="Models\RoomMaterialsModels.cs" />
     <Compile Include="Services\AuthService.cs" />
     <Compile Include="Services\AuthStorage.cs" />
     <Compile Include="Services\AuthGuard.cs" />
@@ -53,6 +55,11 @@
     <Compile Include="Services\RoomAreaService.cs" />
     <Compile Include="Services\RoomMeasurementsService.cs" />
     <Compile Include="Services\RoomMeasurementsScheduleMapping.cs" />
+    <Compile Include="Services\RoomMeasurementsElementMapping.cs" />
+    <Compile Include="Services\RoomMeasurementsFromCodeService.cs" />
+    <Compile Include="Services\RoomMaterialsService.cs" />
+    <Compile Include="Services\MaterialValidationService.cs" />
+    <Compile Include="Services\RoomPaintScheduleService.cs" />
     <Compile Include="Services\RoomNameMatcher.cs" />
     <Compile Include="Services\RevitEventsService.cs" />
     <Compile Include="Services\RevitEventStatusFormatter.cs" />
@@ -82,6 +89,12 @@
     </Compile>
     <Compile Include="Views\RoomMeasurementsWindow.xaml.cs">
       <DependentUpon>RoomMeasurementsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\RoomMeasurementsFromCodeWindow.xaml.cs">
+      <DependentUpon>RoomMeasurementsFromCodeWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\RoomMaterialsWindow.xaml.cs">
+      <DependentUpon>RoomMaterialsWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\SuccessDialog.xaml.cs">
       <DependentUpon>SuccessDialog.xaml</DependentUpon>
@@ -131,6 +144,14 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\RoomMeasurementsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\RoomMeasurementsFromCodeWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\RoomMaterialsWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

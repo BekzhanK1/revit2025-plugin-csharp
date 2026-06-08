@@ -24,16 +24,26 @@ namespace SmartRemont.ExportRooms.Services
             return (preferred ?? phases.FirstOrDefault())?.Name ?? "—";
         }
 
+        public static Phase GetPreferredPhase(Document doc)
+        {
+            if (doc == null)
+                return null;
+
+            var phases = GetPhases(doc);
+            return phases.FirstOrDefault(p =>
+                p.Name.Equals("После монтажных работ", StringComparison.OrdinalIgnoreCase))
+                ?? phases.FirstOrDefault();
+        }
+
+        public static double GetWallHeightM(Room room, Document doc) =>
+            GetCeilingHeightM(room, doc);
+
         public static IReadOnlyList<RoomAreaItem> CollectRooms(Document doc)
         {
             if (doc == null)
                 return Array.Empty<RoomAreaItem>();
 
-            var phases = GetPhases(doc);
-            var phase = phases.FirstOrDefault(p =>
-                p.Name.Equals("После монтажных работ", StringComparison.OrdinalIgnoreCase))
-                ?? phases.FirstOrDefault();
-
+            var phase = GetPreferredPhase(doc);
             if (phase == null)
                 return Array.Empty<RoomAreaItem>();
 

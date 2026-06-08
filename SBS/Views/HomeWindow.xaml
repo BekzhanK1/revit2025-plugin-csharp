@@ -6,7 +6,7 @@
         MinWidth="640"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
-        ShowInTaskbar="False"
+        ShowInTaskbar="True"
         FontFamily="Segoe UI"
         Background="#F5F5F5">
 
