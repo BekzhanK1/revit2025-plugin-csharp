@@ -58,12 +58,12 @@ namespace SmartRemont.ExportRooms.Views
         void ShowError(string message)
         {
             ErrorTextBlock.Text = message;
-            ErrorTextBlock.Visibility = Visibility.Visible;
+            ErrorBorder.Visibility = Visibility.Visible;
         }
 
         void HideError()
         {
-            ErrorTextBlock.Visibility = Visibility.Collapsed;
+            ErrorBorder.Visibility = Visibility.Collapsed;
         }
 
         void SetBusy(bool isBusy)

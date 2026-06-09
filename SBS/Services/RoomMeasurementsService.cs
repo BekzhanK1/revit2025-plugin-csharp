@@ -127,6 +127,52 @@ namespace SmartRemont.ExportRooms.Services
             return snapshot;
         }
 
+        /// <summary>Площадь фартука из ведомости «Спецификация фартука кухни» (колонка Площадь).</summary>
+        public static bool TryGetApronAreaFromSchedule(Document doc, out double areaM2, out string scheduleNameFound)
+        {
+            areaM2 = 0d;
+            scheduleNameFound = null;
+            if (doc == null)
+                return false;
+
+            var entry = All.FirstOrDefault(e => e.ParamCode == "APRON_AREA");
+            if (entry == null)
+                return false;
+
+            var schedules = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewSchedule))
+                .Cast<ViewSchedule>()
+                .Where(IsReadableSchedule)
+                .GroupBy(s => NormalizeName(s.Name), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var schedule = FindScheduleExact(schedules, entry.ScheduleNamesExact);
+            if (schedule == null || !TryReadTable(schedule, out var headers, out var rowCount))
+                return false;
+
+            var extracted = ExtractSingleValueToFixedRoom(
+                schedule,
+                headers,
+                rowCount,
+                entry.ValueColumnsExact,
+                entry.FixedRoomName,
+                out _,
+                out _);
+
+            scheduleNameFound = schedule.Name;
+            var roomKey = (entry.FixedRoomName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(roomKey))
+                return false;
+
+            if (extracted.ByRoomOrEmpty.TryGetValue(roomKey, out var value) && value > 0d)
+            {
+                areaM2 = value;
+                return true;
+            }
+
+            return false;
+        }
+
         static void ExtractWallAreaMinus(
             Dictionary<string, ViewSchedule> schedules,
             Dictionary<string, ExtractResult> byKey,

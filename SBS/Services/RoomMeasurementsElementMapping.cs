@@ -53,7 +53,7 @@ namespace SmartRemont.ExportRooms.Services
         {
             ParamCode = "APRON_AREA",
             ParamName = "Площадь фартука на кухне",
-            SourceDescription = "стены/витражи (Walls): ERBO_Помещения = «Кухня»"
+            SourceDescription = "ведомость «Спецификация фартука кухни»; иначе стены ERBO_Помещения=Кухня, сумма ERBO_Площадь"
         };
 
         public static Entry WallAreaMinus { get; } = new Entry

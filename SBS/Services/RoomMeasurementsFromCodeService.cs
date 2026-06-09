@@ -532,6 +532,7 @@ namespace SmartRemont.ExportRooms.Services
         sealed class ApronAreaSummary
         {
             public double TotalAreaM2 { get; set; }
+            public string Source { get; set; }
             public List<string> Items { get; } = new();
         }
 
@@ -541,6 +542,14 @@ namespace SmartRemont.ExportRooms.Services
             if (doc == null)
                 return summary;
 
+            if (RoomMeasurementsService.TryGetApronAreaFromSchedule(doc, out var scheduleArea, out var scheduleName))
+            {
+                summary.TotalAreaM2 = Math.Round(scheduleArea, 2);
+                summary.Source = "schedule";
+                summary.Items.Add($"ведомость «{scheduleName}»");
+                return summary;
+            }
+
             foreach (var wall in new FilteredElementCollector(doc)
                 .OfCategory(BuiltInCategory.OST_Walls)
                 .WhereElementIsNotElementType()
@@ -549,7 +558,7 @@ namespace SmartRemont.ExportRooms.Services
                 if (!MatchesErboRoom(wall, ApronRoomBaseName))
                     continue;
 
-                var areaM2 = GetElementAreaM2(wall);
+                var areaM2 = GetParameterAreaM2(wall, ErboAreaParamName);
                 if (areaM2 <= 0d)
                     continue;
 
@@ -557,6 +566,9 @@ namespace SmartRemont.ExportRooms.Services
                 summary.TotalAreaM2 = Math.Round(summary.TotalAreaM2 + areaM2, 2);
                 summary.Items.Add($"{typeName} {areaM2:0.##} м²");
             }
+
+            if (summary.TotalAreaM2 > 0d)
+                summary.Source = "walls_erbo";
 
             return summary;
         }
@@ -603,10 +615,16 @@ namespace SmartRemont.ExportRooms.Services
                 return null;
 
             if (summary == null || summary.TotalAreaM2 <= 0d)
-                return $"{roomName}: фартука нет ({ErboRoomParamName} = {ApronRoomBaseName})";
+                return $"{roomName}: фартука нет (ведомость «Спецификация фартука кухни» или {ErboRoomParamName} = {ApronRoomBaseName} + {ErboAreaParamName})";
+
+            if (summary.Source == "schedule")
+            {
+                var scheduleNote = summary.Items.Count > 0 ? summary.Items[0] : "ведомость";
+                return $"{roomName}: {summary.TotalAreaM2:0.##} м² ({scheduleNote})";
+            }
 
             var parts = string.Join(", ", summary.Items);
-            return $"{roomName}: {summary.TotalAreaM2:0.##} м² ({parts})";
+            return $"{roomName}: {summary.TotalAreaM2:0.##} м² (стены {ErboRoomParamName}={ApronRoomBaseName}, сумма {ErboAreaParamName}: {parts})";
         }
 
         static bool IsDoubleLeafDoor(FamilyInstance door)

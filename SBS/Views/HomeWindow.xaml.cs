@@ -63,7 +63,7 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             SetSearchBusy(true);
-            HideError();
+            SetStatus("Поиск...", isError: false);
 
             try
             {
@@ -71,27 +71,25 @@ namespace SmartRemont.ExportRooms.Views
                 var results = await RemontService.QuickSearchAsync(byRemontId, id)
                     .ConfigureAwait(true);
 
-                RemontComboBox.ItemsSource = results;
-                RemontComboBox.IsEnabled = results.Count > 0;
+                ResultsListBox.ItemsSource = results;
 
                 if (results.Count == 0)
                 {
-                    RemontComboBox.SelectedItem = null;
+                    ResultsSection.Visibility = Visibility.Collapsed;
                     SetStatus("Ничего не найдено. Проверьте ID и доступ к заявке.", isError: false);
-                    if (ExportRoomsApplication.SelectedRemont == null)
-                        SelectedPanel.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
+                    ResultsSection.Visibility = Visibility.Visible;
                     SetStatus(results.Count == 1
-                        ? "Найден 1 результат — выберите в списке"
-                        : $"Найдено: {results.Count} — выберите в списке",
+                        ? "Найден 1 результат — нажмите для выбора"
+                        : $"Найдено {results.Count} — выберите нужный",
                         isError: false);
 
                     if (restoreSelection != null)
-                        SelectInCombo(restoreSelection);
+                        SelectInList(restoreSelection);
                     else if (results.Count == 1)
-                        RemontComboBox.SelectedIndex = 0;
+                        ResultsListBox.SelectedIndex = 0;
                 }
             }
             catch (Exception ex)
@@ -114,23 +112,14 @@ namespace SmartRemont.ExportRooms.Views
             return int.TryParse(text, out id) && id > 0;
         }
 
-        void RemontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        void ResultsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (RemontComboBox.SelectedItem is RemontOption selected)
-                ShowSelectedPreview(selected, confirmed: false);
-            else if (ExportRoomsApplication.SelectedRemont == null)
-                SelectedPanel.Visibility = Visibility.Collapsed;
+            if (ResultsListBox.SelectedItem is RemontOption selected)
+            {
+                ExportRoomsApplication.SelectedRemont = selected;
+                ShowSelectedPreview(selected);
+            }
 
-            UpdateUiState();
-        }
-
-        void SelectButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (RemontComboBox.SelectedItem is not RemontOption selected)
-                return;
-
-            ExportRoomsApplication.SelectedRemont = selected;
-            ShowSelectedPreview(selected, confirmed: true);
             UpdateUiState();
         }
 
@@ -158,46 +147,40 @@ namespace SmartRemont.ExportRooms.Views
 
         void ClearResults()
         {
-            RemontComboBox.ItemsSource = null;
-            RemontComboBox.SelectedItem = null;
-            RemontComboBox.IsEnabled = false;
+            ResultsListBox.ItemsSource = null;
+            ResultsListBox.SelectedItem = null;
+            ResultsSection.Visibility = Visibility.Collapsed;
         }
 
-        void SelectInCombo(RemontOption remont)
+        void SelectInList(RemontOption remont)
         {
-            if (RemontComboBox.ItemsSource == null)
+            if (ResultsListBox.ItemsSource == null)
                 return;
 
-            foreach (RemontOption item in RemontComboBox.Items)
+            foreach (RemontOption item in ResultsListBox.Items)
             {
                 if (item.ClientRequestId == remont.ClientRequestId &&
                     item.RemontId == remont.RemontId)
                 {
-                    RemontComboBox.SelectedItem = item;
-                    ShowSelectedPreview(item, confirmed: true);
+                    ResultsListBox.SelectedItem = item;
+                    ShowSelectedPreview(item);
                     return;
                 }
             }
         }
 
-        void ShowSelectedPreview(RemontOption remont, bool confirmed)
+        void ShowSelectedPreview(RemontOption remont)
         {
             SelectedPanel.Visibility = Visibility.Visible;
-            SelectedTextBlock.Text = confirmed
-                ? $"Выбрано: {remont.Name}"
-                : $"Выбрано: {remont.Name} (нажмите «Выбрать» для подтверждения)";
+            SelectedTextBlock.Text = $"Выбрано: {remont.Name}";
         }
 
         void SetStatus(string message, bool isError)
         {
             StatusTextBlock.Text = message;
             StatusTextBlock.Foreground = new SolidColorBrush(
-                (Color)ColorConverter.ConvertFromString(isError ? "#C0392B" : "#999999"));
+                (Color)ColorConverter.ConvertFromString(isError ? "#C0392B" : "#9CA3AF"));
         }
-
-        void HideError() =>
-            StatusTextBlock.Foreground = new SolidColorBrush(
-                (Color)ColorConverter.ConvertFromString("#999999"));
 
         void SetSearchBusy(bool isBusy)
         {
@@ -210,21 +193,11 @@ namespace SmartRemont.ExportRooms.Views
 
         void UpdateUiState()
         {
-            var hasResults = RemontComboBox.ItemsSource != null &&
-                RemontComboBox.Items.Cast<object>().Any();
-            var hasComboSelection = RemontComboBox.SelectedItem is RemontOption;
             var confirmed = ExportRoomsApplication.SelectedRemont;
-
-            SelectButton.IsEnabled = hasResults && hasComboSelection;
             ContinueButton.IsEnabled = confirmed != null;
 
-            if (confirmed != null && hasComboSelection &&
-                RemontComboBox.SelectedItem is RemontOption selected &&
-                selected.ClientRequestId == confirmed.ClientRequestId &&
-                selected.RemontId == confirmed.RemontId)
-            {
-                ShowSelectedPreview(confirmed, confirmed: true);
-            }
+            if (confirmed != null)
+                ShowSelectedPreview(confirmed);
         }
     }
 }

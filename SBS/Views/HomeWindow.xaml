@@ -8,7 +8,7 @@
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
-        Background="#F5F5F5">
+        Background="#F0F2F5">
 
     <Window.Resources>
         <Style x:Key="Card" TargetType="Border">
@@ -22,52 +22,55 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SectionBlock" TargetType="Border">
-            <Setter Property="Background" Value="#FAFAFA"/>
-            <Setter Property="BorderBrush" Value="#EEEEEE"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="20,18"/>
-            <Setter Property="Margin" Value="0,0,0,24"/>
-        </Style>
-
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#888888"/>
-            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
 
         <Style TargetType="TextBox">
             <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Padding" Value="12,0"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="BorderBrush" Value="#DDDDDD"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Background" Value="White"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-
-        <Style TargetType="ComboBox">
-            <Setter Property="MinHeight" Value="40"/>
-            <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#1B6FC8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="RadioButton">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Foreground" Value="#444444"/>
-            <Setter Property="Margin" Value="0,0,32,0"/>
+            <Setter Property="Margin" Value="0,0,24,0"/>
             <Setter Property="Padding" Value="4,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Height" Value="42"/>
-            <Setter Property="MinWidth" Value="130"/>
-            <Setter Property="Padding" Value="22,0"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="MinWidth" Value="110"/>
+            <Setter Property="Padding" Value="20,0"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="White"/>
@@ -78,13 +81,16 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
-                                CornerRadius="5"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Background" Value="#155BB0"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#124A8F"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Background" Value="#AAAAAA"/>
@@ -96,7 +102,7 @@
         </Style>
 
         <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="42"/>
+            <Setter Property="Height" Value="40"/>
             <Setter Property="MinWidth" Value="100"/>
             <Setter Property="Padding" Value="18,0"/>
             <Setter Property="FontSize" Value="14"/>
@@ -111,7 +117,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -133,9 +139,43 @@
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="Padding" Value="10,0"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <!-- Result list item card -->
+        <Style x:Key="ResultItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Background="White"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1.5"
+                                CornerRadius="8"
+                                Padding="16,14">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#1B6FC8"/>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#F8FBFF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#1B6FC8"/>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -151,126 +191,199 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Grid Grid.Row="0" Margin="0,0,0,28">
-                <TextBlock Text="Smart Remont"
-                           FontSize="26"
-                           FontWeight="SemiBold"
-                           Foreground="#1B1B1B"
-                           VerticalAlignment="Center"/>
+            <Grid Grid.Row="0" Margin="0,0,0,24">
+                <StackPanel>
+                    <TextBlock Text="Smart Remont"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"/>
+                    <TextBlock x:Name="WelcomeTextBlock"
+                               FontSize="14"
+                               Foreground="#6B7280"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
                 <Button x:Name="LogoutButton"
                         Content="Выйти"
                         Style="{StaticResource LinkButton}"
                         HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Margin="0,2,0,0"
                         Click="LogoutButton_Click"/>
             </Grid>
 
-            <!-- Welcome -->
-            <TextBlock Grid.Row="1"
-                       x:Name="WelcomeTextBlock"
-                       FontSize="17"
-                       LineHeight="26"
-                       Foreground="#333333"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,32"/>
-
             <!-- Search -->
-            <Border Grid.Row="2" Style="{StaticResource SectionBlock}">
+            <Border Grid.Row="2"
+                    Background="#F9FAFB"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="20,16"
+                    Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Text="ПОИСК РЕМОНТА" Style="{StaticResource SectionLabel}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                         <RadioButton x:Name="ByRemontIdRadio"
-                                     Content="ID ремонта"
+                                     Content="По ID ремонта"
                                      GroupName="SearchMode"
                                      IsChecked="True"/>
                         <RadioButton x:Name="ByClientRequestIdRadio"
-                                     Content="ID заявки"
+                                     Content="По ID заявки"
                                      GroupName="SearchMode"
                                      Margin="0"/>
                     </StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="IdTextBox"
                                  Grid.Column="0"
-                                 Margin="0,0,12,0"
                                  KeyDown="IdTextBox_KeyDown"/>
                         <Button x:Name="SearchButton"
-                                Grid.Column="1"
+                                Grid.Column="2"
                                 Content="Найти"
                                 Style="{StaticResource SecondaryButton}"
-                                MinWidth="110"
+                                MinWidth="100"
                                 Click="SearchButton_Click"/>
                     </Grid>
+
+                    <!-- Inline status -->
+                    <TextBlock x:Name="StatusTextBlock"
+                               FontSize="13"
+                               Foreground="#9CA3AF"
+                               TextWrapping="Wrap"
+                               Margin="2,10,0,0"
+                               Text="Введите ID и нажмите «Найти»"/>
                 </StackPanel>
             </Border>
 
-            <!-- Result (fills remaining space) -->
+            <!-- Results list -->
             <Border Grid.Row="3"
-                    Style="{StaticResource SectionBlock}"
-                    Margin="0,0,0,24">
+                    x:Name="ResultsSection"
+                    Margin="0,0,0,16"
+                    Visibility="Collapsed">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
-                               Text="РЕЗУЛЬТАТ"
+                               Text="РЕЗУЛЬТАТЫ"
                                Style="{StaticResource SectionLabel}"/>
 
-                    <ComboBox Grid.Row="1"
-                              x:Name="RemontComboBox"
-                              DisplayMemberPath="Name"
-                              IsEnabled="False"
-                              MinHeight="44"
-                              Margin="0,0,0,16"
-                              SelectionChanged="RemontComboBox_SelectionChanged"/>
-
-                    <TextBlock Grid.Row="3"
-                               x:Name="StatusTextBlock"
-                               FontSize="13"
-                               LineHeight="20"
-                               Foreground="#999999"
-                               TextWrapping="Wrap"
-                               Text="Введите ID и нажмите «Найти»"/>
+                    <ListBox Grid.Row="1"
+                             x:Name="ResultsListBox"
+                             ItemContainerStyle="{StaticResource ResultItem}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             SelectionChanged="ResultsListBox_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827"/>
+                                        <TextBlock Text="{Binding ClientName}"
+                                                   FontSize="13"
+                                                   Foreground="#6B7280"
+                                                   Margin="0,3,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Border Background="#EFF6FF"
+                                                    CornerRadius="4"
+                                                    Padding="7,2"
+                                                    Margin="0,0,6,0">
+                                                <TextBlock FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#1D4ED8">
+                                                    <Run Text="Заявка #"/>
+                                                    <Run Text="{Binding ClientRequestId}"/>
+                                                </TextBlock>
+                                            </Border>
+                                            <Border Background="#F0FDF4"
+                                                    CornerRadius="4"
+                                                    Padding="7,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding RemontId}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#16A34A">
+                                                    <Run Text="Ремонт #"/>
+                                                    <Run Text="{Binding RemontId}"/>
+                                                </TextBlock>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1"
+                                               Text="&#xE76C;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="14"
+                                               Foreground="#9CA3AF"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </Grid>
             </Border>
 
-            <!-- Confirmed selection -->
+            <!-- Selected -->
             <Border Grid.Row="4"
                     x:Name="SelectedPanel"
                     Background="#EEF4FC"
-                    CornerRadius="6"
+                    BorderBrush="#BFDBFE"
+                    BorderThickness="1"
+                    CornerRadius="8"
                     Padding="16,14"
-                    Margin="0,0,0,28"
+                    Margin="0,0,0,24"
                     Visibility="Collapsed">
-                <TextBlock x:Name="SelectedTextBlock"
-                           FontSize="14"
-                           LineHeight="22"
-                           Foreground="#1B6FC8"
-                           TextWrapping="Wrap"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="&#xE73E;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="16"
+                               Foreground="#1B6FC8"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="1"
+                               x:Name="SelectedTextBlock"
+                               FontSize="14"
+                               LineHeight="22"
+                               Foreground="#1B6FC8"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
+                </Grid>
             </Border>
 
             <!-- Actions -->
             <Grid Grid.Row="5">
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Отмена"
                             Style="{StaticResource SecondaryButton}"
                             Margin="0,0,12,0"
                             IsCancel="True"
                             Click="CancelButton_Click"/>
-                    <Button x:Name="SelectButton"
-                            Content="Выбрать"
-                            Style="{StaticResource SecondaryButton}"
-                            Margin="0,0,12,0"
-                            IsEnabled="False"
-                            Click="SelectButton_Click"/>
                     <Button x:Name="ContinueButton"
                             Content="Продолжить"
                             Style="{StaticResource PrimaryButton}"
