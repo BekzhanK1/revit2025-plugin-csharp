@@ -9,6 +9,12 @@ namespace SmartRemont.ExportRooms.Services
 {
     public static class TypeParameterChangeService
     {
+        public static readonly string[] EditableParameterNames =
+        {
+            "ID материала",
+            "ID типа материала"
+        };
+
         public static List<TypeCategoryOption> GetCategories(Document doc) =>
             GetModelTypes(doc)
                 .GroupBy(t => t.Category.Id.Value)
@@ -57,26 +63,110 @@ namespace SmartRemont.ExportRooms.Services
             if (type == null)
                 return new List<TypeParameterRowVm>();
 
-            return type.Parameters
+            var parametersByName = type.Parameters
                 .Cast<Parameter>()
                 .Where(p => p?.Definition != null)
-                .OrderBy(p => p.Definition.Name, StringComparer.CurrentCultureIgnoreCase)
-                .Select(p =>
+                .GroupBy(p => p.Definition.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.CurrentCultureIgnoreCase);
+
+            var rows = new List<TypeParameterRowVm>();
+            foreach (var name in EditableParameterNames)
+            {
+                if (!parametersByName.TryGetValue(name, out var parameter))
+                    continue;
+
+                var canEdit = CanEdit(parameter);
+                var value = FormatParameterValue(parameter);
+                rows.Add(new TypeParameterRowVm
                 {
-                    var canEdit = CanEdit(p);
-                    var value = FormatParameterValue(p);
-                    return new TypeParameterRowVm
-                    {
-                        Name = p.Definition.Name,
-                        StorageTypeName = GetStorageTypeName(p.StorageType),
-                        CurrentValue = value,
-                        NewValue = value,
-                        CanEdit = canEdit,
-                        EditNote = canEdit ? string.Empty : GetReadOnlyReason(p),
-                        Parameter = p
-                    };
-                })
-                .ToList();
+                    Name = parameter.Definition.Name,
+                    StorageTypeName = GetStorageTypeName(parameter.StorageType),
+                    CurrentValue = value,
+                    NewValue = value,
+                    CanEdit = canEdit,
+                    EditNote = canEdit ? string.Empty : GetReadOnlyReason(parameter),
+                    Parameter = parameter
+                });
+            }
+
+            return rows;
+        }
+
+        public static TypeParameterSaveResult DuplicateWithParameters(
+            Document doc,
+            ElementType sourceType,
+            string newName,
+            IEnumerable<TypeParameterRowVm> rows)
+        {
+            if (doc == null)
+                throw new ArgumentNullException(nameof(doc));
+            if (sourceType == null)
+                throw new ArgumentNullException(nameof(sourceType));
+
+            newName = (newName ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(newName))
+                return new TypeParameterSaveResult { Message = "Введите название нового типа." };
+
+            var rowList = (rows ?? Enumerable.Empty<TypeParameterRowVm>()).ToList();
+
+            using var tx = new Transaction(doc, "Smart Remont: дублирование типа");
+            tx.Start();
+
+            ElementType newType;
+            try
+            {
+                newType = sourceType.Duplicate(newName);
+            }
+            catch (Exception ex)
+            {
+                tx.RollBack();
+                return new TypeParameterSaveResult
+                {
+                    FailedCount = 1,
+                    Message = $"Не удалось дублировать тип: {ex.Message}"
+                };
+            }
+
+            var changed = 0;
+            var failures = new List<string>();
+
+            foreach (var row in rowList)
+            {
+                if (string.IsNullOrEmpty(row?.NewValue))
+                    continue;
+
+                var param = newType.LookupParameter(row.Name);
+                if (param == null || !CanEdit(param))
+                {
+                    failures.Add($"{row.Name}: недоступен для записи");
+                    continue;
+                }
+
+                try
+                {
+                    SetParameterValue(param, row.NewValue);
+                    changed++;
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{row.Name}: {ex.Message}");
+                }
+            }
+
+            tx.Commit();
+
+            var message = $"Создан тип «{newName}».";
+            if (changed > 0)
+                message += $" Параметров задано: {changed}.";
+            if (failures.Count > 0)
+                message += Environment.NewLine + "Не удалось задать: " + string.Join(", ", failures);
+
+            return new TypeParameterSaveResult
+            {
+                ChangedCount = changed,
+                FailedCount = failures.Count,
+                Message = message
+            };
         }
 
         public static TypeParameterSaveResult SaveChanges(Document doc, ElementType type, IEnumerable<TypeParameterRowVm> rows)

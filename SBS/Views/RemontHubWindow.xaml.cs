@@ -18,7 +18,7 @@ namespace SmartRemont.ExportRooms.Views
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
         const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
         const string RoomMaterialsSubtitle = "Краска из ведомости и элементы модели по помещениям";
-        const string TypeParametersSubtitle = "Категория, семейство, тип и параметры типа";
+        const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
         const string DsTkSubtitle = "Изменение технологической карты";
 
         public RemontHubWindow(Document doc)

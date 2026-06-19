@@ -115,16 +115,31 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            foreach (var row in TypeParameterChangeService.GetParameters(_selectedType))
+            var rows = TypeParameterChangeService.GetParameters(_selectedType);
+            if (rows.Count == 0)
+            {
+                SetStatus(
+                    "У выбранного типа нет параметров «ID материала» и «ID типа материала».",
+                    isError: true);
+                SelectionHintText.Text = string.Empty;
+                SaveButton.IsEnabled = false;
+                return;
+            }
+
+            foreach (var row in rows)
             {
                 row.PropertyChanged += ParameterRow_PropertyChanged;
                 _parameters.Add(row);
             }
 
             var editableCount = _parameters.Count(p => p.CanEdit);
-            SelectionHintText.Text = $"Параметров: {_parameters.Count}, доступно для изменения: {editableCount}.";
+            SelectionHintText.Text = $"Найдено параметров: {_parameters.Count}, доступно для изменения: {editableCount}.";
             SetStatus($"Выбран тип: {option.FamilyName} / {option.Name}.", isError: false);
+
+            NewTypeNameTextBox.Text = $"{option.Name} (копия)";
+
             UpdateSaveButtonState();
+            UpdateDuplicateButtonState();
         }
 
         void ParameterRow_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -155,6 +170,35 @@ namespace SmartRemont.ExportRooms.Views
         void CloseButton_Click(object sender, RoutedEventArgs e) =>
             Close();
 
+        void DuplicateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedType == null)
+                return;
+
+            var newName = NewTypeNameTextBox.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(newName))
+            {
+                SetStatus("Введите название нового типа.", isError: true);
+                return;
+            }
+
+            try
+            {
+                var result = TypeParameterChangeService.DuplicateWithParameters(
+                    _doc, _selectedType, newName, _parameters);
+
+                SetStatus(result.Message, result.FailedCount > 0 && result.ChangedCount == 0);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex, "Не удалось дублировать тип");
+                SetStatus($"Ошибка: {ex.Message}", isError: true);
+            }
+        }
+
+        void NewTypeNameTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+            UpdateDuplicateButtonState();
+
         void ClearParameters()
         {
             foreach (var row in _parameters)
@@ -164,11 +208,16 @@ namespace SmartRemont.ExportRooms.Views
             _selectedType = null;
             SelectionHintText.Text = string.Empty;
             SaveButton.IsEnabled = false;
+            DuplicateButton.IsEnabled = false;
             SetStatus("Выберите тип для просмотра параметров.", isError: false);
         }
 
         void UpdateSaveButtonState() =>
             SaveButton.IsEnabled = _selectedType != null && _parameters.Any(p => p.IsEdited);
+
+        void UpdateDuplicateButtonState() =>
+            DuplicateButton.IsEnabled = _selectedType != null
+                && !string.IsNullOrWhiteSpace(NewTypeNameTextBox.Text);
 
         void SetStatus(string message, bool isError)
         {
