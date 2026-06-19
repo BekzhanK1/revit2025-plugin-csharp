@@ -289,6 +289,11 @@
                         Content="Замеры по коду"
                         Tag="default"
                         Click="MeasuresFromCodeButton_Click"/>
+                <Button x:Name="MeasuresCompareButton"
+                        Style="{StaticResource FeatureCardButton}"
+                        Content="Сравнение замеров"
+                        Tag="default"
+                        Click="MeasuresCompareButton_Click"/>
                 <Button x:Name="RoomMaterialsButton"
                         Style="{StaticResource FeatureCardButton}"
                         Content="Материалы по комнатам"

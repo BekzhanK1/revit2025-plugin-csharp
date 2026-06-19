@@ -8,7 +8,6 @@ namespace SmartRemont.ExportRooms.Services
 {
     public class RoomAreaItem
     {
-        public string RoomNumber { get; set; }
         public string RoomName { get; set; }
         public double AreaM2 { get; set; }
         public double WallHeightM { get; set; }
@@ -16,6 +15,22 @@ namespace SmartRemont.ExportRooms.Services
 
     public static class RoomAreaService
     {
+        /// <summary>Имя помещения без номера (только ROOM_NAME, иначе ROOM_NUMBER).</summary>
+        public static string GetRoomDisplayName(Room room)
+        {
+            if (room == null)
+                return string.Empty;
+
+            var name = (room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+                return name;
+
+            return (room.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? string.Empty).Trim();
+        }
+
+        public static int GetRoomSortKey(Room room) =>
+            ParseRoomNumberSortKey(room?.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString());
+
         public static string GetPreferredPhaseName(Document doc)
         {
             var phases = GetPhases(doc);
@@ -56,10 +71,6 @@ namespace SmartRemont.ExportRooms.Services
                             r.Area > 0)
                 .Select(r =>
                 {
-                    var name = (r.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? "").Trim();
-                    var num = (r.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? "").Trim();
-                    var roomName = !string.IsNullOrWhiteSpace(name) ? name : num;
-
                     var areaM2 = UnitUtils.ConvertFromInternalUnits(
                         r.get_Parameter(BuiltInParameter.ROOM_AREA)?.AsDouble() ?? 0,
                         UnitTypeId.SquareMeters);
@@ -67,14 +78,12 @@ namespace SmartRemont.ExportRooms.Services
 
                     return new RoomAreaItem
                     {
-                        RoomNumber = num,
-                        RoomName = roomName,
+                        RoomName = GetRoomDisplayName(r),
                         AreaM2 = Math.Round(areaM2, 2),
                         WallHeightM = wallHeightM
                     };
                 })
-                .OrderBy(r => ParseRoomNumberSortKey(r.RoomNumber))
-                .ThenBy(r => r.RoomName)
+                .OrderBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 

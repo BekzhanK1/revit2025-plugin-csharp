@@ -17,6 +17,7 @@ namespace SmartRemont.ExportRooms.Views
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Замеры из спецификаций Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
+        const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
         const string RoomMaterialsSubtitle = "Краска из ведомости и элементы модели по помещениям";
         const string DsTkSubtitle = "Изменение технологической карты";
 
@@ -41,6 +42,7 @@ namespace SmartRemont.ExportRooms.Views
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
             ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
+            ConfigureFeatureButton(MeasuresCompareButton, "\uE8AB", MeasuresCompareSubtitle);
             ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
             ConfigureFeatureButton(DsTkChangeButton, "\uE8A5", DsTkSubtitle);
         }
@@ -198,6 +200,13 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             await RefreshEventStatusesAsync().ConfigureAwait(true);
+        }
+
+        void MeasuresCompareButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new RoomMeasurementsCompareWindow(_doc);
+            window.Owner = this;
+            window.ShowDialog();
         }
 
         void RoomMaterialsButton_Click(object sender, RoutedEventArgs e)

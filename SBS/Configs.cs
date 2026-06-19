@@ -39,6 +39,12 @@ namespace SmartRemont.ExportRooms
         public static string RevitEventStatusUrl(int remontId, string eventType) =>
             $"{ApiOriginUrl}/common/revit_events/status/?remont_id={remontId}&type={Uri.EscapeDataString(eventType ?? "")}";
 
+        public static string DsRoomChangeReadUrl(int remontId) =>
+            $"{ApiOriginUrl}/common/ds/room-change/read/?remont_id={remontId}";
+
+        public static string ClientMaterialTkReadUrl(int remontId) =>
+            $"{ApiOriginUrl}/common/client_material/tk/read/?remont_id={remontId}";
+
         static string ReadAppSetting(string key)
         {
             var loc = Assembly.GetExecutingAssembly().Location;

@@ -683,7 +683,6 @@ namespace SmartRemont.ExportRooms.Views
                 .Select(r =>
                 {
                     var nameP  = r.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? "";
-                    var numP   = r.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? "";
                     var levelN = r.LevelId != ElementId.InvalidElementId
                         ? (_doc.GetElement(r.LevelId) as Level)?.Name ?? ""
                         : "";
@@ -694,7 +693,7 @@ namespace SmartRemont.ExportRooms.Views
                     return new RoomPreviewVm
                     {
                         ApartmentNumber = GetParameterString(r, aptParam),
-                        DisplayName     = string.IsNullOrWhiteSpace(numP) ? nameP : $"{numP} — {nameP}",
+                        DisplayName     = nameP.Trim(),
                         LevelName       = levelN,
                         AreaStr         = $"{Math.Round(area, 1)} м²"
                     };

@@ -14,7 +14,7 @@
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="White"/>
             <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="32,28"/>
+            <Setter Property="Padding" Value="28,24"/>
             <Setter Property="Effect">
                 <Setter.Value>
                     <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.06" Color="#000000"/>
@@ -22,20 +22,25 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SectionBlock" TargetType="Border">
-            <Setter Property="Background" Value="#FAFAFA"/>
+        <Style x:Key="StatCard" TargetType="Border">
+            <Setter Property="Background" Value="#F9FAFB"/>
             <Setter Property="BorderBrush" Value="#E5E7EB"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="18,16"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
         </Style>
 
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="22"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#9CA3AF"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Foreground" Value="#111827"/>
+        </Style>
+
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>
 
         <Style x:Key="RoomBlock" TargetType="Border">
@@ -43,15 +48,15 @@
             <Setter Property="BorderBrush" Value="#E5E7EB"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="16,14"/>
-            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
 
         <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="MinWidth" Value="100"/>
-            <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="MinWidth" Value="96"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="#555555"/>
             <Setter Property="Background" Value="White"/>
             <Setter Property="BorderBrush" Value="#CCCCCC"/>
@@ -83,7 +88,7 @@
             <Setter Property="Background" Value="White"/>
             <Setter Property="BorderBrush" Value="#E5E7EB"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="MinRowHeight" Value="38"/>
+            <Setter Property="MinRowHeight" Value="36"/>
             <Setter Property="HeadersVisibility" Value="Column"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
             <Setter Property="HorizontalGridLinesBrush" Value="#F3F4F6"/>
@@ -94,7 +99,6 @@
             <Setter Property="SelectionMode" Value="Single"/>
             <Setter Property="SelectionUnit" Value="FullRow"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
             <Setter Property="RowBackground" Value="White"/>
         </Style>
 
@@ -103,13 +107,13 @@
             <Setter Property="Foreground" Value="#64748B"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,9"/>
+            <Setter Property="Padding" Value="10,8"/>
             <Setter Property="BorderBrush" Value="#E5E7EB"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
 
         <Style TargetType="DataGridCell">
-            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Padding" Value="10,6"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
@@ -131,66 +135,96 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <StackPanel Grid.Row="0" Margin="0,0,0,16">
                 <TextBlock Text="Материалы по комнатам"
-                           FontSize="24"
+                           FontSize="22"
                            FontWeight="SemiBold"
                            Foreground="#111827"/>
-                <TextBlock Text="Название, ID и количество. Зелёный — в каталоге, красный — нет в базе."
-                           FontSize="13"
+                <TextBlock Text="Сначала проверка каталога системы, затем сверка с текстовым конструктором (ТК)."
+                           FontSize="12"
                            Foreground="#6B7280"
-                           TextWrapping="Wrap"
-                           Margin="0,6,0,0"/>
+                           Margin="0,4,0,0"/>
             </StackPanel>
 
-            <Border Grid.Row="1"
-                    Background="#EFF6FF"
-                    BorderBrush="#BFDBFE"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="14,12"
-                    Margin="0,12,0,16">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE946;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="16"
-                               Foreground="#1B6FC8"
-                               VerticalAlignment="Top"
-                               Margin="0,1,10,0"/>
-                    <TextBlock x:Name="FormulaHintTextBlock"
-                               FontSize="13"
-                               Foreground="#1E40AF"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
+            <Grid Grid.Row="1" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource StatCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="StatRoomsValue" Style="{StaticResource StatValue}" Text="—"/>
+                        <TextBlock Text="комнат" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource StatCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="StatTotalValue" Style="{StaticResource StatValue}" Text="—"/>
+                        <TextBlock Text="позиций" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource StatCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="StatInTkValue" Style="{StaticResource StatValue}" Text="—" Foreground="#15803D"/>
+                        <TextBlock Text="совпадает с ТК" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource StatCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="StatMissingSystemValue" Style="{StaticResource StatValue}" Text="—" Foreground="#DC2626"/>
+                        <TextBlock Text="нет в системе" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="4" Style="{StaticResource StatCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="StatNotInTkValue" Style="{StaticResource StatValue}" Text="—" Foreground="#C2410C"/>
+                        <TextBlock Text="нет в ТК" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="5" Style="{StaticResource StatCard}" Margin="0">
+                    <StackPanel>
+                        <TextBlock x:Name="StatTkOnlyValue" Style="{StaticResource StatValue}" Text="—" Foreground="#B45309"/>
+                        <TextBlock Text="только в ТК" Style="{StaticResource StatLabel}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <Border x:Name="CatalogBanner"
                     Grid.Row="2"
                     BorderThickness="1"
                     CornerRadius="6"
-                    Padding="14,12"
-                    Margin="0,0,0,16"
+                    Padding="12,10"
+                    Margin="0,0,0,12"
                     Visibility="Collapsed">
                 <StackPanel>
                     <StackPanel x:Name="CatalogLoadingPanel" Orientation="Horizontal" Visibility="Collapsed">
-                        <ProgressBar Width="140"
-                                     Height="6"
+                        <ProgressBar Width="120"
+                                     Height="5"
                                      IsIndeterminate="True"
                                      VerticalAlignment="Center"
-                                     Margin="0,0,12,0"/>
+                                     Margin="0,0,10,0"/>
                         <TextBlock x:Name="CatalogLoadingTextBlock"
-                                   FontSize="13"
-                                   Foreground="#1E40AF"
-                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="#374151"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                     <TextBlock x:Name="CatalogBannerTextBlock"
-                               FontSize="13"
+                               FontSize="12"
                                TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="3" Style="{StaticResource SectionBlock}" Margin="0">
+            <Border Grid.Row="3"
+                    Background="#FAFAFA"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14,12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -198,7 +232,19 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="ПО КОМНАТАМ" Style="{StaticResource SectionLabel}"/>
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <TextBlock Text="По комнатам"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#9CA3AF"
+                                   VerticalAlignment="Center"/>
+                        <CheckBox x:Name="TkDifferencesOnlyCheckBox"
+                                  Content="Скрыть совпадения (только проблемы)"
+                                  HorizontalAlignment="Right"
+                                  FontSize="12"
+                                  Checked="TkDifferencesOnlyCheckBox_Changed"
+                                  Unchecked="TkDifferencesOnlyCheckBox_Changed"/>
+                    </Grid>
 
                     <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
@@ -212,126 +258,102 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Style="{StaticResource RoomBlock}" HorizontalAlignment="Stretch">
-                                        <StackPanel HorizontalAlignment="Stretch">
-                                            <Grid Margin="0,0,0,12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="4"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Border Grid.Column="0"
-                                                        Background="#1B6FC8"
-                                                        CornerRadius="2"
-                                                        Margin="0,2,12,2"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding RoomName}"
-                                                           FontSize="16"
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,10">
+                                                <TextBlock Text="{Binding RoomName}"
+                                                           FontSize="15"
                                                            FontWeight="SemiBold"
                                                            Foreground="#1F2937"
                                                            VerticalAlignment="Center"/>
-                                                <Border Grid.Column="2"
-                                                        Background="#F3F4F6"
-                                                        BorderBrush="#E5E7EB"
-                                                        BorderThickness="1"
-                                                        CornerRadius="4"
-                                                        Padding="8,4"
-                                                        VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding SummaryBadge}"
-                                                               FontSize="11"
-                                                               Foreground="#6B7280"/>
-                                                </Border>
+                                                <TextBlock Text="{Binding SummaryBadge}"
+                                                           FontSize="11"
+                                                           Foreground="#9CA3AF"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"/>
                                             </Grid>
 
                                             <DataGrid ItemsSource="{Binding TableRows}"
                                                       Style="{StaticResource MaterialsDataGrid}"
-                                                      MinHeight="56">
+                                                      MinHeight="48">
                                                 <DataGrid.RowStyle>
                                                     <Style TargetType="DataGridRow">
                                                         <Setter Property="Background" Value="White"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding CatalogStatusKey}" Value="found">
-                                                                <Setter Property="Background" Value="#ECFDF5"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding CatalogStatusKey}" Value="missing">
+                                                            <DataTrigger Binding="{Binding StatusKey}" Value="missing_system">
                                                                 <Setter Property="Background" Value="#FEF2F2"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding StatusKey}" Value="not_in_tk">
+                                                                <Setter Property="Background" Value="#FFF7ED"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding StatusKey}" Value="tk_only">
+                                                                <Setter Property="Background" Value="#FFFBEB"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding StatusKey}" Value="in_tk">
+                                                                <Setter Property="Background" Value="#F0FDF4"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </DataGrid.RowStyle>
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Название"
+                                                    <DataGridTextColumn Header="Материал"
                                                                         Binding="{Binding Name}"
-                                                                        Width="5*"
-                                                                        MinWidth="220">
+                                                                        Width="4*"
+                                                                        MinWidth="200">
                                                         <DataGridTextColumn.ElementStyle>
                                                             <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
                                                         </DataGridTextColumn.ElementStyle>
                                                     </DataGridTextColumn>
-                                                    <DataGridTemplateColumn Header="ID" Width="2*" MinWidth="100">
-                                                        <DataGridTemplateColumn.CellTemplate>
-                                                            <DataTemplate>
-                                                                <Border CornerRadius="4" Padding="6,4" HorizontalAlignment="Stretch">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="Background" Value="Transparent"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding CatalogStatusKey}" Value="found">
-                                                                                    <Setter Property="Background" Value="#D1FAE5"/>
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding CatalogStatusKey}" Value="missing">
-                                                                                    <Setter Property="Background" Value="#FEE2E2"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                    <TextBlock Text="{Binding ProductId}"
-                                                                               TextWrapping="Wrap"
-                                                                               VerticalAlignment="Center">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding CatalogStatusKey}" Value="found">
-                                                                                        <Setter Property="Foreground" Value="#059669"/>
-                                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding CatalogStatusKey}" Value="missing">
-                                                                                        <Setter Property="Foreground" Value="#DC2626"/>
-                                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </DataGridTemplateColumn.CellTemplate>
-                                                    </DataGridTemplateColumn>
-                                                    <DataGridTemplateColumn Header="Кол-во" Width="90" MinWidth="80">
-                                                        <DataGridTemplateColumn.CellTemplate>
-                                                            <DataTemplate>
-                                                                <Border Background="#E0E7FF"
-                                                                        CornerRadius="10"
-                                                                        Padding="8,2"
-                                                                        HorizontalAlignment="Center"
-                                                                        VerticalAlignment="Center">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding QuantityDisplay}" Value="—">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                    <TextBlock Text="{Binding QuantityDisplay}"
-                                                                               FontSize="11"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="#3730A3"/>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </DataGridTemplateColumn.CellTemplate>
-                                                    </DataGridTemplateColumn>
+                                                    <DataGridTextColumn Header="ID"
+                                                                        Binding="{Binding ProductId}"
+                                                                        Width="90"
+                                                                        MinWidth="72">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                                                <Setter Property="Foreground" Value="#374151"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
+                                                    <DataGridTextColumn Header="Статус"
+                                                                        Binding="{Binding StatusDisplay}"
+                                                                        Width="160"
+                                                                        MinWidth="140">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="missing_system">
+                                                                        <Setter Property="Foreground" Value="#DC2626"/>
+                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="not_in_tk">
+                                                                        <Setter Property="Foreground" Value="#C2410C"/>
+                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="tk_only">
+                                                                        <Setter Property="Foreground" Value="#B45309"/>
+                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="in_tk">
+                                                                        <Setter Property="Foreground" Value="#15803D"/>
+                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="in_system">
+                                                                        <Setter Property="Foreground" Value="#6B7280"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
+                                                    <DataGridTextColumn Header="Кол-во"
+                                                                        Binding="{Binding QuantityDisplay}"
+                                                                        Width="72"
+                                                                        MinWidth="64">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                                <Setter Property="Foreground" Value="#6B7280"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                         </StackPanel>
@@ -343,10 +365,10 @@
 
                     <TextBlock Grid.Row="2"
                                x:Name="NoDataTextBlock"
-                               Text="Не удалось найти материалы в помещениях."
+                               Text="Материалы в помещениях не найдены."
                                FontSize="13"
-                               Foreground="#999999"
-                               Margin="0,16,0,0"
+                               Foreground="#9CA3AF"
+                               Margin="0,12,0,0"
                                HorizontalAlignment="Center"
                                Visibility="Collapsed"/>
                 </Grid>
@@ -354,12 +376,16 @@
 
             <Border x:Name="DetailsPanel"
                     Grid.Row="4"
-                    Style="{StaticResource SectionBlock}"
+                    Background="#FAFAFA"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
                     Padding="14,12"
+                    Margin="0,12,0,0"
                     Visibility="Collapsed">
                 <StackPanel>
-                    <TextBlock Text="ИСТОЧНИКИ И ФОРМУЛЫ" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
-                    <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                    <TextBlock Text="Детали" FontSize="11" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="0,0,0,8"/>
+                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="DetailsItemsControl">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -375,23 +401,23 @@
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Row="5" Margin="0,20,0,0">
+            <Grid Grid.Row="5" Margin="0,16,0,0">
                 <TextBlock x:Name="StatusTextBlock"
                            VerticalAlignment="Center"
-                           FontSize="13"
-                           Foreground="#666666"
+                           FontSize="12"
+                           Foreground="#6B7280"
                            TextWrapping="Wrap"
-                           Margin="0,0,420,0"/>
+                           Margin="0,0,280,0"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="RetryValidationButton"
-                            Content="Проверить каталог"
+                            Content="Обновить"
                             Style="{StaticResource SecondaryButton}"
-                            Margin="0,0,12,0"
+                            Margin="0,0,10,0"
                             Click="RetryValidationButton_Click"/>
                     <Button x:Name="DetailsToggleButton"
-                            Content="Детали расчёта"
+                            Content="Детали"
                             Style="{StaticResource SecondaryButton}"
-                            Margin="0,0,12,0"
+                            Margin="0,0,10,0"
                             Click="DetailsToggleButton_Click"/>
                     <Button x:Name="CloseButton"
                             Content="Закрыть"

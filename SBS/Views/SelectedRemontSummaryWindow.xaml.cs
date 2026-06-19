@@ -14,20 +14,56 @@ namespace SmartRemont.ExportRooms.Views
 {
     public class RoomAreaRowVm
     {
-        public string RoomNumber { get; set; }
         public string RoomName { get; set; }
         public double AreaM2 { get; set; }
         public double WallHeightM { get; set; }
-        public string AreaDisplay => AreaM2.ToString("0.##", CultureInfo.InvariantCulture);
+        public double? SystemAreaM2 { get; set; }
+        public DsAreaCompareStatus AreaCompareStatus { get; set; }
+        public bool IsPayloadHeight { get; set; }
+
+        public string AreaDisplay =>
+            AreaM2 > 0d
+                ? AreaM2.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
+
+        public string SystemAreaDisplay =>
+            SystemAreaM2.HasValue
+                ? SystemAreaM2.Value.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
+
         public string HeightDisplay => WallHeightM > 0d
             ? WallHeightM.ToString("0.##", CultureInfo.InvariantCulture)
             : "—";
+
+        public string AreaDeltaDisplay
+        {
+            get
+            {
+                if (!SystemAreaM2.HasValue || AreaM2 <= 0d)
+                    return "—";
+
+                var delta = AreaM2 - SystemAreaM2.Value;
+                if (Math.Abs(delta) < 0.005d)
+                    return "0";
+
+                return (delta > 0d ? "+" : string.Empty)
+                       + delta.ToString("0.##", CultureInfo.InvariantCulture);
+            }
+        }
+
+        public bool IsAreaDifference =>
+            AreaCompareStatus is DsAreaCompareStatus.Mismatch
+                or DsAreaCompareStatus.SystemOnly
+                or DsAreaCompareStatus.RevitOnly;
     }
 
     public partial class SelectedRemontSummaryWindow : Window
     {
         readonly Document _doc;
         List<RoomAreaRowVm> _rows = new List<RoomAreaRowVm>();
+        List<RoomAreaRowVm> _allRows = new List<RoomAreaRowVm>();
+        double? _systemWallHeightM;
+        DsAreaCompareStatus? _wallHeightCompareStatus;
 
         public string LastSuccessMessage { get; private set; }
 
@@ -45,34 +81,23 @@ namespace SmartRemont.ExportRooms.Views
             await LoadEventStatusAsync().ConfigureAwait(true);
 
             var rooms = RoomAreaService.CollectRooms(_doc);
-            _rows = rooms
+            _allRows = rooms
                 .Select(r => new RoomAreaRowVm
                 {
-                    RoomNumber = string.IsNullOrWhiteSpace(r.RoomNumber) ? "—" : r.RoomNumber,
                     RoomName = r.RoomName,
                     AreaM2 = r.AreaM2,
                     WallHeightM = r.WallHeightM
                 })
                 .ToList();
 
-            RoomsDataGrid.ItemsSource = _rows;
-
             var phaseName = RoomAreaService.GetPreferredPhaseName(_doc);
             PhaseHintText.Text = $"Фаза: {phaseName}";
-            var wallHeight = ResolvePayloadWallHeight(_rows);
-            var heightSpread = GetHeightSpreadHint(_rows);
-            WallHeightHintText.Text = wallHeight > 0d
-                ? $"Высота потолка по стенам (в отправку): {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м{heightSpread}"
-                : "Высота потолка: —";
 
-            var totalArea = _rows.Sum(r => r.AreaM2);
-            var count = _rows.Count;
+            ApplyRowsView();
+            ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
+            UpdateTotals();
 
-            TotalAreaText.Text = count == 0
-                ? "—"
-                : $"{totalArea.ToString("0.##", CultureInfo.InvariantCulture)} м² · {count} помещ.";
-
-            var hasRooms = count > 0;
+            var hasRooms = _allRows.Count > 0;
             RoomsDataGrid.Visibility = hasRooms
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
@@ -81,6 +106,182 @@ namespace SmartRemont.ExportRooms.Views
                 : System.Windows.Visibility.Visible;
 
             UpdateSendButtonState();
+            await LoadSystemComparisonAsync().ConfigureAwait(true);
+        }
+
+        async Task LoadSystemComparisonAsync()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId == null || remont.RemontId <= 0)
+            {
+                SystemDsInfoText.Text = "Сравнение с системой недоступно: нет ID ремонта.";
+                ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
+                return;
+            }
+
+            SetStatus("Загрузка данных из системы…", isError: false);
+
+            try
+            {
+                var system = await DsRoomChangeService
+                    .ReadAsync(remont.RemontId.Value)
+                    .ConfigureAwait(true);
+
+                ApplySystemComparison(system);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить ДС room-change из системы");
+                SystemDsInfoText.Text = $"Не удалось загрузить данные системы: {ex.Message}";
+                ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
+                SetStatus("Revit-данные загружены. Сравнение с системой недоступно.", isError: true);
+            }
+        }
+
+        void ApplySystemComparison(DsRoomChangeSnapshot system)
+        {
+            if (system == null || !system.HasData)
+            {
+                SystemDsInfoText.Text = system?.EmptyMessage
+                    ?? "В системе пока нет ДС по изменению площадей для этого ремонта.";
+                CompareLegendPanel.Visibility = System.Windows.Visibility.Collapsed;
+                ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
+                UpdateSendButtonState();
+                return;
+            }
+
+            CompareLegendPanel.Visibility = System.Windows.Visibility.Visible;
+
+            var dsParts = new List<string>();
+            if (system.DsId.HasValue)
+                dsParts.Add($"ДС #{system.DsId.Value}");
+            if (!string.IsNullOrWhiteSpace(system.DsTypeName))
+                dsParts.Add(system.DsTypeName.Trim());
+            if (!string.IsNullOrWhiteSpace(system.DsDate))
+                dsParts.Add(system.DsDate.Trim());
+            SystemDsInfoText.Text = dsParts.Count > 0
+                ? $"Данные системы: {string.Join(" · ", dsParts)}"
+                : "Данные системы загружены.";
+
+            _systemWallHeightM = system.WallHeightM;
+            var systemByKey = DsAreaCompareService.BuildSystemAreaByKey(system.Rooms);
+            var revitKeys = new HashSet<string>(
+                _allRows.Select(r => DsAreaCompareService.GetRoomCompareKey(r.RoomName)),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in _allRows)
+            {
+                var key = DsAreaCompareService.GetRoomCompareKey(row.RoomName);
+                row.SystemAreaM2 = systemByKey.TryGetValue(key, out var systemArea) ? systemArea : null;
+                row.AreaCompareStatus = DsAreaCompareService.CompareValues(
+                    row.SystemAreaM2,
+                    row.AreaM2 > 0d ? row.AreaM2 : (double?)null);
+            }
+
+            foreach (var systemRoom in system.Rooms ?? Enumerable.Empty<DsRoomChangeRoomDto>())
+            {
+                if (systemRoom == null || string.IsNullOrWhiteSpace(systemRoom.RoomName))
+                    continue;
+
+                var key = DsAreaCompareService.GetRoomCompareKey(systemRoom.RoomName.Trim());
+                if (revitKeys.Contains(key))
+                    continue;
+
+                if (!systemRoom.RoomArea.HasValue || systemRoom.RoomArea.Value <= 0d)
+                    continue;
+
+                _allRows.Add(new RoomAreaRowVm
+                {
+                    RoomName = systemRoom.RoomName.Trim(),
+                    SystemAreaM2 = Math.Round(systemRoom.RoomArea.Value, 2),
+                    AreaCompareStatus = DsAreaCompareStatus.SystemOnly
+                });
+            }
+
+            var payloadHeight = ResolvePayloadWallHeight(_allRows);
+            _wallHeightCompareStatus = DsAreaCompareService.CompareWallHeights(_systemWallHeightM, payloadHeight);
+            ApplyPayloadWallHeightUi(payloadHeight, _allRows, _wallHeightCompareStatus);
+
+            ApplyRowsView();
+            UpdateTotals();
+            UpdateCompareStatusSummary();
+            UpdateSendButtonState();
+        }
+
+        void ApplyRowsView()
+        {
+            _rows = DifferencesOnlyCheckBox.IsChecked == true
+                ? _allRows.Where(r => r.IsAreaDifference).ToList()
+                : _allRows.ToList();
+
+            RoomsDataGrid.ItemsSource = _rows;
+
+            var hasRows = _rows.Count > 0;
+            RoomsDataGrid.Visibility = hasRows
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+            NoRoomsTextBlock.Visibility = hasRows
+                ? System.Windows.Visibility.Collapsed
+                : System.Windows.Visibility.Visible;
+
+            if (DifferencesOnlyCheckBox.IsChecked == true && !hasRows && _allRows.Count > 0)
+                NoRoomsTextBlock.Text = "Расхождений по площадям не найдено.";
+            else if (!hasRows)
+                NoRoomsTextBlock.Text = "В модели нет размещённых помещений для выбранной фазы.";
+        }
+
+        void UpdateTotals()
+        {
+            var revitTotal = _allRows.Where(r => r.AreaM2 > 0d).Sum(r => r.AreaM2);
+            var systemTotal = _allRows.Where(r => r.SystemAreaM2.HasValue).Sum(r => r.SystemAreaM2.Value);
+            var count = _allRows.Count(r => r.AreaM2 > 0d || r.SystemAreaM2.HasValue);
+
+            if (count == 0)
+            {
+                TotalAreaText.Text = "—";
+                return;
+            }
+
+            if (systemTotal > 0d)
+            {
+                TotalAreaText.Text =
+                    $"Revit {revitTotal.ToString("0.##", CultureInfo.InvariantCulture)} м² · "
+                    + $"система {systemTotal.ToString("0.##", CultureInfo.InvariantCulture)} м² · {count} помещ.";
+                return;
+            }
+
+            TotalAreaText.Text =
+                $"{revitTotal.ToString("0.##", CultureInfo.InvariantCulture)} м² · {count} помещ.";
+        }
+
+        void UpdateCompareStatusSummary()
+        {
+            if (_allRows.Count == 0)
+                return;
+
+            var compared = _allRows.Where(r => r.AreaCompareStatus != DsAreaCompareStatus.BothEmpty).ToList();
+            if (compared.Count == 0)
+            {
+                SetStatus("Revit-данные загружены.", isError: false);
+                return;
+            }
+
+            var match = compared.Count(r => r.AreaCompareStatus == DsAreaCompareStatus.Match);
+            var mismatch = compared.Count(r => r.AreaCompareStatus == DsAreaCompareStatus.Mismatch);
+            var systemOnly = compared.Count(r => r.AreaCompareStatus == DsAreaCompareStatus.SystemOnly);
+            var revitOnly = compared.Count(r => r.AreaCompareStatus == DsAreaCompareStatus.RevitOnly);
+
+            SetStatus(
+                $"Сравнение: совпадений {match}, расхождений {mismatch}, только система {systemOnly}, только Revit {revitOnly}.",
+                isError: false);
+        }
+
+        void DifferencesOnlyCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_allRows == null || _allRows.Count == 0)
+                return;
+
+            ApplyRowsView();
         }
 
         async Task LoadEventStatusAsync()
@@ -122,21 +323,24 @@ namespace SmartRemont.ExportRooms.Views
         void UpdateSendButtonState()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            var canSend = remont?.RemontId != null && remont.RemontId > 0 && _rows.Count > 0;
+            var revitRows = _allRows.Where(r => r.AreaM2 > 0d).ToList();
+            var canSend = remont?.RemontId != null && remont.RemontId > 0 && revitRows.Count > 0;
             SendButton.IsEnabled = canSend;
 
             if (remont?.RemontId == null || remont.RemontId <= 0)
                 SetStatus("Отправка недоступна: у выбранной заявки нет ID ремонта.", isError: true);
-            else if (_rows.Count == 0)
+            else if (revitRows.Count == 0)
                 SetStatus("Нет помещений для отправки.", isError: false);
-            else
-                SetStatus("Проверьте площади и нажмите «Отправить».", isError: false);
+            else if (string.IsNullOrWhiteSpace(StatusTextBlock.Text)
+                     || StatusTextBlock.Text.StartsWith("Загрузка")
+                     || StatusTextBlock.Text.StartsWith("Revit-данные"))
+                SetStatus("Проверьте сравнение и нажмите «Отправить».", isError: false);
         }
 
         async void SendButton_Click(object sender, RoutedEventArgs e) =>
             await SendAreasAsync();
 
-        async System.Threading.Tasks.Task SendAreasAsync()
+        async Task SendAreasAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
             if (remont?.RemontId == null || remont.RemontId <= 0)
@@ -146,17 +350,25 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
+            var revitRows = _allRows.Where(r => r.AreaM2 > 0d).ToList();
+            if (revitRows.Count == 0)
+            {
+                MessageBox.Show("Нет помещений Revit для отправки.", "Smart Remont",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             SetBusy(true);
             SetStatus("Отправка…", isError: false);
 
             try
             {
-                var payloadRooms = _rows.Select(r => new RemontRoomAreaDto
+                var payloadRooms = revitRows.Select(r => new RemontRoomAreaDto
                 {
                     RoomName = r.RoomName,
                     RoomAreaM2 = r.AreaM2
                 }).ToList();
-                var wallHeight = ResolvePayloadWallHeight(_rows);
+                var wallHeight = ResolvePayloadWallHeight(revitRows);
 
                 var result = await RevitEventsService
                     .SendDsAreaChangeAsync(remont.RemontId.Value, wallHeight, payloadRooms)
@@ -191,9 +403,6 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        /// <summary>
-        /// В API одно поле wall_height на весь payload — берём наиболее частую высоту среди помещений.
-        /// </summary>
         static double ResolvePayloadWallHeight(IEnumerable<RoomAreaRowVm> rows)
         {
             var heights = rows
@@ -212,9 +421,39 @@ namespace SmartRemont.ExportRooms.Views
                 .First();
         }
 
-        static string GetHeightSpreadHint(IEnumerable<RoomAreaRowVm> rows)
+        void ApplyPayloadWallHeightUi(
+            double wallHeight,
+            IEnumerable<RoomAreaRowVm> rows,
+            DsAreaCompareStatus? wallHeightStatus)
         {
-            var distinct = rows
+            var rowList = rows?.ToList() ?? new List<RoomAreaRowVm>();
+            var hasHeight = wallHeight > 0d;
+
+            PayloadWallHeightPanel.Visibility = hasHeight || _systemWallHeightM.HasValue
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+
+            SystemWallHeightText.Text = _systemWallHeightM.HasValue
+                ? _systemWallHeightM.Value.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
+
+            PayloadWallHeightText.Text = hasHeight
+                ? wallHeight.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
+
+            foreach (var row in rowList)
+                row.IsPayloadHeight = hasHeight && Math.Abs(row.WallHeightM - wallHeight) < 0.005d;
+
+            ApplyWallHeightCompareText(wallHeightStatus);
+
+            if (!hasHeight)
+            {
+                PayloadWallHeightNoteText.Text =
+                    "Высота по стенам Revit не определена.";
+                return;
+            }
+
+            var distinct = rowList
                 .Select(r => r.WallHeightM)
                 .Where(h => h > 0d)
                 .Distinct()
@@ -222,18 +461,70 @@ namespace SmartRemont.ExportRooms.Views
                 .ToList();
 
             if (distinct.Count <= 1)
-                return "";
+            {
+                PayloadWallHeightNoteText.Visibility = wallHeightStatus == DsAreaCompareStatus.Match
+                    ? System.Windows.Visibility.Collapsed
+                    : System.Windows.Visibility.Visible;
+                PayloadWallHeightNoteText.Text =
+                    "В отправку — одно значение wall_height (мода по стенам Revit).";
+                return;
+            }
+
+            PayloadWallHeightNoteText.Visibility = System.Windows.Visibility.Visible;
 
             var min = distinct.First().ToString("0.##", CultureInfo.InvariantCulture);
             var max = distinct.Last().ToString("0.##", CultureInfo.InvariantCulture);
-            return $" · в таблице: {min}–{max} м";
+            PayloadWallHeightNoteText.Text =
+                $"В Revit по помещениям: {min}–{max} м; синим в таблице — значение для отправки.";
+        }
+
+        void ApplyWallHeightCompareText(DsAreaCompareStatus? status)
+        {
+            if (!status.HasValue || !_systemWallHeightM.HasValue || ResolvePayloadWallHeight(_allRows) <= 0d)
+            {
+                WallHeightCompareText.Text = string.Empty;
+                WallHeightCompareText.Foreground = new SolidColorBrush(
+                    (System.Windows.Media.Color)ColorConverter.ConvertFromString("#475569"));
+                return;
+            }
+
+            switch (status.Value)
+            {
+                case DsAreaCompareStatus.Match:
+                    WallHeightCompareText.Text = "· совпадает";
+                    WallHeightCompareText.Foreground = new SolidColorBrush(
+                        (System.Windows.Media.Color)ColorConverter.ConvertFromString("#15803D"));
+                    break;
+                case DsAreaCompareStatus.Mismatch:
+                    WallHeightCompareText.Text = "· расхождение";
+                    WallHeightCompareText.Foreground = new SolidColorBrush(
+                        (System.Windows.Media.Color)ColorConverter.ConvertFromString("#B91C1C"));
+                    break;
+                case DsAreaCompareStatus.SystemOnly:
+                    WallHeightCompareText.Text = "· только в системе";
+                    WallHeightCompareText.Foreground = new SolidColorBrush(
+                        (System.Windows.Media.Color)ColorConverter.ConvertFromString("#B45309"));
+                    break;
+                case DsAreaCompareStatus.RevitOnly:
+                    WallHeightCompareText.Text = "· только в Revit";
+                    WallHeightCompareText.Foreground = new SolidColorBrush(
+                        (System.Windows.Media.Color)ColorConverter.ConvertFromString("#1D4ED8"));
+                    break;
+                default:
+                    WallHeightCompareText.Text = string.Empty;
+                    break;
+            }
         }
 
         void SetBusy(bool isBusy)
         {
-            SendButton.IsEnabled = !isBusy && (ExportRoomsApplication.SelectedRemont?.RemontId > 0) && _rows.Count > 0;
+            var revitRows = _allRows.Where(r => r.AreaM2 > 0d).ToList();
+            SendButton.IsEnabled = !isBusy &&
+                ExportRoomsApplication.SelectedRemont?.RemontId > 0 &&
+                revitRows.Count > 0;
             SendButton.Content = isBusy ? "Отправка…" : "Отправить";
             CloseButton.IsEnabled = !isBusy;
+            DifferencesOnlyCheckBox.IsEnabled = !isBusy;
         }
 
         void SetStatus(string message, bool isError)

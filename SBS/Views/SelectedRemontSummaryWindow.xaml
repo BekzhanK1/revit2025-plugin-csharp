@@ -153,6 +153,23 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="AreaCompareRowStyle" TargetType="DataGridRow">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Match">
+                    <Setter Property="Background" Value="#E8F5E9"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Mismatch">
+                    <Setter Property="Background" Value="#FFEBEE"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
+                    <Setter Property="Background" Value="#FFF8E1"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
+                    <Setter Property="Background" Value="#E3F2FD"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Border Style="{StaticResource Card}" Margin="24">
@@ -225,46 +242,177 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="0,0,0,12">
-                        <TextBlock Text="ПЛОЩАДИ" Style="{StaticResource SectionLabel}" Margin="0"/>
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center">
-                            <TextBlock x:Name="WallHeightHintText"
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock Text="ПЛОЩАДИ: СИСТЕМА И REVIT" Style="{StaticResource SectionLabel}" Margin="0"/>
+                                <TextBlock x:Name="PhaseHintText"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           FontSize="12"
+                                           Foreground="#999999"/>
+                            </Grid>
+                            <TextBlock x:Name="SystemDsInfoText"
                                        FontSize="12"
-                                       Foreground="#999999"
-                                       Margin="0,0,14,0"/>
-                            <TextBlock x:Name="PhaseHintText"
-                                       FontSize="12"
-                                       Foreground="#999999"/>
+                                       Foreground="#475569"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
                         </StackPanel>
                     </Grid>
 
-                    <DataGrid Grid.Row="1"
+                    <Border x:Name="CompareLegendPanel"
+                            Grid.Row="1"
+                            Background="#FAFAFA"
+                            BorderBrush="#EEEEEE"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10,6"
+                            Margin="0,0,0,6"
+                            Visibility="Collapsed">
+                        <WrapPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                <Border Width="12" Height="12" CornerRadius="2" Background="#E8F5E9" Margin="0,0,6,0"/>
+                                <TextBlock Text="Совпадает" FontSize="11" Foreground="#555555"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                <Border Width="12" Height="12" CornerRadius="2" Background="#FFEBEE" Margin="0,0,6,0"/>
+                                <TextBlock Text="Расхождение" FontSize="11" Foreground="#555555"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                <Border Width="12" Height="12" CornerRadius="2" Background="#FFF8E1" Margin="0,0,6,0"/>
+                                <TextBlock Text="Только система" FontSize="11" Foreground="#555555"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="12" Height="12" CornerRadius="2" Background="#E3F2FD" Margin="0,0,6,0"/>
+                                <TextBlock Text="Только Revit" FontSize="11" Foreground="#555555"/>
+                            </StackPanel>
+                        </WrapPanel>
+                    </Border>
+
+                    <Border x:Name="PayloadWallHeightPanel"
+                            Grid.Row="2"
+                            Background="#EFF6FF"
+                            BorderBrush="#93C5FD"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12,8"
+                            Margin="0,0,0,8">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Высота потолка"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="#1D4ED8"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,16,0"/>
+                                <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                                        <TextBlock Text="Система"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,6,0"/>
+                                        <TextBlock x:Name="SystemWallHeightText"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"
+                                                   Foreground="#334155"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text=" м"
+                                                   FontSize="12"
+                                                   Foreground="#334155"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock Text="|"
+                                               FontSize="12"
+                                               Foreground="#CBD5E1"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,20,0"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                        <TextBlock Text="Revit"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,6,0"/>
+                                        <TextBlock x:Name="PayloadWallHeightText"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"
+                                                   Foreground="#1B6FC8"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text=" м"
+                                                   FontSize="12"
+                                                   Foreground="#1B6FC8"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="WallHeightCompareText"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                </WrapPanel>
+                            </Grid>
+                            <TextBlock x:Name="PayloadWallHeightNoteText"
+                                       FontSize="10"
+                                       Foreground="#64748B"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <CheckBox x:Name="DifferencesOnlyCheckBox"
+                              Grid.Row="3"
+                              Content="Только расхождения"
+                              FontSize="13"
+                              Margin="0,0,0,6"
+                              Checked="DifferencesOnlyCheckBox_Changed"
+                              Unchecked="DifferencesOnlyCheckBox_Changed"/>
+
+                    <DataGrid Grid.Row="4"
                               x:Name="RoomsDataGrid"
-                              MinHeight="200">
+                              RowStyle="{StaticResource AreaCompareRowStyle}"
+                              MinHeight="160">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="№"
-                                                Binding="{Binding RoomNumber}"
-                                                Width="56"/>
                             <DataGridTextColumn Header="Помещение"
                                                 Binding="{Binding RoomName}"
                                                 Width="*"/>
-                            <DataGridTextColumn Header="Площадь, м²"
+                            <DataGridTextColumn Header="Система, м²"
+                                                Binding="{Binding SystemAreaDisplay}"
+                                                Width="96"/>
+                            <DataGridTextColumn Header="Revit, м²"
                                                 Binding="{Binding AreaDisplay}"
-                                                Width="100"/>
-                            <DataGridTextColumn Header="Выс. стен, м"
-                                                Binding="{Binding HeightDisplay}"
                                                 Width="88"/>
+                            <DataGridTextColumn Header="Δ"
+                                                Binding="{Binding AreaDeltaDisplay}"
+                                                Width="72"/>
+                            <DataGridTextColumn Header="Выс. Revit, м"
+                                                Binding="{Binding HeightDisplay}"
+                                                Width="96">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="Normal"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPayloadHeight}" Value="True">
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                <Setter Property="Foreground" Value="#1B6FC8"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Border Grid.Row="2"
+                    <Border Grid.Row="5"
                             Background="#EEF4FC"
                             CornerRadius="4"
                             Padding="14,10"
@@ -284,7 +432,7 @@
                         </Grid>
                     </Border>
 
-                    <TextBlock Grid.Row="3"
+                    <TextBlock Grid.Row="6"
                                x:Name="NoRoomsTextBlock"
                                Text="В модели нет размещённых помещений для выбранной фазы."
                                FontSize="13"

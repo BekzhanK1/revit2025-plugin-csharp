@@ -58,8 +58,8 @@ namespace SmartRemont.ExportRooms.Services
                 .Where(r => r != null &&
                             r.get_Parameter(BuiltInParameter.ROOM_PHASE)?.AsElementId() == phase.Id &&
                             r.Area > 0)
-                .OrderBy(r => ParseRoomNumberSortKey(r.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString()))
-                .ThenBy(r => GetRoomDisplayName(r), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(r => RoomAreaService.GetRoomSortKey(r))
+                .ThenBy(r => RoomAreaService.GetRoomDisplayName(r), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (rooms.Count == 0)
@@ -119,7 +119,7 @@ namespace SmartRemont.ExportRooms.Services
 
                 snapshot.Rooms.Add(new RoomMaterialsRoomRow
                 {
-                    RoomName = GetRoomDisplayName(room),
+                    RoomName = RoomAreaService.GetRoomDisplayName(room),
                     Items = ConsolidateItems(items)
                 });
             }
@@ -139,8 +139,7 @@ namespace SmartRemont.ExportRooms.Services
 
             snapshot.Rooms = snapshot.Rooms
                 .Where(r => r.Items.Count > 0 || r.PaintItems.Count > 0)
-                .OrderBy(r => ParseRoomNumberSortKey(ExtractRoomNumber(r.RoomName)))
-                .ThenBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             return snapshot;
@@ -169,16 +168,6 @@ namespace SmartRemont.ExportRooms.Services
                     PaintItems = paintRoom.PaintItems
                 });
             }
-        }
-
-        static string ExtractRoomNumber(string roomName)
-        {
-            var start = roomName?.LastIndexOf('(') ?? -1;
-            var end = roomName?.LastIndexOf(')') ?? -1;
-            if (start < 0 || end <= start)
-                return string.Empty;
-
-            return roomName.Substring(start + 1, end - start - 1).Trim();
         }
 
         static List<Room> ResolveRoomsForElement(
@@ -427,8 +416,8 @@ namespace SmartRemont.ExportRooms.Services
                 return null;
 
             return rooms.FirstOrDefault(r =>
-                RoomNameMatcher.MatchesBaseName(GetRoomDisplayName(r), erboRoom)
-                || string.Equals(GetRoomDisplayName(r), erboRoom, StringComparison.OrdinalIgnoreCase));
+                RoomNameMatcher.MatchesBaseName(RoomAreaService.GetRoomDisplayName(r), erboRoom)
+                || string.Equals(RoomAreaService.GetRoomDisplayName(r), erboRoom, StringComparison.OrdinalIgnoreCase));
         }
 
         static Room FindRoomByLocation(Element element, Document doc, Phase phase, IList<Room> rooms)
@@ -646,25 +635,6 @@ namespace SmartRemont.ExportRooms.Services
             return param.StorageType == StorageType.String
                 ? param.AsString()?.Trim() ?? string.Empty
                 : param.AsValueString()?.Trim() ?? param.AsString()?.Trim() ?? string.Empty;
-        }
-
-        static string GetRoomDisplayName(Room room)
-        {
-            var name = (room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? string.Empty).Trim();
-            var num = (room.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? string.Empty).Trim();
-
-            if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(num))
-                return $"{name} ({num})";
-
-            return !string.IsNullOrWhiteSpace(name) ? name : num;
-        }
-
-        static int ParseRoomNumberSortKey(string roomNumber)
-        {
-            if (string.IsNullOrWhiteSpace(roomNumber))
-                return int.MaxValue;
-
-            return int.TryParse(roomNumber, out var n) ? n : int.MaxValue - 1;
         }
 
         static string DisplayOrDash(string value) =>

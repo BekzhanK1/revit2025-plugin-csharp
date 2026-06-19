@@ -16,8 +16,12 @@ namespace SmartRemont.ExportRooms.Views
         readonly Document _doc;
         bool _detailsVisible;
         bool _validationInProgress;
+        bool _tkValidationInProgress;
         RoomMaterialsSnapshot _snapshot;
         List<RoomMaterialsRoomVm> _rooms;
+        List<RoomMaterialsRoomVm> _allRooms;     // current view (may include tk_only rows)
+        List<RoomMaterialsRoomVm> _baseRooms;    // Revit-only rows, never includes tk_only
+        ClientMaterialTkSnapshot _tkSnapshot;
 
         public RoomMaterialsWindow(Document doc)
         {
@@ -30,20 +34,34 @@ namespace SmartRemont.ExportRooms.Views
         async void RoomMaterialsWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _snapshot = RoomMaterialsService.Collect(_doc);
-            _rooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
+            _baseRooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
+            _allRooms = _baseRooms;
+            _rooms = _allRooms;
             BindRooms(_rooms);
             DetailsItemsControl.ItemsSource = BuildDetails(_snapshot);
 
-            FormulaHintTextBlock.Text =
-                $"{RoomPaintScheduleService.LitersFormula} — {RoomPaintScheduleService.LitersFormulaNote}";
-
+            UpdateSummary();
             UpdateStatusText();
-            await ValidateCatalogAsync().ConfigureAwait(true);
+            await RefreshValidationsAsync().ConfigureAwait(true);
         }
 
-        async void RetryValidationButton_Click(object sender, RoutedEventArgs e)
+        async void RetryValidationButton_Click(object sender, RoutedEventArgs e) =>
+            await RefreshValidationsAsync().ConfigureAwait(true);
+
+        async Task RefreshValidationsAsync()
         {
-            await ValidateCatalogAsync().ConfigureAwait(true);
+            var catalogChecked = await ValidateCatalogAsync().ConfigureAwait(true);
+            await ValidateTkAsync(catalogChecked).ConfigureAwait(true);
+        }
+
+        void FinalizeMaterialView(string validationNote = null, string tkNote = null)
+        {
+            _allRooms = ApplyUnifiedStatuses(_allRooms);
+            _rooms = ApplyProblemFilter(_allRooms);
+            BindRooms(_rooms);
+            UpdateSummary();
+            if (validationNote != null || tkNote != null)
+                UpdateStatusText(validationNote, tkNote);
         }
 
         void BindRooms(List<RoomMaterialsRoomVm> rooms)
@@ -60,20 +78,20 @@ namespace SmartRemont.ExportRooms.Views
                 : System.Windows.Visibility.Visible;
         }
 
-        async Task ValidateCatalogAsync()
+        async Task<bool> ValidateCatalogAsync()
         {
             if (_validationInProgress)
-                return;
+                return false;
 
-            if (_rooms == null || _rooms.Count == 0)
+            if (_allRooms == null || _allRooms.Count == 0)
             {
                 ShowCatalogBanner(
                     "Нет позиций для проверки каталога.",
                     "#FFFBEB", "#FDE68A", "#92400E");
-                return;
+                return false;
             }
 
-            var allIds = _rooms
+            var allIds = _allRooms
                 .SelectMany(r => r.TableRows)
                 .Select(r => r.ProductId)
                 .Where(id => !IsDash(id))
@@ -93,7 +111,7 @@ namespace SmartRemont.ExportRooms.Views
                         ? $"Нет числовых ID для проверки. Пропущено текстовых кодов: {skippedNonNumeric} (например Furn)."
                         : "Нет ID для проверки — у позиций не заполнены коды материалов.",
                     "#FFFBEB", "#FDE68A", "#92400E");
-                return;
+                return false;
             }
 
             if (ExportRoomsApplication.CurrentSession == null
@@ -103,7 +121,7 @@ namespace SmartRemont.ExportRooms.Views
                     "Проверка каталога недоступна: войдите в Smart Remont через главное окно плагина.",
                     "#FFFBEB", "#FDE68A", "#92400E");
                 UpdateStatusText("Проверка каталога: требуется авторизация.");
-                return;
+                return false;
             }
 
             _validationInProgress = true;
@@ -111,33 +129,28 @@ namespace SmartRemont.ExportRooms.Views
 
             try
             {
-                ShowCatalogLoading(
-                    $"Отправляем {ids.Count} уникальных ID на сервер…\nPOST {Configs.MaterialValidationUrl}");
+                ShowCatalogLoading($"Проверка каталога: {ids.Count} ID…");
 
                 var result = await MaterialValidationService.ValidateMaterialIdsAsync(ids)
                     .ConfigureAwait(true);
 
-                _rooms = ApplyCatalogStatuses(_rooms, result.FoundIds);
-                BindRooms(_rooms);
+                _baseRooms = ApplyCatalogStatuses(_baseRooms, result.FoundIds);
+                _allRooms = _baseRooms;
 
-                var foundRows = _rooms.SelectMany(r => r.TableRows).Count(r => r.CatalogStatusKey == "found");
-                var missingRows = _rooms.SelectMany(r => r.TableRows).Count(r => r.CatalogStatusKey == "missing");
+                CatalogBanner.Visibility = System.Windows.Visibility.Collapsed;
 
+                var missingRows = _allRooms
+                    .SelectMany(r => r.TableRows)
+                    .Count(r => r.CatalogStatusKey == "missing");
                 var skippedNote = skippedNonNumeric > 0
-                    ? $" Пропущено текстовых кодов: {skippedNonNumeric}."
+                    ? $" Текстовых кодов без проверки: {skippedNonNumeric}."
                     : string.Empty;
 
-                ShowCatalogBanner(
-                    $"Каталог проверен. Запрос: POST {result.RequestUrl}\n"
-                    + $"Отправлено уникальных числовых ID: {result.RequestedCount}. "
-                    + $"Найдено в базе: {result.FoundIds.Count}. "
-                    + $"Строк: зелёных {foundRows}, красных {missingRows}."
-                    + skippedNote,
-                    "#ECFDF5", "#A7F3D0", "#065F46");
+                _lastCatalogNote =
+                    $"Каталог: {result.RequestedCount} ID, нет в системе {missingRows}."
+                    + skippedNote;
 
-                UpdateStatusText(
-                    $"Каталог: найдено {foundRows}, нет в базе {missingRows} (из {result.RequestedCount} числовых ID)."
-                    + skippedNote);
+                return true;
             }
             catch (Exception ex)
             {
@@ -145,7 +158,8 @@ namespace SmartRemont.ExportRooms.Views
                 ShowCatalogBanner(
                     $"Ошибка проверки каталога:\n{ex.Message}",
                     "#FEF2F2", "#FECACA", "#991B1B");
-                UpdateStatusText($"Проверка каталога: {ex.Message}");
+                _lastCatalogNote = $"Проверка каталога: {ex.Message}";
+                return false;
             }
             finally
             {
@@ -153,6 +167,8 @@ namespace SmartRemont.ExportRooms.Views
                 RetryValidationButton.IsEnabled = true;
             }
         }
+
+        string _lastCatalogNote;
 
         static List<RoomMaterialsRoomVm> ApplyCatalogStatuses(
             List<RoomMaterialsRoomVm> rooms,
@@ -173,7 +189,8 @@ namespace SmartRemont.ExportRooms.Views
                         QuantityDisplay = row.QuantityDisplay,
                         InstanceCount = row.InstanceCount,
                         Liters = row.Liters,
-                        CatalogStatusKey = statusKey
+                        CatalogStatusKey = statusKey,
+                        TkStatusKey = row.TkStatusKey
                     };
                 }).ToList()
             }).ToList();
@@ -185,6 +202,329 @@ namespace SmartRemont.ExportRooms.Views
                 return string.Empty;
 
             return foundIds.Contains(productId) ? "found" : "missing";
+        }
+
+        async Task ValidateTkAsync(bool catalogChecked)
+        {
+            if (_tkValidationInProgress)
+                return;
+
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId == null || remont.RemontId <= 0)
+            {
+                FinalizeMaterialView(_lastCatalogNote, "ТК: нет remont_id для загрузки.");
+                return;
+            }
+
+            if (ExportRoomsApplication.CurrentSession == null
+                || string.IsNullOrWhiteSpace(ExportRoomsApplication.CurrentSession.AccessToken))
+            {
+                FinalizeMaterialView(_lastCatalogNote, "ТК: требуется авторизация.");
+                return;
+            }
+
+            _tkValidationInProgress = true;
+
+            try
+            {
+                _tkSnapshot = await ClientMaterialTkService
+                    .ReadAsync(remont.RemontId.Value)
+                    .ConfigureAwait(true);
+
+                _allRooms = ApplyTkComparison(_baseRooms, _tkSnapshot);
+
+                var tkNote = _tkSnapshot != null && _tkSnapshot.HasData
+                    ? BuildTkStatusNote(_tkSnapshot, _allRooms)
+                    : _tkSnapshot?.EmptyMessage ?? "ТК не загружен.";
+
+                FinalizeMaterialView(
+                    catalogChecked ? _lastCatalogNote : null,
+                    tkNote);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "TK material read failed");
+                FinalizeMaterialView(_lastCatalogNote, $"ТК: {ex.Message}");
+            }
+            finally
+            {
+                _tkValidationInProgress = false;
+            }
+        }
+
+        static int CountRowsByStatus(List<RoomMaterialsRoomVm> rooms, string statusKey) =>
+            (rooms ?? new List<RoomMaterialsRoomVm>())
+                .SelectMany(r => r.TableRows)
+                .Count(r => string.Equals(r.StatusKey, statusKey, StringComparison.OrdinalIgnoreCase));
+
+        static string BuildTkStatusNote(ClientMaterialTkSnapshot tk, List<RoomMaterialsRoomVm> rooms)
+        {
+            if (tk == null || !tk.HasData)
+                return tk?.EmptyMessage ?? "ТК не загружен.";
+
+            var rows = rooms.SelectMany(r => r.TableRows).ToList();
+            var inTk = rows.Count(r => r.StatusKey == "in_tk");
+            var notInTk = rows.Count(r => r.StatusKey == "not_in_tk");
+            var tkOnly = rows.Count(r => r.StatusKey == "tk_only");
+
+            return $"Совпадает с ТК: {inTk}. Нет в ТК: {notInTk}. Только в ТК: {tkOnly}.";
+        }
+
+        void UpdateSummary()
+        {
+            var rooms = _allRooms ?? _rooms ?? new List<RoomMaterialsRoomVm>();
+            var rows = rooms.SelectMany(r => r.TableRows).ToList();
+
+            StatRoomsValue.Text = rooms.Count.ToString(CultureInfo.InvariantCulture);
+            StatTotalValue.Text = rows.Count.ToString(CultureInfo.InvariantCulture);
+            StatInTkValue.Text = rows.Count(r => r.StatusKey == "in_tk")
+                .ToString(CultureInfo.InvariantCulture);
+            StatMissingSystemValue.Text = rows.Count(r => r.StatusKey == "missing_system")
+                .ToString(CultureInfo.InvariantCulture);
+            StatNotInTkValue.Text = rows.Count(r => r.StatusKey == "not_in_tk")
+                .ToString(CultureInfo.InvariantCulture);
+            StatTkOnlyValue.Text = rows.Count(r => r.StatusKey == "tk_only")
+                .ToString(CultureInfo.InvariantCulture);
+        }
+
+        static List<RoomMaterialsRoomVm> ApplyUnifiedStatuses(List<RoomMaterialsRoomVm> rooms) =>
+            (rooms ?? new List<RoomMaterialsRoomVm>())
+                .Select(room => new RoomMaterialsRoomVm
+                {
+                    RoomName = room.RoomName,
+                    SummaryBadge = room.SummaryBadge,
+                    HasRowsVisibility = room.HasRowsVisibility,
+                    TableRows = room.TableRows
+                        .Select(row =>
+                        {
+                            var (statusKey, statusDisplay) = ResolveMaterialStatus(
+                                row.CatalogStatusKey,
+                                row.TkStatusKey,
+                                row.ProductId);
+                            return CloneRow(row, row.TkStatusKey, statusKey, statusDisplay);
+                        })
+                        .ToList()
+                })
+                .ToList();
+
+        static (string StatusKey, string StatusDisplay) ResolveMaterialStatus(
+            string catalogStatusKey,
+            string tkStatusKey,
+            string productId)
+        {
+            if (catalogStatusKey == "missing")
+                return ("missing_system", "Отсутствует в системе");
+
+            if (tkStatusKey == "tk_only")
+                return ("tk_only", "Только в ТК");
+
+            if (tkStatusKey == "not_in_tk")
+                return ("not_in_tk", "Нет в ТК");
+
+            if (tkStatusKey == "in_tk")
+                return ("in_tk", "Совпадает с ТК");
+
+            if (catalogStatusKey == "found")
+                return ("in_system", "В системе");
+
+            if (!IsDash(productId) && !MaterialValidationService.IsNumericMaterialId(productId))
+                return ("no_check", "Без проверки");
+
+            return ("neutral", "—");
+        }
+
+        static List<RoomMaterialsRoomVm> ApplyTkComparison(
+            List<RoomMaterialsRoomVm> rooms,
+            ClientMaterialTkSnapshot tk)
+        {
+            if (rooms == null)
+                return new List<RoomMaterialsRoomVm>();
+
+            if (tk == null || !tk.HasData)
+                return rooms.Select(ClearTkStatuses).ToList();
+
+            var tkByRoom = TkMaterialCompareService.BuildEntriesByRoomKey(tk.Rows);
+            var result = new List<RoomMaterialsRoomVm>();
+            var processedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var room in rooms)
+            {
+                var key = DsAreaCompareService.GetRoomCompareKey(room.RoomName);
+                processedKeys.Add(key);
+                tkByRoom.TryGetValue(key, out var tkEntries);
+                result.Add(BuildRoomWithTk(room, tkEntries));
+            }
+
+            foreach (var kvp in tkByRoom)
+            {
+                if (processedKeys.Contains(kvp.Key))
+                    continue;
+
+                var roomName = tk.Rows?
+                    .FirstOrDefault(r => string.Equals(
+                        DsAreaCompareService.GetRoomCompareKey(r.RoomName ?? string.Empty),
+                        kvp.Key,
+                        StringComparison.OrdinalIgnoreCase))
+                    ?.RoomName?.Trim() ?? kvp.Key;
+
+                result.Add(BuildTkOnlyRoom(roomName, kvp.Value));
+            }
+
+            return result
+                .OrderBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        static RoomMaterialsRoomVm ClearTkStatuses(RoomMaterialsRoomVm room) =>
+            new RoomMaterialsRoomVm
+            {
+                RoomName = room.RoomName,
+                SummaryBadge = room.SummaryBadge,
+                HasRowsVisibility = room.HasRowsVisibility,
+                TableRows = room.TableRows
+                    .Select(row => CloneRow(row, string.Empty))
+                    .ToList()
+            };
+
+        static RoomMaterialsRoomVm BuildRoomWithTk(
+            RoomMaterialsRoomVm room,
+            List<TkMaterialEntry> tkEntries)
+        {
+            tkEntries ??= new List<TkMaterialEntry>();
+            var rows = room.TableRows
+                .Select(row =>
+                {
+                    var status = TkMaterialCompareService.ResolveRevitRowStatus(row.ProductId, tkEntries);
+                    var tkKey = ToTkStatusKey(status);
+                    var (statusKey, statusDisplay) = ResolveMaterialStatus(row.CatalogStatusKey, tkKey, row.ProductId);
+                    return CloneRow(row, tkKey, statusKey, statusDisplay);
+                })
+                .ToList();
+
+            var revitIds = rows.Select(r => r.ProductId);
+            foreach (var tkOnly in TkMaterialCompareService.GetTkOnlyEntries(tkEntries, revitIds))
+            {
+                rows.Add(new RoomMaterialTableRowVm
+                {
+                    Name = tkOnly.IsSet
+                        ? $"{tkOnly.DisplayName} (набор)"
+                        : tkOnly.DisplayName,
+                    ProductId = tkOnly.MaterialId,
+                    QuantityDisplay = "—",
+                    InstanceCount = 0,
+                    CatalogStatusKey = string.Empty,
+                    TkStatusKey = "tk_only",
+                    StatusKey = "tk_only",
+                    StatusDisplay = "Только в ТК"
+                });
+            }
+
+            return new RoomMaterialsRoomVm
+            {
+                RoomName = room.RoomName,
+                SummaryBadge = room.SummaryBadge,
+                HasRowsVisibility = rows.Count > 0
+                    ? System.Windows.Visibility.Visible
+                    : System.Windows.Visibility.Collapsed,
+                TableRows = rows
+                    .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            };
+        }
+
+        static RoomMaterialsRoomVm BuildTkOnlyRoom(string roomName, List<TkMaterialEntry> tkEntries)
+        {
+            var rows = (tkEntries ?? new List<TkMaterialEntry>())
+                .Select(entry => new RoomMaterialTableRowVm
+                {
+                    Name = entry.IsSet
+                        ? $"{entry.DisplayName} (набор)"
+                        : entry.DisplayName,
+                    ProductId = entry.MaterialId,
+                    QuantityDisplay = "—",
+                    InstanceCount = 0,
+                    CatalogStatusKey = string.Empty,
+                    TkStatusKey = "tk_only",
+                    StatusKey = "tk_only",
+                    StatusDisplay = "Только в ТК"
+                })
+                .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return new RoomMaterialsRoomVm
+            {
+                RoomName = roomName,
+                SummaryBadge = $"только ТК {rows.Count}",
+                HasRowsVisibility = rows.Count > 0
+                    ? System.Windows.Visibility.Visible
+                    : System.Windows.Visibility.Collapsed,
+                TableRows = rows
+            };
+        }
+
+        static RoomMaterialTableRowVm CloneRow(
+            RoomMaterialTableRowVm row,
+            string tkStatusKey,
+            string statusKey = "",
+            string statusDisplay = "")
+        {
+            if (string.IsNullOrEmpty(statusKey) || string.IsNullOrEmpty(statusDisplay))
+            {
+                var resolved = ResolveMaterialStatus(row.CatalogStatusKey, tkStatusKey, row.ProductId);
+                statusKey = resolved.StatusKey;
+                statusDisplay = resolved.StatusDisplay;
+            }
+
+            return new RoomMaterialTableRowVm
+            {
+                Name = row.Name,
+                ProductId = row.ProductId,
+                QuantityDisplay = row.QuantityDisplay,
+                InstanceCount = row.InstanceCount,
+                Liters = row.Liters,
+                CatalogStatusKey = row.CatalogStatusKey,
+                TkStatusKey = tkStatusKey,
+                StatusKey = statusKey,
+                StatusDisplay = statusDisplay
+            };
+        }
+
+        static string ToTkStatusKey(TkMaterialCompareStatus status) => status switch
+        {
+            TkMaterialCompareStatus.InTk => "in_tk",
+            TkMaterialCompareStatus.NotInTk => "not_in_tk",
+            TkMaterialCompareStatus.TkOnly => "tk_only",
+            _ => string.Empty
+        };
+
+        List<RoomMaterialsRoomVm> ApplyProblemFilter(List<RoomMaterialsRoomVm> rooms)
+        {
+            if (TkDifferencesOnlyCheckBox.IsChecked != true)
+                return rooms?.ToList() ?? new List<RoomMaterialsRoomVm>();
+
+            return (rooms ?? new List<RoomMaterialsRoomVm>())
+                .Select(room => new RoomMaterialsRoomVm
+                {
+                    RoomName = room.RoomName,
+                    SummaryBadge = room.SummaryBadge,
+                    TableRows = room.TableRows
+                        .Where(r => r.IsProblem)
+                        .ToList(),
+                    HasRowsVisibility = room.TableRows.Any(r => r.IsProblem)
+                        ? System.Windows.Visibility.Visible
+                        : System.Windows.Visibility.Collapsed
+                })
+                .Where(room => room.TableRows.Count > 0)
+                .ToList();
+        }
+
+        void TkDifferencesOnlyCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_allRooms == null)
+                return;
+
+            _rooms = ApplyProblemFilter(_allRooms);
+            BindRooms(_rooms);
         }
 
         void ShowCatalogLoading(string message)
@@ -209,20 +549,15 @@ namespace SmartRemont.ExportRooms.Views
             CatalogBannerTextBlock.Foreground = ToBrush(textHex);
         }
 
-        void UpdateStatusText(string validationNote = null)
+        void UpdateStatusText(string validationNote = null, string tkNote = null)
         {
-            var rooms = _rooms ?? new List<RoomMaterialsRoomVm>();
+            var rooms = _allRooms ?? _rooms ?? new List<RoomMaterialsRoomVm>();
             var snapshot = _snapshot;
             var hasRows = rooms.Count > 0;
-            var positionCount = rooms.Sum(r => r.TableRows.Count);
-            var instanceCount = rooms.Sum(r => r.TableRows.Sum(t => t.InstanceCount));
-            var paintLiters = rooms
-                .SelectMany(r => r.TableRows)
-                .Sum(t => t.Liters ?? 0d);
 
             if (!string.IsNullOrWhiteSpace(validationNote) && !hasRows)
             {
-                StatusTextBlock.Text = validationNote;
+                StatusTextBlock.Text = AppendNote(validationNote, tkNote);
                 return;
             }
 
@@ -230,30 +565,42 @@ namespace SmartRemont.ExportRooms.Views
             {
                 var unassigned = snapshot?.UnassignedElements ?? 0;
                 var unassignedNote = unassigned > 0 ? $" Не привязано к комнате: {unassigned}." : string.Empty;
-                var catalogNote = string.IsNullOrWhiteSpace(validationNote) ? string.Empty : $" {validationNote}";
-                StatusTextBlock.Text =
-                    $"Помещений: {rooms.Count}. Позиций: {positionCount} (экземпляров: {instanceCount}). "
-                    + $"Краска: {paintLiters:0.##} л. "
-                    + $"ID: ADSK {snapshot.OnlyAdskCodeCount}, классификатор {snapshot.OnlyClassifierCodeCount}, "
-                    + $"ЭОМ {snapshot.OnlyErboEomCodeCount}, оба/несколько {snapshot.BothCodesCount}"
-                    + (snapshot.ConflictingCodesCount > 0 ? $", расхождения {snapshot.ConflictingCodesCount}" : "")
-                    + $".{unassignedNote}{catalogNote}";
+                var catalogNote = string.IsNullOrWhiteSpace(validationNote) ? string.Empty : validationNote;
+                var tkStatusNote = string.IsNullOrWhiteSpace(tkNote) ? string.Empty : $" {tkNote}";
+                StatusTextBlock.Text = string.IsNullOrWhiteSpace(catalogNote)
+                    ? $"{tkStatusNote.Trim()}{unassignedNote}".Trim()
+                    : $"{catalogNote}{tkStatusNote}{unassignedNote}".Trim();
             }
             else if (snapshot?.PaintSource?.Found == true)
             {
-                StatusTextBlock.Text = "Ведомость краски найдена, но строки не сопоставились с помещениями.";
+                StatusTextBlock.Text = AppendNote(
+                    "Ведомость краски найдена, но строки не сопоставились с помещениями.",
+                    tkNote);
             }
             else if (snapshot?.TotalElements > 0)
             {
-                StatusTextBlock.Text =
-                    $"В модели {snapshot.TotalElements} элементов, но ни один не привязан к помещению.";
+                StatusTextBlock.Text = AppendNote(
+                    $"В модели {snapshot.TotalElements} элементов, но ни один не привязан к помещению.",
+                    tkNote);
             }
             else
             {
-                StatusTextBlock.Text = string.IsNullOrWhiteSpace(validationNote)
-                    ? "Не найдено данных ни в ведомости краски, ни в модели."
-                    : validationNote;
+                StatusTextBlock.Text = AppendNote(
+                    string.IsNullOrWhiteSpace(validationNote)
+                        ? "Не найдено данных ни в ведомости краски, ни в модели."
+                        : validationNote,
+                    tkNote);
             }
+        }
+
+        static string AppendNote(string primary, string secondary)
+        {
+            if (string.IsNullOrWhiteSpace(secondary))
+                return primary;
+
+            return string.IsNullOrWhiteSpace(primary)
+                ? secondary
+                : $"{primary} {secondary}";
         }
 
         static RoomMaterialsRoomVm ToRoomVm(RoomMaterialsRoomRow row)
@@ -405,9 +752,9 @@ namespace SmartRemont.ExportRooms.Views
                            + $"  расхождения: {snapshot.ConflictingCodesCount}\n"
                            + $"  всего с ID: {snapshot.ElementsWithCode}, без ID: {snapshot.SkippedWithoutCode}\n"
                            + $"  не привязано к комнате: {snapshot.UnassignedElements}\n"
-                           + "  зелёная строка — ID в каталоге, красная — нет в базе\n"
-                           + "  текстовые коды (Furn и др.) не отправляются на проверку\n"
-                           + "  POST /common/catalog/validate_material_ids/ · body: { material_ids: [...] }",
+                           + "  «Отсутствует в системе» — ID нет в каталоге\n"
+                           + "  «Нет в ТК» / «Только в ТК» — сверка с текстовым конструктором\n"
+                           + "  текстовые коды (Furn и др.) не отправляются на проверку каталога",
                 StatusBrush = ToBrush("#374151")
             });
 
@@ -426,7 +773,7 @@ namespace SmartRemont.ExportRooms.Views
             DetailsPanel.Visibility = _detailsVisible
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
-            DetailsToggleButton.Content = _detailsVisible ? "Скрыть детали" : "Детали расчёта";
+            DetailsToggleButton.Content = _detailsVisible ? "Скрыть" : "Детали";
         }
 
         void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -452,6 +799,12 @@ namespace SmartRemont.ExportRooms.Views
         public int InstanceCount { get; init; }
         public double? Liters { get; init; }
         public string CatalogStatusKey { get; init; } = string.Empty;
+        public string TkStatusKey { get; init; } = string.Empty;
+        public string StatusKey { get; init; } = string.Empty;
+        public string StatusDisplay { get; init; } = "—";
+
+        public bool IsProblem =>
+            StatusKey is "missing_system" or "not_in_tk" or "tk_only";
     }
 
     sealed class RoomMaterialsDetailVm

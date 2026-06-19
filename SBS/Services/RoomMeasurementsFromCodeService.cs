@@ -49,8 +49,8 @@ namespace SmartRemont.ExportRooms.Services
                 .Where(r => r != null &&
                             r.get_Parameter(BuiltInParameter.ROOM_PHASE)?.AsElementId() == phase.Id &&
                             r.Area > 0)
-                .OrderBy(r => ParseRoomNumberSortKey(r.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString()))
-                .ThenBy(r => GetRoomDisplayName(r), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(r => RoomAreaService.GetRoomSortKey(r))
+                .ThenBy(r => RoomAreaService.GetRoomDisplayName(r), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             var openingsByRoomId = CollectOpeningAreasByRoom(doc, phase, rooms);
@@ -83,7 +83,7 @@ namespace SmartRemont.ExportRooms.Services
 
             foreach (var room in rooms)
             {
-                var roomName = GetRoomDisplayName(room);
+                var roomName = RoomAreaService.GetRoomDisplayName(room);
                 var parameters = new List<RoomMeasurementParamItem>();
 
                 var floorPerimeterM = CalcPerimeterFloorM(room, doc, phase, out var floorDetail);
@@ -439,7 +439,7 @@ namespace SmartRemont.ExportRooms.Services
                 var room = FindRoomForFloorElement(floor, doc, phase, rooms);
                 if (room == null)
                     continue;
-                if (!RoomNameMatcher.MatchesAnyBaseName(GetRoomDisplayName(room), PlitkaRoomBaseNames))
+                if (!RoomNameMatcher.MatchesAnyBaseName(RoomAreaService.GetRoomDisplayName(room), PlitkaRoomBaseNames))
                     continue;
 
                 var areaM2 = GetHostAreaM2(floor);
@@ -654,7 +654,7 @@ namespace SmartRemont.ExportRooms.Services
 
         static double? CalcPerimeterRoofM(Room room, out string detailLine)
         {
-            var roomName = GetRoomDisplayName(room);
+            var roomName = RoomAreaService.GetRoomDisplayName(room);
             var boundaryM = SumBoundaryPerimeterM(room, SpatialElementBoundaryLocation.Finish);
             var roomPerimeterM = GetPerimeterM(room);
 
@@ -677,7 +677,7 @@ namespace SmartRemont.ExportRooms.Services
 
         static double? CalcPerimeterFloorM(Room room, Document doc, Phase phase, out string detailLine)
         {
-            var roomName = GetRoomDisplayName(room);
+            var roomName = RoomAreaService.GetRoomDisplayName(room);
             var boundaryM = SumBoundaryPerimeterM(room, SpatialElementBoundaryLocation.Finish);
             var roomPerimeterM = GetPerimeterM(room);
             var grossM = boundaryM > 0d ? boundaryM : roomPerimeterM;
@@ -905,8 +905,8 @@ namespace SmartRemont.ExportRooms.Services
             if (!string.IsNullOrWhiteSpace(erboRoom))
             {
                 var byParam = rooms.FirstOrDefault(r =>
-                    RoomNameMatcher.MatchesBaseName(GetRoomDisplayName(r), erboRoom)
-                    || string.Equals(GetRoomDisplayName(r), erboRoom, StringComparison.OrdinalIgnoreCase));
+                    RoomNameMatcher.MatchesBaseName(RoomAreaService.GetRoomDisplayName(r), erboRoom)
+                    || string.Equals(RoomAreaService.GetRoomDisplayName(r), erboRoom, StringComparison.OrdinalIgnoreCase));
                 if (byParam != null)
                     return byParam;
             }
@@ -1060,25 +1060,6 @@ namespace SmartRemont.ExportRooms.Services
             return Math.Round(
                 UnitUtils.ConvertFromInternalUnits(perimeterInt, UnitTypeId.Meters),
                 2);
-        }
-
-        static string GetRoomDisplayName(Room room)
-        {
-            var name = (room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? string.Empty).Trim();
-            var num = (room.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString() ?? string.Empty).Trim();
-
-            if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(num))
-                return $"{name} ({num})";
-
-            return !string.IsNullOrWhiteSpace(name) ? name : num;
-        }
-
-        static int ParseRoomNumberSortKey(string roomNumber)
-        {
-            if (string.IsNullOrWhiteSpace(roomNumber))
-                return int.MaxValue;
-
-            return int.TryParse(roomNumber, out var n) ? n : int.MaxValue - 1;
         }
     }
 }
