@@ -299,6 +299,11 @@
                         Content="Материалы по комнатам"
                         Tag="default"
                         Click="RoomMaterialsButton_Click"/>
+                <Button x:Name="TypeParametersButton"
+                        Style="{StaticResource FeatureCardButton}"
+                        Content="Изменение параметров типов"
+                        Tag="default"
+                        Click="TypeParametersButton_Click"/>
                 <Button x:Name="DsTkChangeButton"
                         Style="{StaticResource FeatureCardButton}"
                         Content="ДС по изменению ТК"

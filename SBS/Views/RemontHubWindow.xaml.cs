@@ -12,13 +12,13 @@ namespace SmartRemont.ExportRooms.Views
     public partial class RemontHubWindow : Window
     {
         readonly Document _doc;
-        bool _completed;
 
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Замеры из спецификаций Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
         const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
         const string RoomMaterialsSubtitle = "Краска из ведомости и элементы модели по помещениям";
+        const string TypeParametersSubtitle = "Категория, семейство, тип и параметры типа";
         const string DsTkSubtitle = "Изменение технологической карты";
 
         public RemontHubWindow(Document doc)
@@ -28,6 +28,12 @@ namespace SmartRemont.ExportRooms.Views
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
             _doc = doc;
             Loaded += RemontHubWindow_Loaded;
+            Closing += (_, _) =>
+            {
+                // Гарантируем Result.Succeeded, чтобы Revit не откатил транзакции сессии.
+                if (DialogResult == null)
+                    DialogResult = true;
+            };
         }
 
         async void RemontHubWindow_Loaded(object sender, RoutedEventArgs e)
@@ -44,6 +50,7 @@ namespace SmartRemont.ExportRooms.Views
             ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
             ConfigureFeatureButton(MeasuresCompareButton, "\uE8AB", MeasuresCompareSubtitle);
             ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
+            ConfigureFeatureButton(TypeParametersButton, "\uE8B9", TypeParametersSubtitle);
             ConfigureFeatureButton(DsTkChangeButton, "\uE8A5", DsTkSubtitle);
         }
 
@@ -148,10 +155,7 @@ namespace SmartRemont.ExportRooms.Views
             summaryWindow.ShowDialog();
 
             if (summaryWindow.DialogResult == true)
-            {
-                _completed = true;
                 SetStatus(summaryWindow.LastSuccessMessage ?? "Площади отправлены", isSuccess: true);
-            }
 
             await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
@@ -179,10 +183,7 @@ namespace SmartRemont.ExportRooms.Views
             window.ShowDialog();
 
             if (window.DialogResult == true)
-            {
-                _completed = true;
                 SetStatus(window.LastSuccessMessage ?? "Замеры отправлены", isSuccess: true);
-            }
 
             await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
@@ -194,10 +195,7 @@ namespace SmartRemont.ExportRooms.Views
             window.ShowDialog();
 
             if (window.DialogResult == true)
-            {
-                _completed = true;
                 SetStatus(window.LastSuccessMessage ?? "Замеры по коду отправлены", isSuccess: true);
-            }
 
             await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
@@ -216,6 +214,13 @@ namespace SmartRemont.ExportRooms.Views
             window.ShowDialog();
         }
 
+        void TypeParametersButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new TypeParameterChangeWindow(_doc);
+            window.Owner = this;
+            window.ShowDialog();
+        }
+
         void DsTkChangeButton_Click(object sender, RoutedEventArgs e) =>
             AppMessageDialog.ShowInDevelopment(
                 this,
@@ -225,7 +230,9 @@ namespace SmartRemont.ExportRooms.Views
 
         void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            DialogResult = _completed;
+            // Всегда возвращаем true, чтобы команда вернула Result.Succeeded.
+            // Result.Cancelled откатывает все транзакции сессии, включая уже закоммиченные.
+            DialogResult = true;
             Close();
         }
     }

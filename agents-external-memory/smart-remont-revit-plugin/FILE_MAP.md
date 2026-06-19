@@ -42,6 +42,7 @@
 | `RoomAreaService.cs` | Площади Room для ДС |
 | `RoomMeasurementsService.cs` | Парсинг ведомостей (MEASURES) |
 | `RoomMeasurementsScheduleMapping.cs` | Статический маппинг ведомостей |
+| `TypeParameterChangeService.cs` | Категории/семейства/типы и запись type-параметров |
 | `RoomNameMatcher.cs` | Базовые имена помещений |
 | `RevitEventsService.cs` | create/status revit_events |
 | `RevitEventStatusFormatter.cs` | Текст статуса в UI |
@@ -74,6 +75,7 @@
 | `RemontHubWindow` | Хаб действий |
 | `SelectedRemontSummaryWindow` | ДС площади |
 | `RoomMeasurementsWindow` | Замеры |
+| `TypeParameterChangeWindow` | Изменение параметров выбранного типа |
 | `ExportSmartRemontRoomsWindow` | JSON экспорт (не в потоке команды) |
 | `AuthView` / `ViewContainer` | Dockable pane |
 | `AppMessageDialog`, `SuccessDialog` | Диалоги |
