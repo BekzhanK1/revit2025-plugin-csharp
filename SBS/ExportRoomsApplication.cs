@@ -40,12 +40,14 @@ namespace SmartRemont.ExportRooms
 
         void LogInit()
         {
-
             _path = System.IO.Path.GetDirectoryName(_thisAssemblyPath);
-            var date = DateTime.Now.ToString("MMMM");
+            var logRoot = TenMinuteBucketFileSink.GetLogRootDirectory();
             _logger = new LoggerConfiguration()
-                .WriteTo.File($"{_path}\\logs\\{date}\\.log", rollingInterval: RollingInterval.Day)
+                .MinimumLevel.Debug()
+                .WriteTo.Sink(new TenMinuteBucketFileSink(logRoot))
                 .CreateLogger();
+
+            _logger.Information("Smart Remont plugin started. Logs: {LogRoot}", logRoot);
         }
 
         private void Application_ViewActivated(object sender, ViewActivatedEventArgs e)

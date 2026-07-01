@@ -18,6 +18,7 @@ namespace SmartRemont.ExportRooms.Views
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
         const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
         const string RoomMaterialsSubtitle = "Краска из ведомости и элементы модели по помещениям";
+        const string RevitMaterialsSubtitle = "Список материалов для синхронизации из SmartRemont";
         const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
         const string DsTkSubtitle = "Изменение технологической карты";
 
@@ -45,6 +46,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void SetupFeatureButtons()
         {
+            ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
             ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
@@ -210,6 +212,20 @@ namespace SmartRemont.ExportRooms.Views
         void RoomMaterialsButton_Click(object sender, RoutedEventArgs e)
         {
             var window = new RoomMaterialsWindow(_doc);
+            window.Owner = this;
+            window.ShowDialog();
+        }
+
+        void RevitMaterialsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId == null || remont.RemontId <= 0)
+            {
+                SetStatus("Не указан ID ремонта", isSuccess: false);
+                return;
+            }
+
+            var window = new RevitMaterialsWindow(remont.RemontId.Value, _doc);
             window.Owner = this;
             window.ShowDialog();
         }

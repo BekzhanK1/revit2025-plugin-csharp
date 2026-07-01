@@ -43,6 +43,7 @@
     <Compile Include="DTO\DsRoomChangeDtos.cs" />
     <Compile Include="DTO\RevitEventDtos.cs" />
     <Compile Include="DTO\ClientMaterialDtos.cs" />
+    <Compile Include="DTO\RevitMaterialDtos.cs" />
     <Compile Include="DTO\MaterialValidationDtos.cs" />
     <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
     <Compile Include="DTO\ScheduleMappingConfig.cs" />
@@ -64,6 +65,11 @@
     <Compile Include="Services\RoomMaterialsService.cs" />
     <Compile Include="Services\MaterialValidationService.cs" />
     <Compile Include="Services\ClientMaterialTkService.cs" />
+    <Compile Include="Services\RevitMaterialsService.cs" />
+    <Compile Include="Services\TenMinuteBucketFileSink.cs" />
+    <Compile Include="Services\RevitMaterialsDownloadService.cs" />
+    <Compile Include="Services\RevitFamilyImportService.cs" />
+    <Compile Include="Services\RevitSurfaceImportService.cs" />
     <Compile Include="Services\TkMaterialCompareService.cs" />
     <Compile Include="Services\RoomPaintScheduleService.cs" />
     <Compile Include="Services\TypeParameterChangeService.cs" />
@@ -107,6 +113,9 @@
     </Compile>
     <Compile Include="Views\RoomMaterialsWindow.xaml.cs">
       <DependentUpon>RoomMaterialsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\RevitMaterialsWindow.xaml.cs">
+      <DependentUpon>RevitMaterialsWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\TypeParameterChangeWindow.xaml.cs">
       <DependentUpon>TypeParameterChangeWindow.xaml</DependentUpon>
@@ -171,6 +180,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\RoomMaterialsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\RevitMaterialsWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

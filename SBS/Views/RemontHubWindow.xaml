@@ -274,10 +274,15 @@
                        Margin="0,0,0,10"/>
 
             <StackPanel Grid.Row="3" Margin="0,0,0,20">
+                <Button x:Name="RevitMaterialsButton"
+                        Style="{StaticResource FeatureCardButton}"
+                        Content="Материалы (Revit)"
+                        Tag="primary"
+                        Click="RevitMaterialsButton_Click"/>
                 <Button x:Name="DsAreaChangeButton"
                         Style="{StaticResource FeatureCardButton}"
                         Content="ДС по изменению квадратуры"
-                        Tag="primary"
+                        Tag="default"
                         Click="DsAreaChangeButton_Click"/>
                 <Button x:Name="MeasuresButton"
                         Style="{StaticResource FeatureCardButton}"
