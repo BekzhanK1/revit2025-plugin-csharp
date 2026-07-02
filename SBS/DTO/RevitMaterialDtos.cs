@@ -17,6 +17,12 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("client_request_id")]
         public int? ClientRequestId { get; set; }
 
+        [JsonProperty("surfaces_file_url")]
+        public string SurfacesFileUrl { get; set; }
+
+        [JsonProperty("surfaces_file_hash")]
+        public string SurfacesFileHash { get; set; }
+
         [JsonProperty("data")]
         public List<RevitMaterialRowDto> Data { get; set; } = new();
     }

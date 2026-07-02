@@ -18,6 +18,8 @@ namespace SmartRemont.ExportRooms.Views
         readonly Document _doc;
         bool _loadInProgress;
         bool _syncInProgress;
+        string _surfacesFileUrl;
+        string _surfacesFileHash;
         List<RevitMaterialRowVm> _rows = new();
 
         public RevitMaterialsWindow(int remontId, Document doc)
@@ -50,6 +52,8 @@ namespace SmartRemont.ExportRooms.Views
             try
             {
                 var response = await RevitMaterialsService.ReadAsync(_remontId).ConfigureAwait(true);
+                _surfacesFileUrl = response.SurfacesFileUrl?.Trim();
+                _surfacesFileHash = response.SurfacesFileHash?.Trim();
                 _rows = (response.Data ?? new List<RevitMaterialRowDto>())
                     .Select(ToRowVm)
                     .ToList();
@@ -152,7 +156,7 @@ namespace SmartRemont.ExportRooms.Views
                         row.SyncStatusDisplay = "Ожидает";
 
                     var surfacesDownload = await RevitMaterialsDownloadService
-                        .EnsureSurfacesLibraryAsync()
+                        .EnsureSurfacesLibraryAsync(_remontId, _surfacesFileUrl, _surfacesFileHash)
                         .ConfigureAwait(true);
 
                     downloadDone = downloadTotal;
@@ -373,13 +377,13 @@ namespace SmartRemont.ExportRooms.Views
         static bool IsSurfaceRow(RevitMaterialRowDto row) =>
             string.Equals(row?.RevitFileType?.Trim(), "surface", StringComparison.OrdinalIgnoreCase);
 
-        static bool CanSyncRow(RevitMaterialRowVm row)
+        bool CanSyncRow(RevitMaterialRowVm row)
         {
             if (row?.Source?.MaterialId == null)
                 return false;
 
             if (IsSurfaceRow(row.Source))
-                return Configs.HasSurfacesRvtUrl;
+                return !string.IsNullOrWhiteSpace(_surfacesFileUrl);
 
             return !string.IsNullOrWhiteSpace(row.Source.RevitFileUrl);
         }

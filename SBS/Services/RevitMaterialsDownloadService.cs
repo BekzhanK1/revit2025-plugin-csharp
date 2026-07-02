@@ -23,6 +23,7 @@ namespace SmartRemont.ExportRooms.Services
     {
         const string CacheFolderName = "revit-materials-cache";
         const string ManifestFileName = "cache_manifest.json";
+        const string SurfacesManifestFileName = "surfaces_manifest.json";
 
         static readonly HttpClient Http = new HttpClient
         {
@@ -37,25 +38,44 @@ namespace SmartRemont.ExportRooms.Services
 
         static string ManifestPath => Path.Combine(CacheRoot, ManifestFileName);
 
-        public static string SurfacesLibraryCachePath => Path.Combine(CacheRoot, "surfaces.rvt");
+        static string SurfacesManifestPath => Path.Combine(CacheRoot, SurfacesManifestFileName);
 
-        public static async Task<DownloadResult> EnsureSurfacesLibraryAsync()
+        public static async Task<DownloadResult> EnsureSurfacesLibraryAsync(
+            int remontId,
+            string surfacesFileUrl,
+            string surfacesFileHash = null)
         {
-            if (!Configs.HasSurfacesRvtUrl)
+            if (remontId <= 0)
             {
                 return new DownloadResult
                 {
                     MaterialId = 0,
                     RevitFileType = "surface",
                     Success = false,
-                    ErrorMessage = "Не задана ссылка на surfaces.rvt (Configs.SurfacesRvtUrl)"
+                    ErrorMessage = "Не указан ID ремонта"
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(surfacesFileUrl))
+            {
+                return new DownloadResult
+                {
+                    MaterialId = 0,
+                    RevitFileType = "surface",
+                    Success = false,
+                    ErrorMessage = "API не вернул surfaces_file_url"
                 };
             }
 
             Directory.CreateDirectory(CacheRoot);
-            var targetPath = SurfacesLibraryCachePath;
+            var targetPath = GetSurfacesCachePath(remontId);
+            var normalizedHash = NormalizeHash(surfacesFileHash);
+            var surfacesManifest = LoadSurfacesManifest();
 
-            if (File.Exists(targetPath))
+            if (surfacesManifest.TryGetValue(remontId, out var cached) &&
+                !string.IsNullOrWhiteSpace(cached.FilePath) &&
+                File.Exists(cached.FilePath) &&
+                HashMatches(cached.SurfacesFileHash, normalizedHash))
             {
                 return new DownloadResult
                 {
@@ -63,7 +83,7 @@ namespace SmartRemont.ExportRooms.Services
                     RevitFileType = "surface",
                     Success = true,
                     Skipped = true,
-                    FilePath = targetPath
+                    FilePath = cached.FilePath
                 };
             }
 
@@ -71,7 +91,7 @@ namespace SmartRemont.ExportRooms.Services
 
             try
             {
-                var bytes = await Http.GetByteArrayAsync(Configs.SurfacesRvtUrl).ConfigureAwait(false);
+                var bytes = await Http.GetByteArrayAsync(surfacesFileUrl.Trim()).ConfigureAwait(false);
                 await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
                 if (File.Exists(targetPath))
                 {
@@ -80,6 +100,19 @@ namespace SmartRemont.ExportRooms.Services
                 }
 
                 File.Move(tempPath, targetPath);
+
+                surfacesManifest[remontId] = new SurfacesManifestEntry
+                {
+                    FilePath = targetPath,
+                    SurfacesFileHash = normalizedHash,
+                    DownloadedAt = DateTime.UtcNow
+                };
+                SaveSurfacesManifest(surfacesManifest);
+
+                ExportRoomsApplication._logger?.Information(
+                    "Surfaces library downloaded for remont {RemontId}, hash={Hash}",
+                    remontId,
+                    normalizedHash ?? "—");
 
                 return new DownloadResult
                 {
@@ -93,7 +126,7 @@ namespace SmartRemont.ExportRooms.Services
             catch (Exception ex)
             {
                 TryDelete(tempPath);
-                ExportRoomsApplication._logger?.Warning(ex, "Surfaces library download failed");
+                ExportRoomsApplication._logger?.Warning(ex, "Surfaces library download failed for remont {RemontId}", remontId);
                 return new DownloadResult
                 {
                     MaterialId = 0,
@@ -102,6 +135,23 @@ namespace SmartRemont.ExportRooms.Services
                     ErrorMessage = ex.Message
                 };
             }
+        }
+
+        static string GetSurfacesCachePath(int remontId) =>
+            Path.Combine(CacheRoot, $"surfaces_{remontId}.rvt");
+
+        static string NormalizeHash(string hash) =>
+            string.IsNullOrWhiteSpace(hash) ? null : hash.Trim();
+
+        static bool HashMatches(string cachedHash, string requestedHash)
+        {
+            if (string.IsNullOrWhiteSpace(requestedHash))
+                return true;
+
+            return string.Equals(
+                NormalizeHash(cachedHash),
+                requestedHash,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         public static async Task<List<DownloadResult>> SyncAsync(
@@ -359,6 +409,69 @@ namespace SmartRemont.ExportRooms.Services
 
             [JsonProperty("downloaded_at")]
             public DateTime DownloadedAt { get; set; }
+        }
+
+        sealed class SurfacesManifestEntry
+        {
+            [JsonProperty("file_path")]
+            public string FilePath { get; set; }
+
+            [JsonProperty("surfaces_file_hash")]
+            public string SurfacesFileHash { get; set; }
+
+            [JsonProperty("downloaded_at")]
+            public DateTime DownloadedAt { get; set; }
+        }
+
+        static Dictionary<int, SurfacesManifestEntry> LoadSurfacesManifest()
+        {
+            if (!File.Exists(SurfacesManifestPath))
+                return new Dictionary<int, SurfacesManifestEntry>();
+
+            try
+            {
+                var json = File.ReadAllText(SurfacesManifestPath);
+                var raw = JsonConvert.DeserializeObject<Dictionary<string, SurfacesManifestEntry>>(json);
+                if (raw == null)
+                    return new Dictionary<int, SurfacesManifestEntry>();
+
+                var result = new Dictionary<int, SurfacesManifestEntry>();
+                foreach (var pair in raw)
+                {
+                    if (int.TryParse(pair.Key, out var remontId))
+                        result[remontId] = pair.Value;
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось прочитать surfaces_manifest.json");
+                return new Dictionary<int, SurfacesManifestEntry>();
+            }
+        }
+
+        static void SaveSurfacesManifest(Dictionary<int, SurfacesManifestEntry> manifest)
+        {
+            var raw = manifest.ToDictionary(
+                pair => pair.Key.ToString(),
+                pair => pair.Value);
+
+            var json = JsonConvert.SerializeObject(raw, Formatting.Indented);
+            var tempPath = SurfacesManifestPath + ".tmp." + Guid.NewGuid().ToString("N");
+
+            try
+            {
+                File.WriteAllText(tempPath, json);
+                if (File.Exists(SurfacesManifestPath))
+                    File.Delete(SurfacesManifestPath);
+                File.Move(tempPath, SurfacesManifestPath);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось сохранить surfaces_manifest.json");
+                TryDelete(tempPath);
+            }
         }
     }
 }
