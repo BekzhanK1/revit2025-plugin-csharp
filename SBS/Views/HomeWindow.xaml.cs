@@ -1,7 +1,6 @@
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,23 +24,13 @@ namespace SmartRemont.ExportRooms.Views
             WelcomeTextBlock.Text = $"Добро пожаловать, {name}";
 
             var confirmed = ExportRoomsApplication.SelectedRemont;
-            if (confirmed != null)
+            if (confirmed?.RemontId is int remontId)
             {
-                if (confirmed.RemontId.HasValue)
-                {
-                    ByRemontIdRadio.IsChecked = true;
-                    IdTextBox.Text = confirmed.RemontId.Value.ToString();
-                }
-                else
-                {
-                    ByClientRequestIdRadio.IsChecked = true;
-                    IdTextBox.Text = confirmed.ClientRequestId.ToString();
-                }
-
-                _ = RunSearchAsync(restoreSelection: confirmed);
+                IdTextBox.Text = remontId.ToString();
+                _ = RunSearchAsync();
             }
 
-            UpdateUiState();
+            UpdatePlaceholderVisibility();
         }
 
         async void SearchButton_Click(object sender, RoutedEventArgs e) =>
@@ -53,22 +42,30 @@ namespace SmartRemont.ExportRooms.Views
                 await RunSearchAsync();
         }
 
-        async System.Threading.Tasks.Task RunSearchAsync(RemontOption restoreSelection = null)
+        void IdTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
+            UpdatePlaceholderVisibility();
+
+        void IdTextBox_GotFocus(object sender, RoutedEventArgs e) =>
+            UpdatePlaceholderVisibility();
+
+        void IdTextBox_LostFocus(object sender, RoutedEventArgs e) =>
+            UpdatePlaceholderVisibility();
+
+        async System.Threading.Tasks.Task RunSearchAsync()
         {
             if (!TryParseSearchId(out var id))
             {
-                SetStatus("Введите корректный числовой ID", isError: true);
+                SetStatus("Введите корректный числовой ID ремонта", isError: true);
                 ClearResults();
                 return;
             }
 
             SetSearchBusy(true);
-            SetStatus("Поиск...", isError: false);
+            SetStatus("Поиск…", isError: false);
 
             try
             {
-                var byRemontId = ByRemontIdRadio.IsChecked == true;
-                var results = await RemontService.QuickSearchAsync(byRemontId, id)
+                var results = await RemontService.QuickSearchAsync(byRemontId: true, id)
                     .ConfigureAwait(true);
 
                 ResultsListBox.ItemsSource = results;
@@ -76,20 +73,15 @@ namespace SmartRemont.ExportRooms.Views
                 if (results.Count == 0)
                 {
                     ResultsSection.Visibility = Visibility.Collapsed;
-                    SetStatus("Ничего не найдено. Проверьте ID и доступ к заявке.", isError: false);
+                    SetStatus("Ничего не найдено", isError: false);
                 }
                 else
                 {
                     ResultsSection.Visibility = Visibility.Visible;
                     SetStatus(results.Count == 1
-                        ? "Найден 1 результат — нажмите для выбора"
-                        : $"Найдено {results.Count} — выберите нужный",
+                        ? "Найдено 1 — выберите карточку"
+                        : $"Найдено {results.Count} — выберите карточку",
                         isError: false);
-
-                    if (restoreSelection != null)
-                        SelectInList(restoreSelection);
-                    else if (results.Count == 1)
-                        ResultsListBox.SelectedIndex = 0;
                 }
             }
             catch (Exception ex)
@@ -101,7 +93,6 @@ namespace SmartRemont.ExportRooms.Views
             finally
             {
                 SetSearchBusy(false);
-                UpdateUiState();
             }
         }
 
@@ -114,20 +105,10 @@ namespace SmartRemont.ExportRooms.Views
 
         void ResultsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (ResultsListBox.SelectedItem is RemontOption selected)
-            {
-                ExportRoomsApplication.SelectedRemont = selected;
-                ShowSelectedPreview(selected);
-            }
-
-            UpdateUiState();
-        }
-
-        void ContinueButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ExportRoomsApplication.SelectedRemont == null)
+            if (ResultsListBox.SelectedItem is not RemontOption selected)
                 return;
 
+            ExportRoomsApplication.SelectedRemont = selected;
             DialogResult = true;
             Close();
         }
@@ -152,27 +133,12 @@ namespace SmartRemont.ExportRooms.Views
             ResultsSection.Visibility = Visibility.Collapsed;
         }
 
-        void SelectInList(RemontOption remont)
+        void UpdatePlaceholderVisibility()
         {
-            if (ResultsListBox.ItemsSource == null)
-                return;
-
-            foreach (RemontOption item in ResultsListBox.Items)
-            {
-                if (item.ClientRequestId == remont.ClientRequestId &&
-                    item.RemontId == remont.RemontId)
-                {
-                    ResultsListBox.SelectedItem = item;
-                    ShowSelectedPreview(item);
-                    return;
-                }
-            }
-        }
-
-        void ShowSelectedPreview(RemontOption remont)
-        {
-            SelectedPanel.Visibility = Visibility.Visible;
-            SelectedTextBlock.Text = $"Выбрано: {remont.Name}";
+            IdPlaceholderTextBlock.Visibility =
+                string.IsNullOrWhiteSpace(IdTextBox.Text) && !IdTextBox.IsFocused
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
         }
 
         void SetStatus(string message, bool isError)
@@ -186,18 +152,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             SearchButton.IsEnabled = !isBusy;
             IdTextBox.IsEnabled = !isBusy;
-            ByRemontIdRadio.IsEnabled = !isBusy;
-            ByClientRequestIdRadio.IsEnabled = !isBusy;
-            SearchButton.Content = isBusy ? "Поиск..." : "Найти";
-        }
-
-        void UpdateUiState()
-        {
-            var confirmed = ExportRoomsApplication.SelectedRemont;
-            ContinueButton.IsEnabled = confirmed != null;
-
-            if (confirmed != null)
-                ShowSelectedPreview(confirmed);
+            SearchProgressBar.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }

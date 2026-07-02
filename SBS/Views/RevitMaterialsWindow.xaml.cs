@@ -61,7 +61,7 @@ namespace SmartRemont.ExportRooms.Views
                 if (response.ClientRequestId.HasValue)
                 {
                     ClientRequestTextBlock.Text =
-                        $"Заявка: {response.ClientRequestId.Value} · Ремонт: {response.RemontId ?? _remontId}";
+                        $"Заявка #{response.ClientRequestId.Value} · Ремонт #{response.RemontId ?? _remontId}";
                     ClientRequestTextBlock.Visibility = System.Windows.Visibility.Visible;
                 }
                 else
@@ -76,8 +76,9 @@ namespace SmartRemont.ExportRooms.Views
                     return;
                 }
 
+                RefreshProjectStatuses();
                 ShowData(_rows);
-                StatusTextBlock.Text = $"Материалов: {_rows.Count}";
+                UpdateSummaryStatus();
                 SyncButton.IsEnabled = _rows.Any(CanSyncRow);
             }
             catch (Exception ex)
@@ -92,6 +93,37 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        void RefreshProjectStatuses()
+        {
+            var materialIds = _rows
+                .Where(r => r.Source?.MaterialId != null)
+                .Select(r => r.Source.MaterialId.Value)
+                .ToList();
+
+            var presence = RevitMaterialPresenceService.CheckMaterials(_doc, materialIds);
+
+            foreach (var row in _rows)
+            {
+                if (row.Source?.MaterialId == null)
+                {
+                    row.ApplyPresence(false, null);
+                    continue;
+                }
+
+                if (presence.TryGetValue(row.Source.MaterialId.Value, out var info))
+                    row.ApplyPresence(info.IsInProject, info.Label);
+                else
+                    row.ApplyPresence(false, null);
+            }
+        }
+
+        void UpdateSummaryStatus()
+        {
+            var inProject = _rows.Count(r => r.IsInProject);
+            var missing = _rows.Count - inProject;
+            StatusTextBlock.Text = $"В проекте: {inProject} · Нет в проекте: {missing}";
+        }
+
         async Task SyncMaterialsAsync()
         {
             if (_syncInProgress || _rows.Count == 0)
@@ -99,9 +131,6 @@ namespace SmartRemont.ExportRooms.Views
 
             _syncInProgress = true;
             SyncButton.IsEnabled = false;
-
-            foreach (var row in _rows)
-                row.SyncStatusDisplay = "Ожидает";
 
             var rfaRows = _rows
                 .Where(r => r.Source?.MaterialId != null
@@ -121,26 +150,18 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var rowByMaterialId = _rows
-                .Where(r => r.Source?.MaterialId != null)
-                .ToDictionary(r => r.Source.MaterialId.Value);
-
             try
             {
                 var downloadTotal = rfaRows.Count + (surfaceRows.Count > 0 ? 1 : 0);
                 var downloadDone = 0;
                 ShowSyncProgress(0, downloadTotal, $"Скачивание: 0 из {downloadTotal}");
 
-                var progress = new Progress<(int materialId, int done, int total, bool downloading)>(update =>
+                var progress = new Progress<(int materialId, int done, int total, bool downloading)>(_ =>
                 {
                     ShowSyncProgress(
                         downloadDone,
                         downloadTotal,
                         $"Скачивание: {downloadDone} из {downloadTotal}");
-
-                    if (update.downloading &&
-                        rowByMaterialId.TryGetValue(update.materialId, out var row))
-                        row.SyncStatusDisplay = "Скачивается";
                 });
 
                 var downloadResults = await RevitMaterialsDownloadService
@@ -152,9 +173,6 @@ namespace SmartRemont.ExportRooms.Views
                 string surfacesRvtPath = null;
                 if (surfaceRows.Count > 0)
                 {
-                    foreach (var row in surfaceRows)
-                        row.SyncStatusDisplay = "Ожидает";
-
                     var surfacesDownload = await RevitMaterialsDownloadService
                         .EnsureSurfacesLibraryAsync(_remontId, _surfacesFileUrl, _surfacesFileHash)
                         .ConfigureAwait(true);
@@ -162,49 +180,8 @@ namespace SmartRemont.ExportRooms.Views
                     downloadDone = downloadTotal;
                     ShowSyncProgress(downloadDone, downloadTotal, $"Скачивание: {downloadDone} из {downloadTotal}");
 
-                    if (!surfacesDownload.Success)
-                    {
-                        foreach (var row in surfaceRows)
-                        {
-                            row.SyncStatusDisplay = string.IsNullOrWhiteSpace(surfacesDownload.ErrorMessage)
-                                ? "Ошибка surfaces.rvt"
-                                : $"Ошибка: {surfacesDownload.ErrorMessage}";
-                        }
-                    }
-                    else
-                    {
+                    if (surfacesDownload.Success)
                         surfacesRvtPath = surfacesDownload.FilePath;
-                        foreach (var row in surfaceRows)
-                            row.SyncStatusDisplay = surfacesDownload.Skipped ? "Из кэша" : "Скачано";
-                    }
-                }
-
-                var skippedCount = 0;
-                var downloadedCount = 0;
-
-                foreach (var result in downloadResults)
-                {
-                    if (!rowByMaterialId.TryGetValue(result.MaterialId, out var row))
-                        continue;
-
-                    if (!result.Success)
-                    {
-                        row.SyncStatusDisplay = string.IsNullOrWhiteSpace(result.ErrorMessage)
-                            ? "Ошибка"
-                            : $"Ошибка: {result.ErrorMessage}";
-                        continue;
-                    }
-
-                    if (result.Skipped)
-                    {
-                        row.SyncStatusDisplay = "Из кэша";
-                        skippedCount++;
-                    }
-                    else
-                    {
-                        row.SyncStatusDisplay = "Скачано";
-                        downloadedCount++;
-                    }
                 }
 
                 var importItems = downloadResults
@@ -216,100 +193,26 @@ namespace SmartRemont.ExportRooms.Views
                 ShowSyncProgress(importCount, importCount, "Загрузка в проект...");
                 SyncProgressBar.IsIndeterminate = true;
 
-                var importResults = RevitFamilyImportService.LoadFamiliesIntoDocument(_doc, importItems);
+                if (importItems.Count > 0)
+                    RevitFamilyImportService.LoadFamiliesIntoDocument(_doc, importItems);
 
-                List<SurfaceImportResult> surfaceImportResults = null;
                 if (surfaceRows.Count > 0 && !string.IsNullOrWhiteSpace(surfacesRvtPath))
                 {
-                    surfaceImportResults = RevitSurfaceImportService.CopyMaterialsIntoDocument(
+                    RevitSurfaceImportService.CopyMaterialsIntoDocument(
                         _doc,
                         surfacesRvtPath,
                         surfaceRows.Select(r => r.Source.MaterialId.Value));
                 }
 
                 SyncProgressBar.IsIndeterminate = false;
+                RefreshProjectStatuses();
+                UpdateSummaryStatus();
 
-                var loadedCount = 0;
-                var alreadyInProjectCount = 0;
-                var skippedImportCount = 0;
                 var errorCount = downloadResults.Count(r => !r.Success);
-
-                foreach (var import in importResults)
-                {
-                    if (!rowByMaterialId.TryGetValue(import.MaterialId, out var row))
-                        continue;
-
-                    if (import.NotSupported)
-                    {
-                        row.SyncStatusDisplay = "Готово (surface, импорт не поддержан)";
-                        skippedImportCount++;
-                        continue;
-                    }
-
-                    if (import.Success)
-                    {
-                        if (import.AlreadyInProject)
-                        {
-                            row.SyncStatusDisplay = string.IsNullOrWhiteSpace(import.FamilyName)
-                                ? "Уже в проекте"
-                                : $"Уже в проекте ({import.FamilyName})";
-                            alreadyInProjectCount++;
-                        }
-                        else
-                        {
-                            row.SyncStatusDisplay = string.IsNullOrWhiteSpace(import.FamilyName)
-                                ? "Загружено в проект"
-                                : $"Загружено ({import.FamilyName})";
-                            loadedCount++;
-                        }
-
-                        continue;
-                    }
-
-                    row.SyncStatusDisplay = string.IsNullOrWhiteSpace(import.ErrorMessage)
-                        ? "Ошибка загрузки"
-                        : $"Ошибка загрузки: {import.ErrorMessage}";
-                    errorCount++;
-                }
-
-                if (surfaceImportResults != null)
-                {
-                    foreach (var import in surfaceImportResults)
-                    {
-                        if (!rowByMaterialId.TryGetValue(import.MaterialId, out var row))
-                            continue;
-
-                        if (import.Success)
-                        {
-                            if (import.AlreadyInProject)
-                            {
-                                row.SyncStatusDisplay = string.IsNullOrWhiteSpace(import.MaterialName)
-                                    ? "Уже в проекте"
-                                    : $"Уже в проекте ({import.MaterialName})";
-                                alreadyInProjectCount++;
-                            }
-                            else
-                            {
-                                row.SyncStatusDisplay = string.IsNullOrWhiteSpace(import.MaterialName)
-                                    ? "Скопировано в проект"
-                                    : $"Скопировано ({import.MaterialName})";
-                                loadedCount++;
-                            }
-
-                            continue;
-                        }
-
-                        row.SyncStatusDisplay = string.IsNullOrWhiteSpace(import.ErrorMessage)
-                            ? "Ошибка копирования"
-                            : $"Ошибка: {import.ErrorMessage}";
-                        errorCount++;
-                    }
-                }
-                else if (surfaceRows.Count > 0 && string.IsNullOrWhiteSpace(surfacesRvtPath))
+                if (surfaceRows.Count > 0 && string.IsNullOrWhiteSpace(surfacesRvtPath))
                     errorCount += surfaceRows.Count;
 
-                StatusTextBlock.Text =
-                    $"Загружено: {loadedCount} · Уже в проекте: {alreadyInProjectCount} · Из кэша: {skippedCount} · Скачано: {downloadedCount} · Без импорта: {skippedImportCount} · Ошибок: {errorCount}";
+                StatusTextBlock.Text += errorCount > 0 ? $" · Ошибок: {errorCount}" : " · Синхронизация завершена";
             }
             catch (Exception ex)
             {
@@ -394,10 +297,19 @@ namespace SmartRemont.ExportRooms.Views
                 Source = row,
                 MaterialIdDisplay = row.MaterialId?.ToString(CultureInfo.InvariantCulture) ?? "—",
                 MaterialName = DisplayOrDash(row.MaterialName),
-                MaterialTypeCodeDisplay = DisplayOrDash(row.MaterialTypeCode),
-                RevitFileTypeDisplay = DisplayOrDash(row.RevitFileType),
-                RevitAssetNameDisplay = DisplayOrDash(row.RevitAssetName)
+                TypeDisplay = BuildTypeDisplay(row)
             };
+
+        static string BuildTypeDisplay(RevitMaterialRowDto row)
+        {
+            if (!string.IsNullOrWhiteSpace(row?.MaterialTypeCode))
+                return row.MaterialTypeCode.Trim();
+
+            if (!string.IsNullOrWhiteSpace(row?.RevitFileType))
+                return row.RevitFileType.Trim();
+
+            return "—";
+        }
 
         static string DisplayOrDash(string value) =>
             string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
@@ -411,26 +323,46 @@ namespace SmartRemont.ExportRooms.Views
 
     sealed class RevitMaterialRowVm : INotifyPropertyChanged
     {
-        string _syncStatusDisplay = "—";
+        bool _isInProject;
+        string _projectStatusDisplay = "—";
 
         public RevitMaterialRowDto Source { get; init; }
         public string MaterialIdDisplay { get; init; }
         public string MaterialName { get; init; }
-        public string MaterialTypeCodeDisplay { get; init; }
-        public string RevitFileTypeDisplay { get; init; }
-        public string RevitAssetNameDisplay { get; init; }
+        public string TypeDisplay { get; init; }
 
-        public string SyncStatusDisplay
+        public bool IsInProject
         {
-            get => _syncStatusDisplay;
-            set
+            get => _isInProject;
+            private set
             {
-                if (_syncStatusDisplay == value)
+                if (_isInProject == value)
                     return;
 
-                _syncStatusDisplay = value;
+                _isInProject = value;
                 OnPropertyChanged();
             }
+        }
+
+        public string ProjectStatusDisplay
+        {
+            get => _projectStatusDisplay;
+            private set
+            {
+                if (_projectStatusDisplay == value)
+                    return;
+
+                _projectStatusDisplay = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void ApplyPresence(bool isInProject, string label)
+        {
+            IsInProject = isInProject;
+            ProjectStatusDisplay = isInProject
+                ? (string.IsNullOrWhiteSpace(label) ? "В проекте" : $"В проекте")
+                : "Нет в проекте";
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

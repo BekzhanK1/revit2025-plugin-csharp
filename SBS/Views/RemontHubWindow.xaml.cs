@@ -2,7 +2,6 @@ using Autodesk.Revit.DB;
 using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,13 +13,12 @@ namespace SmartRemont.ExportRooms.Views
         readonly Document _doc;
 
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
-        const string MeasuresSubtitle = "Замеры из спецификаций Revit";
+        const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
         const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
-        const string RoomMaterialsSubtitle = "Краска из ведомости и элементы модели по помещениям";
-        const string RevitMaterialsSubtitle = "Список материалов для синхронизации из SmartRemont";
+        const string RoomMaterialsSubtitle = "ДС на изменение технологической карты";
+        const string RevitMaterialsSubtitle = "Загрузка RFA и surface-типов из Smart Remont";
         const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
-        const string DsTkSubtitle = "Изменение технологической карты";
 
         public RemontHubWindow(Document doc)
         {
@@ -49,11 +47,16 @@ namespace SmartRemont.ExportRooms.Views
             ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
-            ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
-            ConfigureFeatureButton(MeasuresCompareButton, "\uE8AB", MeasuresCompareSubtitle);
             ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
+            // TODO: plugin-ui-redesign — Замеры по коду
+            MeasuresFromCodeButton.Visibility = System.Windows.Visibility.Collapsed;
+            ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
+            // TODO: plugin-ui-redesign — Сравнение замеров
+            MeasuresCompareButton.Visibility = System.Windows.Visibility.Collapsed;
+            ConfigureFeatureButton(MeasuresCompareButton, "\uE8AB", MeasuresCompareSubtitle);
+            // TODO: plugin-ui-redesign — Изменение параметров типов
+            TypeParametersButton.Visibility = System.Windows.Visibility.Collapsed;
             ConfigureFeatureButton(TypeParametersButton, "\uE8B9", TypeParametersSubtitle);
-            ConfigureFeatureButton(DsTkChangeButton, "\uE8A5", DsTkSubtitle);
         }
 
         static void ConfigureFeatureButton(Button button, string iconGlyph, string subtitle)
@@ -116,36 +119,44 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (remont == null)
             {
-                ClientRequestIdText.Text = "—";
-                RemontIdText.Text = "—";
+                RemontIdHeroText.Text = "Ремонт #—";
+                ClientRequestIdHeroText.Text = "Заявка #—";
+                RemontNameText.Text = string.Empty;
+                RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
                 ClientNameText.Text = "—";
                 ResidentNameText.Text = "—";
                 FlatNumText.Text = "—";
                 PresetNameText.Text = "—";
-                RemontSubtitleText.Text = "Выберите действие";
                 return;
             }
 
-            ClientRequestIdText.Text = remont.ClientRequestId.ToString();
-            RemontIdText.Text = remont.RemontId.HasValue ? remont.RemontId.Value.ToString() : "—";
+            RemontIdHeroText.Text = remont.RemontId.HasValue && remont.RemontId.Value > 0
+                ? $"Ремонт #{remont.RemontId.Value}"
+                : "Ремонт #—";
+            ClientRequestIdHeroText.Text = remont.ClientRequestId > 0
+                ? $"Заявка #{remont.ClientRequestId}"
+                : "Заявка #—";
+
+            var name = BuildSubtitle(remont);
+            if (string.IsNullOrEmpty(name))
+            {
+                RemontNameText.Text = string.Empty;
+                RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
+            }
+            else
+            {
+                RemontNameText.Text = name;
+                RemontNameText.Visibility = System.Windows.Visibility.Visible;
+            }
+
             ClientNameText.Text = DisplayOrDash(remont.ClientName);
             ResidentNameText.Text = DisplayOrDash(remont.ResidentName);
             FlatNumText.Text = DisplayOrDash(remont.FlatNum);
             PresetNameText.Text = DisplayOrDash(remont.PresetName);
-            RemontSubtitleText.Text = BuildSubtitle(remont);
         }
 
-        static string BuildSubtitle(RemontOption remont)
-        {
-            var parts = new List<string>();
-            if (!string.IsNullOrWhiteSpace(remont.ResidentName))
-                parts.Add(remont.ResidentName.Trim());
-            if (!string.IsNullOrWhiteSpace(remont.FlatNum))
-                parts.Add($"кв. {remont.FlatNum.Trim()}");
-            if (!string.IsNullOrWhiteSpace(remont.PresetName))
-                parts.Add(remont.PresetName.Trim());
-            return parts.Count > 0 ? string.Join(" · ", parts) : "Выберите действие";
-        }
+        static string BuildSubtitle(RemontOption remont) =>
+            string.IsNullOrWhiteSpace(remont?.Name) ? string.Empty : remont.Name.Trim();
 
         static string DisplayOrDash(string value) =>
             string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
@@ -236,13 +247,6 @@ namespace SmartRemont.ExportRooms.Views
             window.Owner = this;
             window.ShowDialog();
         }
-
-        void DsTkChangeButton_Click(object sender, RoutedEventArgs e) =>
-            AppMessageDialog.ShowInDevelopment(
-                this,
-                "В разработке",
-                "ДС по изменению ТК",
-                "Раздел находится в разработке. Скоро здесь можно будет оформить изменение технологической карты.");
 
         void CloseButton_Click(object sender, RoutedEventArgs e)
         {

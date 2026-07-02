@@ -12,8 +12,8 @@
   ├─► HomeWindow               (поиск и выбор ремонта)
   │     DialogResult = true → SelectedRemont сохранён
   │
-  └─► RemontHubWindow          (хаб: три действия)
-        DialogResult = true при успешной отправке любого раздела
+  └─► RemontHubWindow          (хаб: 4 видимые функции)
+        DialogResult = true при закрытии (в т.ч. после отправки раздела)
 ```
 
 > **Важно:** `ExportSmartRemontRoomsWindow` в команде **закомментирован / не вызывается**. Полный JSON-экспорт в файлы — отдельный сценарий (окно есть в проекте).
@@ -37,15 +37,22 @@ Dockable pane (`ViewContainer` + `AuthView`) зарегистрирован пр
 
 | | |
 |---|---|
-| **Файлы** | `Views/HomeWindow.xaml(.cs)` |
-| **Сервис** | `RemontService.QuickSearchAsync` |
+| **Файлы** | `Views/HomeWindow.xaml(.cs)`, `Views/AppStyles.xaml` |
+| **Сервис** | `RemontService.QuickSearchAsync(byRemontId: true, id)` |
 | **API** | `POST /client_request/quick_search/` |
+| **Размер** | Width 900 (`WindowLayoutHelper.HomeDefaultWidth`), MinWidth 760 |
 
 ### UI
 
-- Приветствие: имя из `session.DisplayName`
-- Поиск по **remont_id** или **client_request_id**
-- ComboBox с результатами → кнопка подтверждения
+- Заголовок «Smart Remont» + приветствие: имя из `session.DisplayName`
+- Кнопка **«Выйти»** (logout) справа в шапке
+- **Только поиск по ID ремонта** — radio «По ID заявки» убраны
+- Поле с placeholder «Введите ID ремонта», кнопка **«Найти»**, **Enter** — поиск
+- Inline **ProgressBar** (indeterminate) при загрузке; текст кнопки не меняется
+- Состояния статуса: подсказка / «Поиск…» / «Ничего не найдено» / ошибка / «Найдено N — выберите карточку»
+- Список **карточек** (ListBox): название, клиент, бейджи «Заявка #» / «Ремонт #»
+- **Один клик по карточке** → `SelectedRemont` сохранён, `DialogResult = true`, переход в hub (кнопки «Продолжить» и панель «Выбрано» убраны)
+- Внизу только **«Отмена»** (`DialogResult = false`)
 
 ### Результат
 
@@ -61,27 +68,41 @@ Dockable pane (`ViewContainer` + `AuthView`) зарегистрирован пр
 
 | | |
 |---|---|
-| **Файлы** | `Views/RemontHubWindow.xaml(.cs)` |
+| **Файлы** | `Views/RemontHubWindow.xaml(.cs)`, `Views/AppStyles.xaml` |
 | **Вход** | `Document` активного проекта |
+| **Размер** | Width 960 (`WindowLayoutHelper.HubDefaultWidth`), MinWidth 880 |
 
-### Карточки действий
+### Шапка (hero)
 
-| Кнопка | Окно | Подзаголовок в UI | API event type |
-|--------|------|-------------------|----------------|
-| ДС по изменению квадратуры | `SelectedRemontSummaryWindow` | Отправка площадей помещений в Smart Remont | `DS_AREA_CHANGE` |
-| Замеры комнат | `RoomMeasurementsWindow` | Замеры из спецификаций Revit | `MEASURES` |
-| ДС по изменению ТК | — | В разработке | — |
+- Крупно в одной строке: **`Ремонт #…`** (30 px) + **`Заявка #…`** (24 px, primary `#1B6FC8`)
+- Ниже — `RemontOption.Name` (muted, если есть)
+- Блок info (2×2, uppercase labels): **КЛИЕНТ**, **ЖК**, **КВАРТИРА**, **ПАКЕТ** — ID в этом блоке не дублируются
 
-При загрузке хаба параллельно запрашиваются статусы:
+### Карточки функций (видимые, порядок)
+
+| # | Кнопка | Окно | Подзаголовок | API / действие |
+|---|--------|------|--------------|----------------|
+| 1 | Синхронизация материалов из Revit | `RevitMaterialsWindow` | Загрузка RFA и surface-типов из Smart Remont | импорт материалов |
+| 2 | ДС на изменение квадратуры | `SelectedRemontSummaryWindow` | Отправка площадей помещений в Smart Remont | `DS_AREA_CHANGE` |
+| 3 | Замеры комнат (из спецификаций) | `RoomMeasurementsWindow` | Отправка замеров из ведомостей Revit | `MEASURES` |
+| 4 | ДС на изменение ТК | `RoomMaterialsWindow` | ДС на изменение технологической карты | — |
+
+### Скрытые пункты (код сохранён, `Visibility=Collapsed`, `// TODO: plugin-ui-redesign`)
+
+| Было | Окно |
+|------|------|
+| Замеры по коду | `RoomMeasurementsFromCodeWindow` |
+| Сравнение замеров | `RoomMeasurementsCompareWindow` |
+| Изменение параметров типов | `TypeParameterChangeWindow` |
+
+Stub **«ДС по изменению ТК (Скоро)»** (`DsTkChangeButton`) удалён — функция объединена с п.4.
+
+При загрузке хаба параллельно запрашиваются статусы для п.2–3:
 
 - `GET .../revit_events/status/?remont_id=&type=DS_AREA_CHANGE`
 - `GET .../revit_events/status/?type=MEASURES`
 
-Бейджи на кнопках: `RevitEventStatusUi`, формат даты — `RevitEventStatusFormatter`.
-
-### Отображаемая информация о ремонте
-
-Client request id, remont id, клиент, жилец, квартира, пресет.
+Бейджи «Отправлено» на карточках: `RevitEventStatusUi`, суффикс даты — `RevitEventStatusFormatter`.
 
 ---
 
@@ -174,7 +195,8 @@ Client request id, remont id, клиент, жилец, квартира, пре
 | `SuccessDialog` | Успешная отправка |
 | `AppMessageDialog` | Сообщения, «в разработке» |
 | `ViewContainer` + `AuthView` | Dockable pane |
-| `WindowLayoutHelper` | Высота окна ~ рабочая область |
+| `WindowLayoutHelper` | Full WorkArea height, centering; `HomeDefaultWidth` 900, `HubDefaultWidth` 960 |
+| `AppStyles.xaml` | Общие Card, PrimaryButton, SectionLabel, палитра `#1B6FC8` / `#F0F2F5` |
 
 ---
 
@@ -182,18 +204,26 @@ Client request id, remont id, клиент, жилец, квартира, пре
 
 ```mermaid
 flowchart LR
-  subgraph hub [RemontHubWindow]
-    A[ДС площади]
-    B[Замеры]
-    C[ДС ТК stub]
+  subgraph hub [RemontHubWindow — 4 видимые функции]
+    M[Sync materials Revit]
+    A[ДС квадратура]
+    B[Замеры spec]
+    C[ДС ТК]
   end
 
+  M --> API0[Revit import]
   A --> R[Room API]
   B --> S[ViewSchedule tables]
-  C --> X[—]
+  C --> RM[RoomMaterialsWindow]
 
   R --> API1[DS_AREA_CHANGE]
   S --> API2[MEASURES]
+
+  subgraph hidden [Скрыто в UI]
+    H1[Замеры по коду]
+    H2[Сравнение]
+    H3[Параметры типов]
+  end
 
   subgraph file [Export window - отдельно]
     R2[Room API]

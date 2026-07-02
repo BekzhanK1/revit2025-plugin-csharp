@@ -1,9 +1,10 @@
 <Window x:Class="SmartRemont.ExportRooms.Views.RemontHubWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont — Ремонт"
-        Width="760"
-        MinWidth="680"
+        Width="{x:Static views:WindowLayoutHelper.HubDefaultWidth}"
+        MinWidth="880"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
@@ -11,187 +12,176 @@
         Background="#F0F2F5">
 
     <Window.Resources>
-        <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="32,28"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.06" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#9CA3AF"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
+            <Style x:Key="HubInfoLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="#9CA3AF"/>
+                <Setter Property="Margin" Value="0,0,0,4"/>
+            </Style>
 
-        <Style x:Key="InfoLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#9CA3AF"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
+            <Style x:Key="HubInfoValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="#1F2937"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="Margin" Value="0,0,0,12"/>
+            </Style>
 
-        <Style x:Key="InfoValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#1F2937"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin" Value="0,0,0,14"/>
-        </Style>
+            <Style x:Key="FeatureCardButton" TargetType="Button">
+                <Setter Property="Margin" Value="0,0,0,10"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="CardBorder"
+                                    Background="White"
+                                    BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="4"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-        <Style x:Key="FeatureCardButton" TargetType="Button">
-            <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="CardBorder"
-                                Background="White"
-                                BorderBrush="#E5E7EB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16,14">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="4"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                                    <Border x:Name="AccentBar"
+                                            Grid.Column="0"
+                                            CornerRadius="2"
+                                            Margin="0,2,12,2"
+                                            Background="#1B6FC8"/>
 
-                                <Border x:Name="AccentBar"
-                                        Grid.Column="0"
-                                        CornerRadius="2"
-                                        Margin="0,2,12,2"
-                                        Background="#1B6FC8"/>
-
-                                <Border Grid.Column="1"
-                                        Width="40" Height="40"
-                                        CornerRadius="8"
-                                        Background="#EFF6FF"
-                                        Margin="0,0,14,0"
-                                        VerticalAlignment="Center">
-                                    <TextBlock x:Name="FeatureIcon"
-                                               FontFamily="Segoe MDL2 Assets"
-                                               FontSize="18"
-                                               Foreground="#1B6FC8"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
-                                </Border>
-
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <TextBlock x:Name="FeatureTitle"
-                                               FontSize="15"
-                                               FontWeight="SemiBold"
-                                               Foreground="#1F2937"
-                                               Text="{TemplateBinding Content}"/>
-                                    <TextBlock x:Name="FeatureSubtitle"
-                                               FontSize="12"
-                                               Foreground="#6B7280"
-                                               Margin="0,4,0,0"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="3"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center"
-                                            Margin="12,0,0,0">
-                                    <Border x:Name="SentBadge"
-                                            Background="#DBEAFE"
-                                            BorderBrush="#BFDBFE"
-                                            BorderThickness="1"
-                                            CornerRadius="4"
-                                            Padding="8,3"
-                                            Margin="0,0,8,0"
-                                            Visibility="Collapsed">
-                                        <TextBlock x:Name="SentBadgeText"
-                                                   Text="Отправлено"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#1D4ED8"/>
+                                    <Border Grid.Column="1"
+                                            Width="40" Height="40"
+                                            CornerRadius="8"
+                                            Background="#EFF6FF"
+                                            Margin="0,0,14,0"
+                                            VerticalAlignment="Center">
+                                        <TextBlock x:Name="FeatureIcon"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="18"
+                                                   Foreground="#1B6FC8"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
                                     </Border>
-                                    <Border x:Name="SoonBadge"
-                                            Background="#FEF3C7"
-                                            BorderBrush="#FDE68A"
-                                            BorderThickness="1"
-                                            CornerRadius="4"
-                                            Padding="8,3"
-                                            Margin="0,0,8,0"
-                                            Visibility="Collapsed">
-                                        <TextBlock Text="Скоро"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#B45309"/>
-                                    </Border>
-                                    <TextBlock Text="&#xE76C;"
-                                               FontFamily="Segoe MDL2 Assets"
-                                               FontSize="14"
-                                               Foreground="#9CA3AF"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="#1B6FC8"/>
-                                <Setter TargetName="CardBorder" Property="Background" Value="#F8FBFF"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="CardBorder" Property="Background" Value="#EFF6FF"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="muted">
-                                <Setter TargetName="CardBorder" Property="Background" Value="#FAFAFA"/>
-                                <Setter TargetName="AccentBar" Property="Background" Value="#D1D5DB"/>
-                                <Setter TargetName="FeatureIcon" Property="Foreground" Value="#9CA3AF"/>
-                                <Setter Property="Foreground" Value="#6B7280"/>
-                                <Setter TargetName="SoonBadge" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="MinWidth" Value="100"/>
-            <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#555555"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#F0F0F0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <TextBlock x:Name="FeatureTitle"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#1F2937"
+                                                   Text="{TemplateBinding Content}"/>
+                                        <TextBlock x:Name="FeatureSubtitle"
+                                                   FontSize="12"
+                                                   Foreground="#6B7280"
+                                                   Margin="0,4,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="3"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Margin="12,0,0,0">
+                                        <Border x:Name="SentBadge"
+                                                Background="#DBEAFE"
+                                                BorderBrush="#BFDBFE"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="8,3"
+                                                Margin="0,0,8,0"
+                                                Visibility="Collapsed">
+                                            <TextBlock x:Name="SentBadgeText"
+                                                       Text="Отправлено"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#1D4ED8"/>
+                                        </Border>
+                                        <Border x:Name="SoonBadge"
+                                                Background="#FEF3C7"
+                                                BorderBrush="#FDE68A"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="8,3"
+                                                Margin="0,0,8,0"
+                                                Visibility="Collapsed">
+                                            <TextBlock Text="Скоро"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#B45309"/>
+                                        </Border>
+                                        <TextBlock Text="&#xE76C;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="14"
+                                                   Foreground="#9CA3AF"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#1B6FC8"/>
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#F8FBFF"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#EFF6FF"/>
+                                </Trigger>
+                                <Trigger Property="Tag" Value="muted">
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#FAFAFA"/>
+                                    <Setter TargetName="AccentBar" Property="Background" Value="#D1D5DB"/>
+                                    <Setter TargetName="FeatureIcon" Property="Foreground" Value="#9CA3AF"/>
+                                    <Setter Property="Foreground" Value="#6B7280"/>
+                                    <Setter TargetName="SoonBadge" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SecondaryButton" TargetType="Button">
+                <Setter Property="Height" Value="40"/>
+                <Setter Property="MinWidth" Value="100"/>
+                <Setter Property="Padding" Value="16,0"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Foreground" Value="#555555"/>
+                <Setter Property="Background" Value="White"/>
+                <Setter Property="BorderBrush" Value="#CCCCCC"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#F0F0F0"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource Card}" Margin="20">
+    <Border Style="{StaticResource Card}" Margin="28">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -201,22 +191,34 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <StackPanel Grid.Row="0" Margin="0,0,0,28">
                 <Image x:Name="CompanyLogoImage"
                        MaxHeight="44"
-                       Margin="0,0,0,12"
+                       Margin="0,0,0,16"
                        Stretch="Uniform"
                        HorizontalAlignment="Left"
                        Visibility="Collapsed"/>
-                <TextBlock Text="Ремонт"
-                           FontSize="22"
-                           FontWeight="SemiBold"
-                           Foreground="#111827"/>
-                <TextBlock x:Name="RemontSubtitleText"
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="RemontIdHeroText"
+                               FontSize="30"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               VerticalAlignment="Bottom"/>
+                    <TextBlock x:Name="ClientRequestIdHeroText"
+                               FontSize="24"
+                               FontWeight="SemiBold"
+                               Foreground="#1B6FC8"
+                               Margin="24,0,0,2"
+                               VerticalAlignment="Bottom"/>
+                </StackPanel>
+
+                <TextBlock x:Name="RemontNameText"
                            FontSize="14"
                            Foreground="#6B7280"
-                           Margin="0,6,0,0"
-                           TextWrapping="Wrap"/>
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed"/>
             </StackPanel>
 
             <Border Grid.Row="1"
@@ -224,46 +226,35 @@
                     BorderBrush="#E5E7EB"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="18,16"
-                    Margin="0,0,0,24">
+                    Padding="20,18"
+                    Margin="0,0,0,28">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
-                        <TextBlock Text="ID заявки" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock x:Name="ClientRequestIdText" Style="{StaticResource InfoValue}"/>
+                    <StackPanel Grid.Row="0" Grid.Column="0">
+                        <TextBlock Text="КЛИЕНТ" Style="{StaticResource HubInfoLabel}"/>
+                        <TextBlock x:Name="ClientNameText" Style="{StaticResource HubInfoValue}"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="0" Grid.Column="1">
-                        <TextBlock Text="ID ремонта" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock x:Name="RemontIdText" Style="{StaticResource InfoValue}"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2">
-                        <TextBlock Text="Клиент" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock x:Name="ClientNameText" Style="{StaticResource InfoValue}"/>
+                    <StackPanel Grid.Row="0" Grid.Column="2">
+                        <TextBlock Text="ЖК" Style="{StaticResource HubInfoLabel}"/>
+                        <TextBlock x:Name="ResidentNameText" Style="{StaticResource HubInfoValue}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,0">
-                        <TextBlock Text="ЖК" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock x:Name="ResidentNameText" Style="{StaticResource InfoValue}" Margin="0,0,0,0"/>
+                    <StackPanel Grid.Row="1" Grid.Column="0">
+                        <TextBlock Text="КВАРТИРА" Style="{StaticResource HubInfoLabel}"/>
+                        <TextBlock x:Name="FlatNumText" Style="{StaticResource HubInfoValue}" Margin="0,0,0,0"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="1">
-                        <TextBlock Text="Квартира" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock x:Name="FlatNumText" Style="{StaticResource InfoValue}" Margin="0,0,0,0"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2">
-                        <TextBlock Text="Пакет" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock x:Name="PresetNameText" Style="{StaticResource InfoValue}" Margin="0,0,0,0"/>
+                    <StackPanel Grid.Row="1" Grid.Column="2">
+                        <TextBlock Text="ПАКЕТ" Style="{StaticResource HubInfoLabel}"/>
+                        <TextBlock x:Name="PresetNameText" Style="{StaticResource HubInfoValue}" Margin="0,0,0,0"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -273,22 +264,27 @@
                        Style="{StaticResource SectionLabel}"
                        Margin="0,0,0,10"/>
 
-            <StackPanel Grid.Row="3" Margin="0,0,0,20">
+            <StackPanel Grid.Row="3" Margin="0,0,0,24">
                 <Button x:Name="RevitMaterialsButton"
                         Style="{StaticResource FeatureCardButton}"
-                        Content="Материалы (Revit)"
+                        Content="Синхронизация материалов из Revit"
                         Tag="primary"
                         Click="RevitMaterialsButton_Click"/>
                 <Button x:Name="DsAreaChangeButton"
                         Style="{StaticResource FeatureCardButton}"
-                        Content="ДС по изменению квадратуры"
+                        Content="ДС на изменение квадратуры"
                         Tag="default"
                         Click="DsAreaChangeButton_Click"/>
                 <Button x:Name="MeasuresButton"
                         Style="{StaticResource FeatureCardButton}"
-                        Content="Замеры комнат"
+                        Content="Замеры комнат (из спецификаций)"
                         Tag="default"
                         Click="MeasuresButton_Click"/>
+                <Button x:Name="RoomMaterialsButton"
+                        Style="{StaticResource FeatureCardButton}"
+                        Content="ДС на изменение ТК"
+                        Tag="default"
+                        Click="RoomMaterialsButton_Click"/>
                 <Button x:Name="MeasuresFromCodeButton"
                         Style="{StaticResource FeatureCardButton}"
                         Content="Замеры по коду"
@@ -299,21 +295,11 @@
                         Content="Сравнение замеров"
                         Tag="default"
                         Click="MeasuresCompareButton_Click"/>
-                <Button x:Name="RoomMaterialsButton"
-                        Style="{StaticResource FeatureCardButton}"
-                        Content="Материалы по комнатам"
-                        Tag="default"
-                        Click="RoomMaterialsButton_Click"/>
                 <Button x:Name="TypeParametersButton"
                         Style="{StaticResource FeatureCardButton}"
                         Content="Изменение параметров типов"
                         Tag="default"
                         Click="TypeParametersButton_Click"/>
-                <Button x:Name="DsTkChangeButton"
-                        Style="{StaticResource FeatureCardButton}"
-                        Content="ДС по изменению ТК"
-                        Tag="muted"
-                        Click="DsTkChangeButton_Click"/>
             </StackPanel>
 
             <Grid Grid.Row="4">

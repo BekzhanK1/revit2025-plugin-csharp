@@ -68,6 +68,7 @@
     <Compile Include="Services\RevitMaterialsService.cs" />
     <Compile Include="Services\TenMinuteBucketFileSink.cs" />
     <Compile Include="Services\RevitMaterialsDownloadService.cs" />
+    <Compile Include="Services\RevitMaterialPresenceService.cs" />
     <Compile Include="Services\RevitFamilyImportService.cs" />
     <Compile Include="Services\RevitSurfaceImportService.cs" />
     <Compile Include="Services\TkMaterialCompareService.cs" />
@@ -152,6 +153,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\AuthLoginWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\AppStyles.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
