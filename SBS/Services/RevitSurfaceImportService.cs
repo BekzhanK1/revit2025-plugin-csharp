@@ -166,13 +166,16 @@ namespace SmartRemont.ExportRooms.Services
             if (sourceDoc == null || !sourceDoc.IsValidObject || ReferenceEquals(sourceDoc, projectDoc))
                 return;
 
+            var uiApp = ExportRoomsApplication.CurrentUiApplication;
+            if (uiApp != null && ReferenceEquals(uiApp.ActiveUIDocument?.Document, sourceDoc))
+                ProjectPostInitExitService.ActivateProjectDocument(uiApp, projectDoc);
+
             try
             {
                 sourceDoc.Close(false);
             }
             catch (InvalidOperationException ex)
             {
-                // OpenDocumentFile может сделать surfaces.rvt активным — API не закрывает active document.
                 ExportRoomsApplication._logger?.Warning(
                     ex,
                     "surfaces.rvt не закрыт через API (активный документ). Импорт мог уже выполниться — закройте вкладку вручную.");

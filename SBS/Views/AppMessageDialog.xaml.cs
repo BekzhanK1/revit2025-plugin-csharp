@@ -15,13 +15,24 @@ namespace SmartRemont.ExportRooms.Views
             InitializeComponent();
         }
 
-        public static void ShowSuccess(Window owner, string title, string message, string details = null) =>
-            Show(owner, AppMessageKind.Success, title, message, details);
+        public static void ShowSuccess(
+            Window owner,
+            string title,
+            string message,
+            string details = null,
+            string buttonText = "OK") =>
+            Show(owner, AppMessageKind.Success, title, message, details, buttonText);
 
         public static void ShowInDevelopment(Window owner, string title, string message, string details = null) =>
             Show(owner, AppMessageKind.InDevelopment, title, message, details);
 
-        public static void Show(Window owner, AppMessageKind kind, string title, string message, string details = null)
+        public static void Show(
+            Window owner,
+            AppMessageKind kind,
+            string title,
+            string message,
+            string details = null,
+            string buttonText = "OK")
         {
             var dialog = new AppMessageDialog { Owner = owner };
             if (owner == null)
@@ -34,6 +45,7 @@ namespace SmartRemont.ExportRooms.Views
 
             dialog.TitleText.Text = title;
             dialog.MessageText.Text = message;
+            dialog.OkButton.Content = string.IsNullOrWhiteSpace(buttonText) ? "OK" : buttonText.Trim();
 
             if (string.IsNullOrWhiteSpace(details))
                 dialog.DetailsText.Visibility = Visibility.Collapsed;

@@ -17,6 +17,8 @@ namespace SmartRemont.ExportRooms.Commands
             if (!EnsureAuthenticated())
                 return Result.Cancelled;
 
+            ExportRoomsApplication.CurrentUiApplication = uiApp;
+
             try
             {
                 if (doc == null)
@@ -35,6 +37,9 @@ namespace SmartRemont.ExportRooms.Commands
                 if (hubWindow.ShowDialog() != true)
                     return Result.Cancelled;
 
+                if (ProjectPostInitExitService.TryConsumeShutdownRequest(out var initializedPath))
+                    ProjectPostInitExitService.ScheduleShutdownRevit(uiApp, initializedPath);
+
                 // ExportSmartRemontRoomsWindow — полный экспорт, временно не используется
                 return Result.Succeeded;
             }
@@ -43,6 +48,10 @@ namespace SmartRemont.ExportRooms.Commands
                 TaskDialog.Show("Ошибка", $"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}");
                 message = ex.Message;
                 return Result.Failed;
+            }
+            finally
+            {
+                ExportRoomsApplication.CurrentUiApplication = null;
             }
         }
     }

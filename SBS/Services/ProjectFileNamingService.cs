@@ -19,7 +19,7 @@ namespace SmartRemont.ExportRooms.Services
                 "Projects");
         }
 
-        public static string BuildFileName(int remontId, string residentName)
+        public static string BuildBaseName(int remontId, string residentName)
         {
             if (remontId <= 0)
                 throw new ArgumentOutOfRangeException(nameof(remontId), "remontId must be positive.");
@@ -29,18 +29,28 @@ namespace SmartRemont.ExportRooms.Services
                 sanitizedResident = DefaultResidentFallback;
 
             var baseName = $"{remontId}_{sanitizedResident}";
-            baseName = TruncateBaseName(baseName, remontId, sanitizedResident);
-
-            return baseName + ProjectFileExtension;
+            return TruncateBaseName(baseName, remontId, sanitizedResident);
         }
 
-        public static string BuildFullPath(int remontId, string residentName, string baseFolder = null)
+        public static string BuildFileName(int remontId, string residentName) =>
+            BuildBaseName(remontId, residentName) + ProjectFileExtension;
+
+        public static string BuildProjectDirectory(int remontId, string residentName, string baseFolder = null)
         {
             var folder = string.IsNullOrWhiteSpace(baseFolder)
                 ? GetDefaultProjectsFolder()
                 : baseFolder.Trim();
 
-            return Path.Combine(folder, BuildFileName(remontId, residentName));
+            return Path.Combine(folder, BuildBaseName(remontId, residentName));
+        }
+
+        /// <summary>
+        /// Documents\SmartRemont\Projects\{remont_id}_{name}\{remont_id}_{name}.rvt
+        /// </summary>
+        public static string BuildFullPath(int remontId, string residentName, string baseFolder = null)
+        {
+            var projectDirectory = BuildProjectDirectory(remontId, residentName, baseFolder);
+            return Path.Combine(projectDirectory, BuildFileName(remontId, residentName));
         }
 
         public static void EnsureDirectoryExists(string folderPath)

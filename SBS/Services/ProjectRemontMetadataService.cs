@@ -96,7 +96,7 @@ namespace SmartRemont.ExportRooms.Services
 
         /// <summary>
         /// Шаблон или несохранённый RVT может содержать remont_id в Storage после неудачной init —
-        /// для меню хаба «инициализирован» только файл из SmartRemont\Projects\{remont_id}_*.rvt.
+        /// для меню хаба «инициализирован» только файл из SmartRemont\Projects.
         /// </summary>
         public static bool CanUseHubWorkFeatures(Document doc)
         {
@@ -138,8 +138,24 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrEmpty(fileName))
                 return false;
 
-            return fileName.StartsWith(remontId + "_", StringComparison.OrdinalIgnoreCase)
-                   && fileName.EndsWith(ProjectFileNamingService.ProjectFileExtension, StringComparison.OrdinalIgnoreCase);
+            if (!fileName.StartsWith(remontId + "_", StringComparison.OrdinalIgnoreCase)
+                || !fileName.EndsWith(ProjectFileNamingService.ProjectFileExtension, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var baseName = Path.GetFileNameWithoutExtension(fileName);
+            var parentDirectory = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrEmpty(parentDirectory))
+                return false;
+
+            var parentFullPath = Path.GetFullPath(parentDirectory);
+            var parentFolderName = Path.GetFileName(parentFullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+            // Новая структура: Projects\{baseName}\{baseName}.rvt
+            if (string.Equals(parentFolderName, baseName, StringComparison.OrdinalIgnoreCase))
+                return IsUnderDirectory(fullPath, projectsFolder);
+
+            // Старые проекты: Projects\{baseName}.rvt
+            return string.Equals(parentFullPath, projectsFolder, StringComparison.OrdinalIgnoreCase);
         }
 
         static bool IsUnderDirectory(string filePath, string directoryPath)

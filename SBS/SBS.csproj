@@ -82,6 +82,7 @@
     <Compile Include="Services\DsAreaCompareService.cs" />
     <Compile Include="Services\RevitEventStatusFormatter.cs" />
     <Compile Include="Services\ProjectRemontMetadataService.cs" />
+    <Compile Include="Services\ProjectPostInitExitService.cs" />
     <Compile Include="Services\ProjectRemontBindingService.cs" />
     <Compile Include="Services\ProjectFileNamingService.cs" />
     <Compile Include="Services\ProjectCopyService.cs" />

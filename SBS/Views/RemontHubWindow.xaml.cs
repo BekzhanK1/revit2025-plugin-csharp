@@ -405,18 +405,16 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             var details = BuildInitSuccessDetails(result);
+            ProjectPostInitExitService.RequestShutdownRevitAfterPluginExit(result.NewFilePath);
             AppMessageDialog.ShowSuccess(
                 this,
                 "Проект инициализирован",
                 $"Загружено материалов: {result.MaterialsLoaded}",
-                details);
+                details,
+                buttonText: "Закрыть");
 
-            var successMessage = $"Проект сохранён: {result.NewFilePath}";
-            if (result.Errors > 0)
-                successMessage += $" · ошибок: {result.Errors}";
-
-            SetStatus(successMessage, isSuccess: true);
-            RefreshProjectInitState();
+            DialogResult = true;
+            Close();
         }
 
         string BuildInitSuccessDetails(ProjectInitResult result)
@@ -428,30 +426,10 @@ namespace SmartRemont.ExportRooms.Views
             if (result.IsWorksharedWarning)
                 lines.Add(ProjectCopyService.WorksharedUnsupportedMessage);
 
-            var activePath = NormalizePathForCompare(_doc?.PathName);
-            var savedPath = NormalizePathForCompare(result.NewFilePath);
-            if (!string.IsNullOrEmpty(savedPath)
-                && !string.Equals(activePath, savedPath, StringComparison.OrdinalIgnoreCase))
-            {
-                lines.Add("Откройте сохранённый файл в Revit — активная модель не переключилась автоматически.");
-            }
+            lines.Add("Нажмите «Закрыть» — Revit завершит работу.");
+            lines.Add("Затем откройте сохранённый файл вручную через Файл → Открыть.");
 
             return string.Join("\n\n", lines);
-        }
-
-        static string NormalizePathForCompare(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                return string.Empty;
-
-            try
-            {
-                return Path.GetFullPath(path.Trim());
-            }
-            catch
-            {
-                return path.Trim();
-            }
         }
 
         async void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)

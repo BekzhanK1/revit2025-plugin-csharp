@@ -20,6 +20,7 @@ namespace SmartRemont.ExportRooms
         public static string _path { get; set; }
         public static AuthSession CurrentSession { get; set; }
         public static Models.RemontOption SelectedRemont { get; set; }
+        public static UIApplication CurrentUiApplication { get; set; }
 
         public Result OnStartup(UIControlledApplication application)
         {
