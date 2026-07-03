@@ -1,6 +1,7 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using SmartRemont.ExportRooms.Services;
 using SmartRemont.ExportRooms.Views;
 
 namespace SmartRemont.ExportRooms.Commands
@@ -24,7 +25,9 @@ namespace SmartRemont.ExportRooms.Commands
                         return Result.Failed;
                     }
 
-                var homeWindow = new HomeWindow();
+                ProjectRemontBindingService.TryBindFromDocument(doc);
+
+                var homeWindow = new HomeWindow(doc);
                 if (homeWindow.ShowDialog() != true)
                     return Result.Cancelled;
 

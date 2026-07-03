@@ -9,10 +9,13 @@
   │
   ├─► AuthLoginWindow          (если нет сессии — BaseCommand.EnsureAuthenticated)
   │
-  ├─► HomeWindow               (поиск и выбор ремонта)
+  ├─► Auto-bind (до Home)      ProjectRemontBindingService.TryBindFromDocument(doc)
+  │     Storage на ProjectInformation → SelectedRemont без поиска
+  │
+  ├─► HomeWindow               (поиск и выбор ремонта; при bind — баннер «Продолжить»)
   │     DialogResult = true → SelectedRemont сохранён
   │
-  └─► RemontHubWindow          (хаб: 4 видимые функции)
+  └─► RemontHubWindow          (хаб: 5 видимых функций, первая — Init)
         DialogResult = true при закрытии (в т.ч. после отправки раздела)
 ```
 
@@ -51,8 +54,11 @@ Dockable pane (`ViewContainer` + `AuthView`) зарегистрирован пр
 - Inline **ProgressBar** (indeterminate) при загрузке; текст кнопки не меняется
 - Состояния статуса: подсказка / «Поиск…» / «Ничего не найдено» / ошибка / «Найдено N — выберите карточку»
 - Список **карточек** (ListBox): название, клиент, бейджи «Заявка #» / «Ремонт #»
-- **Один клик по карточке** → `SelectedRemont` сохранён, `DialogResult = true`, переход в hub (кнопки «Продолжить» и панель «Выбрано» убраны)
-- Внизу только **«Отмена»** (`DialogResult = false`)
+- **Один клик по карточке** → `SelectedRemont` сохранён, `DialogResult = true`, переход в hub
+- Если в открытом RVT уже есть **Extensible Storage** (`ProjectRemontMetadataService.TryRead`):
+  - баннер **«Ремонт привязан к проекту #…»** (после enrich — с названием ремонта)
+  - кнопка **«Продолжить»** → hub без поиска (`ContinueToHubButton`)
+- Внизу **«Отмена»** (`DialogResult = false`)
 
 ### Результат
 
@@ -80,12 +86,44 @@ Dockable pane (`ViewContainer` + `AuthView`) зарегистрирован пр
 
 ### Карточки функций (видимые, порядок)
 
-| # | Кнопка | Окно | Подзаголовок | API / действие |
-|---|--------|------|--------------|----------------|
+| # | Кнопка | Окно / действие | Подзаголовок | API / действие |
+|---|--------|-----------------|--------------|----------------|
+| 0 | Инициализировать проект | `ProjectInitService` (in-place) | Копия RVT, remont_id в модели, все материалы | SaveAs + Storage + full sync |
 | 1 | Синхронизация материалов из Revit | `RevitMaterialsWindow` | Загрузка RFA и surface-типов из Smart Remont | импорт материалов |
 | 2 | ДС на изменение квадратуры | `SelectedRemontSummaryWindow` | Отправка площадей помещений в Smart Remont | `DS_AREA_CHANGE` |
 | 3 | Замеры комнат (из спецификаций) | `RoomMeasurementsWindow` | Отправка замеров из ведомостей Revit | `MEASURES` |
 | 4 | ДС на изменение ТК | `RoomMaterialsWindow` | ДС на изменение технологической карты | — |
+
+### Project Init (инициализация RVT)
+
+**Сервисы:** `ProjectInitService`, `ProjectCopyService`, `ProjectFileNamingService`, `ProjectRemontMetadataService`, `RevitMaterialsSyncOrchestrator`.
+
+**Когда:** пользователь открыл шаблон или несохранённый RVT, выбрал ремонт на Home, нажал **«Инициализировать проект»** в hub.
+
+**Шаги (автоматически):**
+
+1. Проверка конфликта: если Storage уже содержит **другой** `remont_id` → блок с диалогом
+2. `RevitMaterialsService.ReadAsync(remontId)` — список материалов
+3. **SaveAs** → `%USERPROFILE%\Documents\SmartRemont\Projects\{remont_id}_{ЖК}.rvt`
+   - имя: `ProjectFileNamingService.BuildFileName` — sanitize `ResidentName`, fallback `Name`, иначе `{id}_Remont`
+   - существующий файл → confirm «будет перезаписан» (`overwriteExistingFile: true`)
+4. **Stamp** Extensible Storage на `ProjectInformation` (`remont_id`, `client_request_id`, `initialized_at`, `plugin_version`)
+5. **Full sync** всех RFA + surface через `RevitMaterialsSyncOrchestrator.SyncAllAsync`
+6. `doc.Save()`
+
+**UI hub после init:**
+
+- бейдж на карточке **«Инициализирован #…»**
+- hero-бейдж **«Проект инициализирован · #…»**
+- progress в `StatusTextBlock`; успех — `AppMessageDialog.ShowSuccess` + напоминание открыть сохранённый файл, если активная модель не переключилась
+
+**Auto-bind при открытии init-файла:**
+
+- `ExportSmartRemontRoomsCommand` → `ProjectRemontBindingService.TryBindFromDocument(doc)` **до** Home
+- Home: баннер + «Продолжить»; Hub: корректный `SelectedRemont` и badge
+- `TryEnrichFromQuickSearchAsync` подтягивает имя клиента, ЖК, квартиру из API
+
+**Обычный RVT без Storage:** прежний flow — поиск ремонта на Home обязателен.
 
 ### Скрытые пункты (код сохранён, `Visibility=Collapsed`, `// TODO: plugin-ui-redesign`)
 
@@ -204,13 +242,16 @@ Stub **«ДС по изменению ТК (Скоро)»** (`DsTkChangeButton`)
 
 ```mermaid
 flowchart LR
-  subgraph hub [RemontHubWindow — 4 видимые функции]
+  subgraph hub [RemontHubWindow — 5 видимых функций]
+    I[Init project SaveAs+Storage]
     M[Sync materials Revit]
     A[ДС квадратура]
     B[Замеры spec]
     C[ДС ТК]
   end
 
+  I --> SaveAs["SaveAs + metadata"]
+  SaveAs --> SyncAll[Full materials sync]
   M --> API0[Revit import]
   A --> R[Room API]
   B --> S[ViewSchedule tables]

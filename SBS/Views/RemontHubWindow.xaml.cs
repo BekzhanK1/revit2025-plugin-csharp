@@ -2,9 +2,12 @@ using Autodesk.Revit.DB;
 using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
+using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace SmartRemont.ExportRooms.Views
 {
@@ -12,6 +15,7 @@ namespace SmartRemont.ExportRooms.Views
     {
         readonly Document _doc;
 
+        const string InitProjectSubtitle = "Копия RVT, remont_id в модели, все материалы";
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
@@ -20,12 +24,15 @@ namespace SmartRemont.ExportRooms.Views
         const string RevitMaterialsSubtitle = "Загрузка RFA и surface-типов из Smart Remont";
         const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
 
+        bool _initInProgress;
+
         public RemontHubWindow(Document doc)
         {
             InitializeComponent();
             BrandAssets.TryApplyCompanyLogo(CompanyLogoImage);
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
             _doc = doc;
+            ApplyHubMenuVisibility(ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc));
             Loaded += RemontHubWindow_Loaded;
             Closing += (_, _) =>
             {
@@ -39,11 +46,29 @@ namespace SmartRemont.ExportRooms.Views
         {
             SetupFeatureButtons();
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
+            RefreshProjectInitState();
+            await EnrichSelectedRemontIfNeededAsync().ConfigureAwait(true);
             await RefreshEventStatusesAsync().ConfigureAwait(true);
+            RefreshProjectInitState();
         }
 
+        async Task EnrichSelectedRemontIfNeededAsync()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId is not int remontId || remontId <= 0)
+                return;
+
+            var placeholder = $"Ремонт #{remontId}";
+            if (!string.IsNullOrWhiteSpace(remont.Name)
+                && !string.Equals(remont.Name.Trim(), placeholder, StringComparison.Ordinal))
+                return;
+
+            await ProjectRemontBindingService.TryEnrichFromQuickSearchAsync(remont).ConfigureAwait(true);
+            BindRemontInfo(remont);
+        }
         void SetupFeatureButtons()
         {
+            ConfigureFeatureButton(InitProjectButton, "\uE8C8", InitProjectSubtitle);
             ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
@@ -127,6 +152,7 @@ namespace SmartRemont.ExportRooms.Views
                 ResidentNameText.Text = "—";
                 FlatNumText.Text = "—";
                 PresetNameText.Text = "—";
+                UpdateProjectInitializedBadge(null);
                 return;
             }
 
@@ -153,6 +179,22 @@ namespace SmartRemont.ExportRooms.Views
             ResidentNameText.Text = DisplayOrDash(remont.ResidentName);
             FlatNumText.Text = DisplayOrDash(remont.FlatNum);
             PresetNameText.Text = DisplayOrDash(remont.PresetName);
+
+            var metadata = ProjectRemontMetadataService.TryRead(_doc);
+            UpdateProjectInitializedBadge(
+                ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc) ? metadata : null);
+        }
+
+        void UpdateProjectInitializedBadge(ProjectRemontMetadata metadata)
+        {
+            if (metadata == null || metadata.RemontId <= 0)
+            {
+                ProjectInitializedBadge.Visibility = System.Windows.Visibility.Collapsed;
+                return;
+            }
+
+            ProjectInitializedBadge.Visibility = System.Windows.Visibility.Visible;
+            ProjectInitializedBadgeText.Text = $"Проект инициализирован · #{metadata.RemontId}";
         }
 
         static string BuildSubtitle(RemontOption remont) =>
@@ -160,6 +202,257 @@ namespace SmartRemont.ExportRooms.Views
 
         static string DisplayOrDash(string value) =>
             string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+
+        void RefreshProjectInitState()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            var selectedRemontId = remont?.RemontId ?? remont?.Id ?? 0;
+            var isInitialized = ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
+
+            ApplyHubMenuVisibility(isInitialized);
+
+            if (!isInitialized)
+            {
+                ApplyInitFeatureBadge(InitProjectButton, null);
+                InitProjectButton.IsEnabled = !_initInProgress && selectedRemontId > 0;
+                return;
+            }
+
+            var metadata = ProjectRemontMetadataService.TryRead(_doc);
+            ApplyInitFeatureBadge(InitProjectButton, metadata?.RemontId);
+
+            if (selectedRemontId > 0 && metadata != null && metadata.RemontId != selectedRemontId)
+            {
+                SetStatus(
+                    $"Проект привязан к ремонту #{metadata.RemontId}. Выбран ремонт #{selectedRemontId}.",
+                    isSuccess: false);
+            }
+        }
+
+        void ApplyHubMenuVisibility(bool isInitialized)
+        {
+            InitProjectButton.Visibility = isInitialized
+                ? System.Windows.Visibility.Collapsed
+                : System.Windows.Visibility.Visible;
+
+            var workButtons = new[]
+            {
+                RevitMaterialsButton,
+                DsAreaChangeButton,
+                MeasuresButton,
+                RoomMaterialsButton
+            };
+
+            foreach (var button in workButtons)
+            {
+                button.Visibility = isInitialized
+                    ? System.Windows.Visibility.Visible
+                    : System.Windows.Visibility.Collapsed;
+            }
+
+            FunctionsSectionLabel.Text = isInitialized ? "ФУНКЦИИ" : "ИНИЦИАЛИЗАЦИЯ";
+        }
+
+        static void ApplyInitFeatureBadge(Button button, int? remontId)
+        {
+            button.ApplyTemplate();
+
+            var badge = button.Template.FindName("SentBadge", button) as Border;
+            var badgeText = button.Template.FindName("SentBadgeText", button) as TextBlock;
+            if (badge == null || badgeText == null)
+                return;
+
+            if (remontId == null || remontId <= 0)
+            {
+                badge.Visibility = System.Windows.Visibility.Collapsed;
+                return;
+            }
+
+            badge.Visibility = System.Windows.Visibility.Visible;
+            badgeText.Text = $"Инициализирован #{remontId.Value}";
+            badge.Background = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#DCFCE7"));
+            badge.BorderBrush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#BBF7D0"));
+            badgeText.Foreground = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#166534"));
+        }
+
+        static string ResolveResidentName(RemontOption remont)
+        {
+            if (!string.IsNullOrWhiteSpace(remont?.ResidentName))
+                return remont.ResidentName.Trim();
+
+            if (!string.IsNullOrWhiteSpace(remont?.Name))
+                return remont.Name.Trim();
+
+            return null;
+        }
+
+        async void InitProjectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_initInProgress)
+                return;
+
+            var remont = ExportRoomsApplication.SelectedRemont;
+            var remontId = remont?.RemontId ?? remont?.Id ?? 0;
+            if (remontId <= 0)
+            {
+                SetStatus("Не указан ID ремонта", isSuccess: false);
+                return;
+            }
+
+            if (ProjectRemontMetadataService.IsInitialized(_doc)
+                && !ProjectRemontMetadataService.ValidateMatches(_doc, remontId))
+            {
+                var existing = ProjectRemontMetadataService.TryRead(_doc);
+                AppMessageDialog.Show(
+                    this,
+                    AppMessageKind.InDevelopment,
+                    "Нельзя инициализировать",
+                    $"Проект уже привязан к ремонту #{existing?.RemontId}.",
+                    $"Выбран ремонт #{remontId}. Откройте другой файл или выберите соответствующий ремонт.");
+                return;
+            }
+
+            var targetPath = ProjectFileNamingService.BuildFullPath(remontId, ResolveResidentName(remont));
+            var fileExists = File.Exists(targetPath);
+
+            SetStatus("Загрузка списка материалов...", isSuccess: true);
+
+            RevitMaterialReadResponse materialsResponse;
+            try
+            {
+                materialsResponse = await RevitMaterialsService.ReadAsync(remontId).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project init preview: materials read failed");
+                SetStatus("Не удалось загрузить материалы: " + ex.Message, isSuccess: false);
+                MessageBox.Show(
+                    ex.Message,
+                    "Ошибка загрузки материалов",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var preview = new ProjectInitPreviewWindow(remontId, targetPath, fileExists, materialsResponse)
+            {
+                Owner = this
+            };
+
+            if (preview.ShowDialog() != true)
+            {
+                SetStatus(string.Empty, isSuccess: true);
+                return;
+            }
+
+            _initInProgress = true;
+            InitProjectButton.IsEnabled = false;
+            SetStatus("Подготовка к инициализации...", isSuccess: true);
+
+            var progress = new Progress<string>(message => SetStatus(message, isSuccess: true));
+
+            ProjectInitResult result;
+            try
+            {
+                result = await ProjectInitService.InitializeProjectAsync(
+                    _doc,
+                    remont,
+                    overwriteExistingFile: fileExists,
+                    progress,
+                    materialsResponse).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex, "Project init failed");
+                SetStatus("Ошибка инициализации: " + ex.Message, isSuccess: false);
+                _initInProgress = false;
+                RefreshProjectInitState();
+                return;
+            }
+
+            _initInProgress = false;
+            RefreshProjectInitState();
+
+            if (result.RemontConflict)
+            {
+                AppMessageDialog.Show(
+                    this,
+                    AppMessageKind.InDevelopment,
+                    "Нельзя инициализировать",
+                    result.ErrorMessage);
+                SetStatus(result.ErrorMessage, isSuccess: false);
+                return;
+            }
+
+            if (!result.Success)
+            {
+                if (result.FileAlreadyExists && !fileExists)
+                {
+                    SetStatus(result.ErrorMessage ?? "Файл уже существует", isSuccess: false);
+                    return;
+                }
+
+                SetStatus(result.ErrorMessage ?? "Инициализация не удалась", isSuccess: false);
+                if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                {
+                    MessageBox.Show(
+                        result.ErrorMessage,
+                        "Ошибка инициализации",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+                return;
+            }
+
+            var details = BuildInitSuccessDetails(result);
+            AppMessageDialog.ShowSuccess(
+                this,
+                "Проект инициализирован",
+                $"Загружено материалов: {result.MaterialsLoaded}",
+                details);
+
+            var successMessage = $"Проект сохранён: {result.NewFilePath}";
+            if (result.Errors > 0)
+                successMessage += $" · ошибок: {result.Errors}";
+
+            SetStatus(successMessage, isSuccess: true);
+            RefreshProjectInitState();
+        }
+
+        string BuildInitSuccessDetails(ProjectInitResult result)
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrWhiteSpace(result.NewFilePath))
+                lines.Add(result.NewFilePath);
+
+            if (result.IsWorksharedWarning)
+                lines.Add(ProjectCopyService.WorksharedUnsupportedMessage);
+
+            var activePath = NormalizePathForCompare(_doc?.PathName);
+            var savedPath = NormalizePathForCompare(result.NewFilePath);
+            if (!string.IsNullOrEmpty(savedPath)
+                && !string.Equals(activePath, savedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                lines.Add("Откройте сохранённый файл в Revit — активная модель не переключилась автоматически.");
+            }
+
+            return string.Join("\n\n", lines);
+        }
+
+        static string NormalizePathForCompare(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return string.Empty;
+
+            try
+            {
+                return Path.GetFullPath(path.Trim());
+            }
+            catch
+            {
+                return path.Trim();
+            }
+        }
 
         async void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)
         {

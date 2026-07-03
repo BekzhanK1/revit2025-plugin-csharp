@@ -47,6 +47,8 @@
     <Compile Include="DTO\MaterialValidationDtos.cs" />
     <Compile Include="DTO\SmartRemontRoomsExportDto.cs" />
     <Compile Include="DTO\ScheduleMappingConfig.cs" />
+    <Compile Include="DTO\ProjectRemontMetadata.cs" />
+    <Compile Include="ProjectRemont\ProjectRemontSchema.cs" />
     <Compile Include="Models\AuthSession.cs" />
     <Compile Include="Models\RemontOption.cs" />
     <Compile Include="Models\RoomMeasurementsModels.cs" />
@@ -79,6 +81,12 @@
     <Compile Include="Services\DsRoomChangeService.cs" />
     <Compile Include="Services\DsAreaCompareService.cs" />
     <Compile Include="Services\RevitEventStatusFormatter.cs" />
+    <Compile Include="Services\ProjectRemontMetadataService.cs" />
+    <Compile Include="Services\ProjectRemontBindingService.cs" />
+    <Compile Include="Services\ProjectFileNamingService.cs" />
+    <Compile Include="Services\ProjectCopyService.cs" />
+    <Compile Include="Services\RevitMaterialsSyncOrchestrator.cs" />
+    <Compile Include="Services\ProjectInitService.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -99,6 +107,9 @@
     </Compile>
     <Compile Include="Views\SelectedRemontSummaryWindow.xaml.cs">
       <DependentUpon>SelectedRemontSummaryWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ProjectInitPreviewWindow.xaml.cs">
+      <DependentUpon>ProjectInitPreviewWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\RemontHubWindow.xaml.cs">
       <DependentUpon>RemontHubWindow.xaml</DependentUpon>
@@ -165,6 +176,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\SelectedRemontSummaryWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ProjectInitPreviewWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

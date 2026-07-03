@@ -130,6 +130,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -155,8 +156,43 @@
                         Click="LogoutButton_Click"/>
             </Grid>
 
-            <!-- Search -->
+            <!-- Bound remont banner -->
             <Border Grid.Row="1"
+                    x:Name="BoundRemontBanner"
+                    Background="#ECFDF5"
+                    BorderBrush="#BBF7D0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="20,16"
+                    Margin="0,0,0,20"
+                    Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock x:Name="BoundRemontBannerText"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="#166534"
+                                   TextWrapping="Wrap"/>
+                        <!-- TODO: оставить разработку для одинаковых квартир на потом -->
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            x:Name="ContinueToHubButton"
+                            Content="Продолжить"
+                            Style="{StaticResource PrimaryButton}"
+                            MinWidth="140"
+                            Margin="16,0,0,0"
+                            VerticalAlignment="Center"
+                            Click="ContinueToHubButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Search (скрывается, если ремонт уже привязан к открытому проекту) -->
+            <Border Grid.Row="2"
+                    x:Name="SearchSection"
                     Background="#F9FAFB"
                     BorderBrush="#E5E7EB"
                     BorderThickness="1"
@@ -220,7 +256,7 @@
             </Border>
 
             <!-- Results list -->
-            <Border Grid.Row="2"
+            <Border Grid.Row="3"
                     x:Name="ResultsSection"
                     Margin="0,0,0,16"
                     Visibility="Collapsed">
@@ -306,7 +342,7 @@
             </Border>
 
             <!-- Actions -->
-            <Grid Grid.Row="3">
+            <Grid Grid.Row="4">
                 <Button Content="Отмена"
                         Style="{StaticResource SecondaryButton}"
                         HorizontalAlignment="Right"

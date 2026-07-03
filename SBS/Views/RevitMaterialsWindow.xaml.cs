@@ -132,87 +132,50 @@ namespace SmartRemont.ExportRooms.Views
             _syncInProgress = true;
             SyncButton.IsEnabled = false;
 
-            var rfaRows = _rows
-                .Where(r => r.Source?.MaterialId != null
-                            && !IsSurfaceRow(r.Source)
-                            && !string.IsNullOrWhiteSpace(r.Source.RevitFileUrl))
-                .ToList();
-
-            var surfaceRows = _rows
-                .Where(r => r.Source?.MaterialId != null && IsSurfaceRow(r.Source))
-                .ToList();
-
-            if (rfaRows.Count == 0 && surfaceRows.Count == 0)
+            if (!_rows.Any(CanSyncRow))
             {
                 StatusTextBlock.Text = "Нет файлов для синхронизации.";
                 _syncInProgress = false;
-                SyncButton.IsEnabled = _rows.Any(CanSyncRow);
+                SyncButton.IsEnabled = false;
                 return;
             }
 
             try
             {
-                var downloadTotal = rfaRows.Count + (surfaceRows.Count > 0 ? 1 : 0);
-                var downloadDone = 0;
-                ShowSyncProgress(0, downloadTotal, $"Скачивание: 0 из {downloadTotal}");
-
-                var progress = new Progress<(int materialId, int done, int total, bool downloading)>(_ =>
+                var progress = new Progress<RevitMaterialsSyncProgress>(p =>
                 {
-                    ShowSyncProgress(
-                        downloadDone,
-                        downloadTotal,
-                        $"Скачивание: {downloadDone} из {downloadTotal}");
+                    ShowSyncProgress(p.Done, p.Total, p.Message);
+                    SyncProgressBar.IsIndeterminate = string.Equals(
+                        p.Phase,
+                        "import",
+                        StringComparison.OrdinalIgnoreCase);
                 });
 
-                var downloadResults = await RevitMaterialsDownloadService
-                    .SyncAsync(rfaRows.Select(r => r.Source), progress)
-                    .ConfigureAwait(true);
-
-                downloadDone = rfaRows.Count;
-
-                string surfacesRvtPath = null;
-                if (surfaceRows.Count > 0)
-                {
-                    var surfacesDownload = await RevitMaterialsDownloadService
-                        .EnsureSurfacesLibraryAsync(_remontId, _surfacesFileUrl, _surfacesFileHash)
-                        .ConfigureAwait(true);
-
-                    downloadDone = downloadTotal;
-                    ShowSyncProgress(downloadDone, downloadTotal, $"Скачивание: {downloadDone} из {downloadTotal}");
-
-                    if (surfacesDownload.Success)
-                        surfacesRvtPath = surfacesDownload.FilePath;
-                }
-
-                var importItems = downloadResults
-                    .Where(r => r.Success && !string.IsNullOrWhiteSpace(r.FilePath))
-                    .Select(r => (r.MaterialId, r.FilePath, r.RevitFileType))
-                    .ToList();
-
-                var importCount = importItems.Count + (surfaceRows.Count > 0 && surfacesRvtPath != null ? surfaceRows.Count : 0);
-                ShowSyncProgress(importCount, importCount, "Загрузка в проект...");
-                SyncProgressBar.IsIndeterminate = true;
-
-                if (importItems.Count > 0)
-                    RevitFamilyImportService.LoadFamiliesIntoDocument(_doc, importItems);
-
-                if (surfaceRows.Count > 0 && !string.IsNullOrWhiteSpace(surfacesRvtPath))
-                {
-                    RevitSurfaceImportService.CopyMaterialsIntoDocument(
-                        _doc,
-                        surfacesRvtPath,
-                        surfaceRows.Select(r => r.Source.MaterialId.Value));
-                }
+                var result = await RevitMaterialsSyncOrchestrator.SyncAllAsync(
+                    _doc,
+                    _remontId,
+                    _rows.Select(r => r.Source),
+                    _surfacesFileUrl,
+                    _surfacesFileHash,
+                    progress).ConfigureAwait(true);
 
                 SyncProgressBar.IsIndeterminate = false;
                 RefreshProjectStatuses();
                 UpdateSummaryStatus();
 
-                var errorCount = downloadResults.Count(r => !r.Success);
-                if (surfaceRows.Count > 0 && string.IsNullOrWhiteSpace(surfacesRvtPath))
-                    errorCount += surfaceRows.Count;
-
-                StatusTextBlock.Text += errorCount > 0 ? $" · Ошибок: {errorCount}" : " · Синхронизация завершена";
+                if (!string.IsNullOrWhiteSpace(result.ErrorMessage)
+                    && result.TotalSyncable == 0
+                    && result.MaterialsLoaded == 0
+                    && result.ErrorCount == 0)
+                {
+                    StatusTextBlock.Text = result.ErrorMessage;
+                }
+                else
+                {
+                    StatusTextBlock.Text += result.ErrorCount > 0
+                        ? $" · Ошибок: {result.ErrorCount}"
+                        : " · Синхронизация завершена";
+                }
             }
             catch (Exception ex)
             {

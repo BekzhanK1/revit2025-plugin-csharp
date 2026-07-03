@@ -5,13 +5,17 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Document = Autodesk.Revit.DB.Document;
 
 namespace SmartRemont.ExportRooms.Views
 {
     public partial class HomeWindow : Window
     {
-        public HomeWindow()
+        readonly Document _doc;
+
+        public HomeWindow(Document doc = null)
         {
+            _doc = doc;
             InitializeComponent();
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
             Loaded += HomeWindow_Loaded;
@@ -23,14 +27,102 @@ namespace SmartRemont.ExportRooms.Views
             var name = session?.DisplayName ?? "пользователь";
             WelcomeTextBlock.Text = $"Добро пожаловать, {name}";
 
-            var confirmed = ExportRoomsApplication.SelectedRemont;
-            if (confirmed?.RemontId is int remontId)
+            EnsureBoundFromDocument();
+
+            if (TryShowBoundRemontBanner())
             {
-                IdTextBox.Text = remontId.ToString();
-                _ = RunSearchAsync();
+                ApplyBoundRemontLayout(isBound: true);
+                UpdatePlaceholderVisibility();
+                _ = EnrichBoundRemontAsync();
+                return;
             }
 
+            ApplyBoundRemontLayout(isBound: false);
             UpdatePlaceholderVisibility();
+        }
+
+        // TODO: оставить разработку для одинаковых квартир на потом (поиск другого remont_id при привязанном проекте).
+        void ApplyBoundRemontLayout(bool isBound)
+        {
+            SearchSection.Visibility = isBound ? Visibility.Collapsed : Visibility.Visible;
+
+            if (isBound)
+            {
+                ClearResults();
+                SetStatus(string.Empty, isError: false);
+            }
+        }
+
+        void EnsureBoundFromDocument()
+        {
+            if (_doc == null)
+                return;
+
+            if (ExportRoomsApplication.SelectedRemont?.RemontId is int remontId && remontId > 0)
+                return;
+
+            ProjectRemontBindingService.TryBindFromDocument(_doc);
+        }
+
+        bool TryShowBoundRemontBanner()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            var remontId = remont?.RemontId;
+            var docInitialized = _doc != null && ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
+
+            if (remontId is not int id || id <= 0)
+            {
+                if (!docInitialized)
+                    return false;
+
+                EnsureBoundFromDocument();
+                remont = ExportRoomsApplication.SelectedRemont;
+                remontId = remont?.RemontId;
+                if (remontId is not int boundId || boundId <= 0)
+                    return false;
+
+                id = boundId;
+            }
+
+            BoundRemontBannerText.Text = $"Ремонт привязан к проекту #{id}";
+            BoundRemontBanner.Visibility = Visibility.Visible;
+            return true;
+        }
+
+        async System.Threading.Tasks.Task EnrichBoundRemontAsync()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.RemontId is not int remontId || remontId <= 0)
+                return;
+
+            await ProjectRemontBindingService.TryEnrichFromQuickSearchAsync(remont)
+                .ConfigureAwait(true);
+
+            BoundRemontBannerText.Text = BuildBoundBannerText(remont);
+        }
+
+        static string BuildBoundBannerText(RemontOption remont)
+        {
+            if (remont?.RemontId is not int remontId || remontId <= 0)
+                return "Ремонт привязан к проекту";
+
+            if (!string.IsNullOrWhiteSpace(remont.Name)
+                && !string.Equals(remont.Name.Trim(), $"Ремонт #{remontId}", StringComparison.Ordinal))
+                return $"Ремонт привязан к проекту #{remontId} · {remont.Name.Trim()}";
+
+            return $"Ремонт привязан к проекту #{remontId}";
+        }
+
+        void ContinueToHubButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ExportRoomsApplication.SelectedRemont?.RemontId is not int remontId || remontId <= 0)
+            {
+                SetStatus("Не удалось определить привязанный ремонт", isError: true);
+                return;
+            }
+
+            DialogResult = true;
+            Close();
         }
 
         async void SearchButton_Click(object sender, RoutedEventArgs e) =>
