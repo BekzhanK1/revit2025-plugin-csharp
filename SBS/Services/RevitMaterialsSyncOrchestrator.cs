@@ -22,6 +22,7 @@ namespace SmartRemont.ExportRooms.Services
         public int ErrorCount { get; init; }
         public int TotalSyncable { get; init; }
         public string ErrorMessage { get; init; }
+        public string SurfacesErrorMessage { get; init; }
     }
 
     public static class RevitMaterialsSyncOrchestrator
@@ -100,6 +101,7 @@ namespace SmartRemont.ExportRooms.Services
             downloadDone = rfaRows.Count;
 
             string surfacesRvtPath = null;
+            string surfacesErrorMessage = null;
             if (surfaceRows.Count > 0)
             {
                 var surfacesDownload = await RevitMaterialsDownloadService
@@ -111,6 +113,8 @@ namespace SmartRemont.ExportRooms.Services
 
                 if (surfacesDownload.Success)
                     surfacesRvtPath = surfacesDownload.FilePath;
+                else
+                    surfacesErrorMessage = surfacesDownload.ErrorMessage;
             }
 
             var importItems = downloadResults
@@ -157,8 +161,36 @@ namespace SmartRemont.ExportRooms.Services
                 Success = errorCount == 0,
                 MaterialsLoaded = materialsLoaded,
                 ErrorCount = errorCount,
-                TotalSyncable = rfaRows.Count + surfaceRows.Count
+                TotalSyncable = rfaRows.Count + surfaceRows.Count,
+                SurfacesErrorMessage = surfacesErrorMessage,
+                ErrorMessage = BuildErrorMessage(errorCount, downloadResults, surfacesErrorMessage)
             };
+        }
+
+        static string BuildErrorMessage(
+            int errorCount,
+            IReadOnlyCollection<DownloadResult> downloadResults,
+            string surfacesErrorMessage)
+        {
+            if (errorCount == 0)
+                return null;
+
+            var parts = new List<string>();
+
+            var rfaErrors = downloadResults.Where(r => !r.Success).ToList();
+            if (rfaErrors.Count > 0)
+            {
+                parts.Add(
+                    $"Не удалось скачать {rfaErrors.Count} файл(ов) RFA (material_id: "
+                    + string.Join(", ", rfaErrors.Select(r => r.MaterialId)) + ").");
+            }
+
+            if (!string.IsNullOrWhiteSpace(surfacesErrorMessage))
+                parts.Add(surfacesErrorMessage);
+
+            return parts.Count > 0
+                ? string.Join(" ", parts)
+                : $"Инициализация завершена с ошибками: {errorCount}";
         }
 
         static bool IsSurfaceRow(RevitMaterialRowDto row) =>

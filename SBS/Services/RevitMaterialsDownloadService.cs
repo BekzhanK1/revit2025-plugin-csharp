@@ -88,10 +88,11 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             var tempPath = targetPath + ".tmp." + Guid.NewGuid().ToString("N");
+            var downloadUrl = UnwrapMinioConsoleShareUrl(surfacesFileUrl.Trim());
 
             try
             {
-                var bytes = await Http.GetByteArrayAsync(surfacesFileUrl.Trim()).ConfigureAwait(false);
+                var bytes = await Http.GetByteArrayAsync(downloadUrl).ConfigureAwait(false);
                 await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
                 if (File.Exists(targetPath))
                 {
@@ -126,15 +127,109 @@ namespace SmartRemont.ExportRooms.Services
             catch (Exception ex)
             {
                 TryDelete(tempPath);
-                ExportRoomsApplication._logger?.Warning(ex, "Surfaces library download failed for remont {RemontId}", remontId);
+                var friendlyMessage = BuildSurfacesDownloadErrorMessage(ex, surfacesFileUrl);
+                ExportRoomsApplication._logger?.Warning(
+                    ex,
+                    "Surfaces library download failed for remont {RemontId}: {FriendlyMessage}",
+                    remontId,
+                    friendlyMessage);
                 return new DownloadResult
                 {
                     MaterialId = 0,
                     RevitFileType = "surface",
                     Success = false,
-                    ErrorMessage = ex.Message
+                    ErrorMessage = friendlyMessage
                 };
             }
+        }
+
+        const string MinioConsoleSharePathSegment = "/api/v1/download-shared-object/";
+
+        /// <summary>
+        /// Backend отдаёт surfaces_file_url в виде ссылки на публичный (анонимный) proxy-эндпоинт
+        /// MinIO Console — "http://host/api/v1/download-shared-object/{base64(presigned S3 URL)}".
+        /// Сам эндпоинт не требует авторизации, но проксирование через Console может упасть 403,
+        /// если у неё не настроен доступ к реальному S3-хосту (MINIO_SERVER_URL и т.п. — backend-инфра).
+        /// Чтобы не зависеть от этого прокси, декодируем base64 и скачиваем напрямую с реального
+        /// presigned S3 URL, который лежит внутри.
+        /// </summary>
+        static string UnwrapMinioConsoleShareUrl(string url)
+        {
+            try
+            {
+                var idx = url.IndexOf(MinioConsoleSharePathSegment, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                    return url;
+
+                var encoded = url.Substring(idx + MinioConsoleSharePathSegment.Length).Trim('/');
+
+                var queryIdx = encoded.IndexOf('?');
+                if (queryIdx >= 0)
+                    encoded = encoded.Substring(0, queryIdx);
+
+                encoded = Uri.UnescapeDataString(encoded);
+
+                var decoded = DecodeBase64Flexible(encoded);
+                if (string.IsNullOrWhiteSpace(decoded))
+                    return url;
+
+                if (!Uri.TryCreate(decoded, UriKind.Absolute, out var innerUri)
+                    || (innerUri.Scheme != Uri.UriSchemeHttp && innerUri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return url;
+                }
+
+                ExportRoomsApplication._logger?.Information(
+                    "Surfaces library: unwrapped MinIO console share URL, using direct S3 host {Host}",
+                    innerUri.Host);
+
+                return decoded;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Surfaces library: failed to unwrap console share URL, using original");
+                return url;
+            }
+        }
+
+        static string DecodeBase64Flexible(string value)
+        {
+            var normalized = value.Replace('-', '+').Replace('_', '/');
+            var padding = normalized.Length % 4;
+            if (padding != 0)
+                normalized += new string('=', 4 - padding);
+
+            var bytes = Convert.FromBase64String(normalized);
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+
+        /// <summary>
+        /// 403 на свежий presigned MinIO/S3 URL (перегенерируется на каждый запрос) обычно значит,
+        /// что объект surfaces.rvt отсутствует в бакете или у него не выставлены права на чтение —
+        /// это проблема данных/доступа на backend, а не ошибка авторизации плагина.
+        /// </summary>
+        static string BuildSurfacesDownloadErrorMessage(Exception ex, string surfacesFileUrl)
+        {
+            if (ex is HttpRequestException httpEx)
+            {
+                if (httpEx.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return "Библиотека surfaces.rvt недоступна на сервере (403 Forbidden). "
+                        + "Похоже, файл отсутствует в хранилище или для него не настроен доступ — "
+                        + "сообщите об этом backend-команде (surfaces_file_url для этого ремонта). "
+                        + "Материалы с типом surface не будут загружены, RFA-материалы продолжат синхронизацию.";
+                }
+
+                if (httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    return "Библиотека surfaces.rvt не найдена на сервере (404). "
+                        + "Файл, вероятно, ещё не загружен в хранилище — сообщите backend-команде.";
+                }
+
+                return $"Не удалось скачать surfaces.rvt: {httpEx.Message} (HTTP {(int?)httpEx.StatusCode})";
+            }
+
+            return "Не удалось скачать surfaces.rvt: " + ex.Message;
         }
 
         static string GetSurfacesCachePath(int remontId) =>

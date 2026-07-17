@@ -163,7 +163,7 @@ namespace SmartRemont.ExportRooms.Services
                 Errors = syncResult.ErrorCount,
                 IsWorksharedWarning = copyResult.IsWorksharedWarning,
                 ErrorMessage = syncResult.ErrorCount > 0
-                    ? $"Инициализация завершена с ошибками: {syncResult.ErrorCount}"
+                    ? syncResult.ErrorMessage ?? $"Инициализация завершена с ошибками: {syncResult.ErrorCount}"
                     : copyResult.IsWorksharedWarning ? ProjectCopyService.WorksharedUnsupportedMessage : null
             };
         }

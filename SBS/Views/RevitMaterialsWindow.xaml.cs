@@ -170,6 +170,10 @@ namespace SmartRemont.ExportRooms.Views
                 {
                     StatusTextBlock.Text = result.ErrorMessage;
                 }
+                else if (result.ErrorCount > 0 && !string.IsNullOrWhiteSpace(result.ErrorMessage))
+                {
+                    StatusTextBlock.Text += $" · {result.ErrorMessage}";
+                }
                 else
                 {
                     StatusTextBlock.Text += result.ErrorCount > 0
