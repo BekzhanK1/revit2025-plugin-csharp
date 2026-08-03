@@ -1,0 +1,81 @@
+<Window x:Class="SmartRemont.ExportSpecifications.Views.ExportSpecificationsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SmartRemont — экспорт спецификаций"
+        Height="520" Width="560"
+        WindowStartupLocation="CenterScreen"
+        Background="#FAFAFA"
+        FontFamily="Segoe UI"
+        FontSize="13">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Выберите спецификации для экспорта в JSON"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,12"/>
+
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center"
+                       Foreground="#666"
+                       Text="{Binding CountText}"/>
+            <Button Grid.Column="1" Content="Выбрать все"
+                    Padding="12,6" Click="BtnSelectAll_Click"/>
+            <Button Grid.Column="3" Content="Снять все"
+                    Padding="12,6" Click="BtnSelectNone_Click"/>
+        </Grid>
+
+        <DataGrid x:Name="SchedulesGrid"
+                  Grid.Row="2"
+                  ItemsSource="{Binding ScheduleRows}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  SelectionMode="Single"
+                  RowHeight="32"
+                  ColumnHeaderHeight="32"
+                  Background="White"
+                  BorderBrush="#DDD"
+                  BorderThickness="1"
+                  IsReadOnly="False">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Header="✓"
+                                        Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Width="40"/>
+                <DataGridTextColumn Header="Спецификация"
+                                    Binding="{Binding ScheduleName}"
+                                    Width="*"
+                                    IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Content="Экспорт"
+                    Padding="20,8"
+                    Margin="0,0,8,0"
+                    FontWeight="SemiBold"
+                    Click="BtnExport_Click"/>
+            <Button Content="Закрыть"
+                    Padding="16,8"
+                    IsCancel="True"
+                    Click="BtnClose_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

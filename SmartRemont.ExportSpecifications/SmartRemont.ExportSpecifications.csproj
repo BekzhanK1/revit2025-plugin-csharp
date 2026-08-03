@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <OutputType>Library</OutputType>
+    <RootNamespace>SmartRemont.ExportSpecifications</RootNamespace>
+    <AssemblyName>SmartRemont.ExportSpecifications</AssemblyName>
+    <PlatformTarget>x64</PlatformTarget>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <Nullable>disable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <RevitAddinDeployDir>C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont.ExportSpecifications\</RevitAddinDeployDir>
+    <DeployToRevit Condition="'$(DeployToRevit)' == ''">false</DeployToRevit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="RevitAPI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="BrandAssets.cs" />
+    <Compile Include="ExportSpecificationsApplication.cs" />
+    <Compile Include="Commands\ExportSpecificationsCommand.cs" />
+    <Compile Include="DTO\ScheduleExportDto.cs" />
+    <Compile Include="Services\ScheduleExportService.cs" />
+    <Compile Include="Views\ScheduleRowVm.cs" />
+    <Compile Include="Views\ExportSpecificationsWindow.xaml.cs">
+      <DependentUpon>ExportSpecificationsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="Views\ExportSpecificationsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\export_32.png" />
+    <Resource Include="Resources\logo.png" />
+  </ItemGroup>
+
+  <Target Name="DeployToRevitAddins" AfterTargets="Build" Condition="'$(DeployToRevit)' == 'true'">
+    <MakeDir Directories="$(RevitAddinDeployDir)" />
+    <MakeDir Directories="$(RevitAddinDeployDir)Resources\" />
+    <ItemGroup>
+      <_DeployFiles Include="$(TargetDir)*.dll" />
+      <_DeployResourceFiles Include="Resources\*.png" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_DeployResourceFiles)"
+          DestinationFolder="$(RevitAddinDeployDir)Resources\"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
+    <Copy SourceFiles="@(_DeployFiles)"
+          DestinationFolder="$(RevitAddinDeployDir)"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
+  </Target>
+</Project>
