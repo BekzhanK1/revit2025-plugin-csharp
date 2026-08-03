@@ -72,23 +72,24 @@ namespace SmartRemont.ExportRooms
 
         public static string QuickSearchUrl => $"{ApiOriginUrl}/client_request/quick_search/";
 
-        public static string RevitEventsCreateUrl => $"{ApiOriginUrl}/common/revit_events/create/";
-
         public static string MaterialValidationUrl => $"{ApiOriginUrl}/common/catalog/validate_material_ids/";
 
-        // Замеры / ДС события (create+status) остаются на remont_id, пока не готов task-06 (client-request-primary).
-        public static string RevitEventStatusUrl(int remontId, string eventType) =>
-            $"{ApiOriginUrl}/common/revit_events/status/?remont_id={remontId}&type={Uri.EscapeDataString(eventType ?? "")}";
-
-        // Материалы / ТК / ДС read — primary key client_request_id (client-request-primary, task-02/04/05).
-        public static string DsRoomChangeReadUrl(int clientRequestId) =>
-            $"{ApiOriginUrl}/common/ds/room-change/read/?client_request_id={clientRequestId}";
-
-        public static string ClientMaterialTkReadUrl(int clientRequestId) =>
-            $"{ApiOriginUrl}/common/client_material/tk/read/?client_request_id={clientRequestId}";
-
         public static string RevitMaterialReadUrl(int clientRequestId) =>
-            $"{ApiOriginUrl}/revit/material/read/?client_request_id={clientRequestId}";
+            $"{ApiOriginUrl}/revit/plugin/material/read/?client_request_id={clientRequestId}";
+
+        // Единый неймспейс /revit/plugin/ — display + apply, primary key client_request_id (PLUGIN_API.md).
+        public static string TkReadUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/revit/plugin/tk/read/?client_request_id={clientRequestId}";
+
+        public static string DsRoomChangeReadUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/revit/plugin/ds/room-change/read/?client_request_id={clientRequestId}";
+
+        public static string DsRoomChangeApplyUrl => $"{ApiOriginUrl}/revit/plugin/ds/room-change/apply/";
+
+        public static string MeasuresReadUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/revit/plugin/measures/read/?client_request_id={clientRequestId}";
+
+        public static string MeasuresApplyUrl => $"{ApiOriginUrl}/revit/plugin/measures/apply/";
 
         static string ReadAppSetting(string key)
         {

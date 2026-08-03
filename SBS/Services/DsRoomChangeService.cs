@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace SmartRemont.ExportRooms.Services
@@ -64,6 +65,61 @@ namespace SmartRemont.ExportRooms.Services
                     string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка запроса ДС" : parsed.Error);
 
             return MapSnapshot(parsed);
+        }
+
+        /// <summary>
+        /// POST /revit/plugin/ds/room-change/apply/ — прямая запись, требует remont_id != null (PLUGIN_API.md §3.2).
+        /// </summary>
+        public static async Task<DsRoomChangeApplyDataDto> ApplyAsync(
+            int clientRequestId,
+            double wallHeight,
+            IEnumerable<DsRoomChangeApplyRoomDto> rooms)
+        {
+            if (clientRequestId <= 0)
+                throw new InvalidOperationException("Не указана заявка");
+
+            var session = ExportRoomsApplication.CurrentSession;
+            if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
+                throw new InvalidOperationException("Требуется авторизация");
+
+            var payloadRooms = rooms?.Where(r => r != null && r.RoomId > 0).ToList()
+                ?? new List<DsRoomChangeApplyRoomDto>();
+            if (payloadRooms.Count == 0)
+                throw new InvalidOperationException("Нет помещений для отправки");
+
+            var requestBody = new DsRoomChangeApplyRequest
+            {
+                ClientRequestId = clientRequestId,
+                WallHeight = wallHeight > 0d ? wallHeight : null,
+                Rooms = payloadRooms
+            };
+
+            var json = JsonConvert.SerializeObject(requestBody);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, Configs.DsRoomChangeApplyUrl);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+            httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = TryReadErrorMessage(responseBody)
+                    ?? $"Ошибка отправки ДС ({(int)response.StatusCode})";
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    message = "Сессия истекла. Выйдите и войдите снова.";
+                throw new InvalidOperationException(message);
+            }
+
+            var parsed = JsonConvert.DeserializeObject<DsRoomChangeApplyResponse>(responseBody);
+            if (parsed == null)
+                throw new InvalidOperationException("Сервер вернул некорректный ответ");
+
+            if (!parsed.Status)
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка отправки ДС" : parsed.Error);
+
+            return parsed.Data ?? new DsRoomChangeApplyDataDto();
         }
 
         static DsRoomChangeReadResponse ParseResponse(string responseBody)

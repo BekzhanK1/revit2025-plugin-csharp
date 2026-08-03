@@ -35,7 +35,7 @@ namespace SmartRemont.ExportRooms.Services
 
             using var httpRequest = new HttpRequestMessage(
                 HttpMethod.Get,
-                Configs.ClientMaterialTkReadUrl(clientRequestId));
+                Configs.TkReadUrl(clientRequestId));
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
 
             using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);

@@ -39,6 +39,7 @@ namespace SmartRemont.ExportRooms.Views
         readonly Document _doc;
         bool _mappingVisible;
         RoomMeasurementsSnapshot _snapshot;
+        System.Collections.Generic.Dictionary<string, int> _roomIdsByKey = new();
 
         public string LastSuccessMessage { get; private set; }
 
@@ -52,7 +53,7 @@ namespace SmartRemont.ExportRooms.Views
 
         async void RoomMeasurementsWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            await LoadEventStatusAsync().ConfigureAwait(true);
+            await LoadRoomIdsAsync().ConfigureAwait(true);
 
             _snapshot = RoomMeasurementsService.Collect(_doc);
             var rooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
@@ -82,33 +83,31 @@ namespace SmartRemont.ExportRooms.Views
         {
             var remont = ExportRoomsApplication.SelectedRemont;
             var hasValues = HasAnyParamValues(_snapshot);
-            var canSend = remont?.RemontId != null && remont.RemontId > 0 && hasValues;
+            var canSend = (remont?.ClientRequestId ?? 0) > 0 && hasValues;
             SendButton.IsEnabled = canSend;
 
-            if (remont?.RemontId == null || remont.RemontId <= 0)
-                SetStatus("Отправка недоступна: у выбранной заявки нет ID ремонта.", isError: true);
+            if ((remont?.ClientRequestId ?? 0) <= 0)
+                SetStatus("Отправка недоступна: не указан ID заявки.", isError: true);
             else if (!hasValues)
                 SetStatus("Нет заполненных замеров для отправки.", isError: false);
             else
                 SetStatus("Проверьте замеры и нажмите «Отправить».", isError: false);
         }
 
-        async Task LoadEventStatusAsync()
+        async Task LoadRoomIdsAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
                 return;
 
             try
             {
-                var status = await RevitEventsService
-                    .GetStatusAsync(remont.RemontId.Value, RevitEventTypes.Measures)
-                    .ConfigureAwait(true);
-                RevitEventStatusUi.ApplyBanner(EventStatusBanner, EventStatusBannerText, status);
+                var rooms = await MeasuresService.ReadAsync(remont.ClientRequestId).ConfigureAwait(true);
+                _roomIdsByKey = MeasuresService.BuildRoomIdsByKey(rooms);
             }
             catch (Exception ex)
             {
-                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить статус MEASURES");
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить сопоставление комнат для замеров");
             }
         }
 
@@ -123,9 +122,9 @@ namespace SmartRemont.ExportRooms.Views
         async System.Threading.Tasks.Task SendMeasuresAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
             {
-                MessageBox.Show("У выбранной заявки ещё нет ремонта — отправка недоступна.", "Smart Remont",
+                MessageBox.Show("Не указан ID заявки — отправка недоступна.", "Smart Remont",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -135,28 +134,28 @@ namespace SmartRemont.ExportRooms.Views
 
             try
             {
-                var result = await RevitEventsService
-                    .SendMeasuresAsync(remont.RemontId.Value, _snapshot.Rooms)
+                var result = await MeasuresService
+                    .ApplyAsync(remont.ClientRequestId, _snapshot.Rooms, _roomIdsByKey)
                     .ConfigureAwait(true);
 
-                var roomCount = _snapshot.Rooms.Count(r =>
-                    r.Parameters?.Any(p => p.param_value.HasValue) == true);
-                var paramCount = _snapshot.Rooms
-                    .SelectMany(r => r.Parameters ?? Enumerable.Empty<RoomMeasurementParamItem>())
-                    .Count(p => p.param_value.HasValue);
+                var skippedCount = result.Skipped?.Count ?? 0;
+                var skippedSuffix = skippedCount > 0 ? $" · пропущено {skippedCount}" : "";
+                SetStatus(
+                    $"Отправлено: {result.AppliedRooms} помещ., {result.AppliedParams} знач.{skippedSuffix}",
+                    isError: false);
 
-                var when = string.IsNullOrWhiteSpace(result?.CreatedAt) ? "" : $" · {result.CreatedAt}";
-                SetStatus($"Отправлено (событие #{result?.Id}){when}", isError: false);
+                LastSuccessMessage =
+                    $"Замеры отправлены · {result.AppliedRooms} помещ. · {result.AppliedParams} знач.{skippedSuffix}";
 
-                LastSuccessMessage = $"Замеры отправлены · {roomCount} помещ. · {paramCount} знач. · событие #{result?.Id}";
+                var details = $"Помещений: {result.AppliedRooms}\nЗначений: {result.AppliedParams}";
+                if (skippedCount > 0)
+                {
+                    var reasons = result.Skipped
+                        .Select(s => $"— {(string.IsNullOrWhiteSpace(s.RoomName) ? "?" : s.RoomName)}: {s.Reason}");
+                    details += "\n\nПропущено:\n" + string.Join("\n", reasons);
+                }
 
-                await LoadEventStatusAsync().ConfigureAwait(true);
-
-                AppMessageDialog.ShowSuccess(
-                    this,
-                    "Успешно отправлено",
-                    "Замеры отправлены",
-                    $"Помещений: {roomCount}\nЗначений: {paramCount}\nСобытие: #{result?.Id}");
+                AppMessageDialog.ShowSuccess(this, "Успешно отправлено", "Замеры отправлены", details);
 
                 DialogResult = true;
                 Close();
@@ -164,7 +163,7 @@ namespace SmartRemont.ExportRooms.Views
             catch (Exception ex)
             {
                 SetStatus(ex.Message, isError: true);
-                ExportRoomsApplication._logger?.Warning(ex, "Ошибка отправки MEASURES");
+                ExportRoomsApplication._logger?.Warning(ex, "Ошибка отправки замеров");
                 MessageBox.Show(ex.Message, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -178,7 +177,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             var hasValues = HasAnyParamValues(_snapshot);
             SendButton.IsEnabled = !isBusy &&
-                ExportRoomsApplication.SelectedRemont?.RemontId > 0 &&
+                (ExportRoomsApplication.SelectedRemont?.ClientRequestId ?? 0) > 0 &&
                 hasValues;
             SendButton.Content = isBusy ? "Отправка…" : "Отправить";
             CloseButton.IsEnabled = !isBusy;

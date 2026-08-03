@@ -64,6 +64,7 @@ namespace SmartRemont.ExportRooms.Views
         List<RoomAreaRowVm> _allRows = new List<RoomAreaRowVm>();
         double? _systemWallHeightM;
         DsAreaCompareStatus? _wallHeightCompareStatus;
+        Dictionary<string, int> _roomIdsByKey = new();
 
         public string LastSuccessMessage { get; private set; }
 
@@ -78,7 +79,7 @@ namespace SmartRemont.ExportRooms.Views
         async void SelectedRemontSummaryWindow_Loaded(object sender, RoutedEventArgs e)
         {
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
-            await LoadEventStatusAsync().ConfigureAwait(true);
+            await LoadRoomIdsAsync().ConfigureAwait(true);
 
             var rooms = RoomAreaService.CollectRooms(_doc);
             _allRows = rooms
@@ -284,22 +285,20 @@ namespace SmartRemont.ExportRooms.Views
             ApplyRowsView();
         }
 
-        async Task LoadEventStatusAsync()
+        async Task LoadRoomIdsAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
                 return;
 
             try
             {
-                var status = await RevitEventsService
-                    .GetStatusAsync(remont.RemontId.Value, RevitEventTypes.DsAreaChange)
-                    .ConfigureAwait(true);
-                RevitEventStatusUi.ApplyBanner(EventStatusBanner, EventStatusBannerText, status);
+                var rooms = await MeasuresService.ReadAsync(remont.ClientRequestId).ConfigureAwait(true);
+                _roomIdsByKey = MeasuresService.BuildRoomIdsByKey(rooms);
             }
             catch (Exception ex)
             {
-                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить статус DS_AREA_CHANGE");
+                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить сопоставление комнат для ДС");
             }
         }
 
@@ -358,34 +357,59 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
+            var payloadRooms = new List<DsRoomChangeApplyRoomDto>();
+            var unresolvedRoomNames = new List<string>();
+            foreach (var row in revitRows)
+            {
+                var key = RoomNameMatcher.GetBaseName(row.RoomName);
+                if (_roomIdsByKey.TryGetValue(key, out var roomId))
+                {
+                    payloadRooms.Add(new DsRoomChangeApplyRoomDto { RoomId = roomId, NewArea = row.AreaM2 });
+                }
+                else
+                {
+                    unresolvedRoomNames.Add(row.RoomName);
+                }
+            }
+
+            if (payloadRooms.Count == 0)
+            {
+                MessageBox.Show(
+                    "Не удалось сопоставить помещения Revit с системой (нет room_id). Отправка недоступна.",
+                    "Smart Remont", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             SetBusy(true);
             SetStatus("Отправка…", isError: false);
 
             try
             {
-                var payloadRooms = revitRows.Select(r => new RemontRoomAreaDto
-                {
-                    RoomName = r.RoomName,
-                    RoomAreaM2 = r.AreaM2
-                }).ToList();
                 var wallHeight = ResolvePayloadWallHeight(revitRows);
 
-                var result = await RevitEventsService
-                    .SendDsAreaChangeAsync(remont.RemontId.Value, wallHeight, payloadRooms)
+                var result = await DsRoomChangeService
+                    .ApplyAsync(remont.ClientRequestId, wallHeight, payloadRooms)
                     .ConfigureAwait(true);
 
-                var when = string.IsNullOrWhiteSpace(result?.CreatedAt) ? "" : $" · {result.CreatedAt}";
-                SetStatus($"Отправлено (событие #{result?.Id}){when}", isError: false);
+                var skippedCount = (result.Skipped?.Count ?? 0) + unresolvedRoomNames.Count;
+                var skippedSuffix = skippedCount > 0 ? $" · пропущено {skippedCount}" : "";
+                SetStatus($"Отправлено: {result.AppliedRooms} помещ.{skippedSuffix} · ДС #{result.DsId}", isError: false);
 
-                LastSuccessMessage = $"Площади отправлены · {payloadRooms.Count} помещ. · событие #{result?.Id}";
+                LastSuccessMessage = $"Площади отправлены · {result.AppliedRooms} помещ. · ДС #{result.DsId}";
 
-                await LoadEventStatusAsync().ConfigureAwait(true);
+                var details =
+                    $"Помещений: {result.AppliedRooms}\n"
+                    + $"Высота потолка: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\n"
+                    + $"ДС: #{result.DsId} ({(result.Created ? "создана" : "обновлена")})";
 
-                AppMessageDialog.ShowSuccess(
-                    this,
-                    "Успешно отправлено",
-                    "Площади отправлены",
-                    $"Помещений: {payloadRooms.Count}\nВысота потолка: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\nСобытие: #{result?.Id}");
+                var reasons = (result.Skipped ?? new List<ApplySkippedRoomDto>())
+                    .Select(s => $"— {(string.IsNullOrWhiteSpace(s.RoomName) ? "?" : s.RoomName)}: {s.Reason}")
+                    .Concat(unresolvedRoomNames.Select(n => $"— {n}: не сопоставлено с системой (нет room_id)"))
+                    .ToList();
+                if (reasons.Count > 0)
+                    details += "\n\nПропущено:\n" + string.Join("\n", reasons);
+
+                AppMessageDialog.ShowSuccess(this, "Успешно отправлено", "Площади отправлены", details);
 
                 DialogResult = true;
                 Close();
@@ -393,7 +417,7 @@ namespace SmartRemont.ExportRooms.Views
             catch (Exception ex)
             {
                 SetStatus(ex.Message, isError: true);
-                ExportRoomsApplication._logger?.Warning(ex, "Ошибка отправки DS_AREA_CHANGE");
+                ExportRoomsApplication._logger?.Warning(ex, "Ошибка отправки ДС room-change");
                 MessageBox.Show(ex.Message, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally

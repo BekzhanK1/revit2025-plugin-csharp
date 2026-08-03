@@ -72,14 +72,6 @@ namespace SmartRemont.ExportRooms.Views
             ConfigureFeatureButton(InitProjectButton, "\uE8C8", InitProjectSubtitle);
             ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
             ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
-
-            // Events/замеры — later (прямая запись без буфера); пока скрыты.
-            DsAreaChangeButton.Visibility = System.Windows.Visibility.Collapsed;
-            MeasuresButton.Visibility = System.Windows.Visibility.Collapsed;
-            MeasuresFromCodeButton.Visibility = System.Windows.Visibility.Collapsed;
-            MeasuresCompareButton.Visibility = System.Windows.Visibility.Collapsed;
-            TypeParametersButton.Visibility = System.Windows.Visibility.Collapsed;
-
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
             ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
@@ -200,11 +192,17 @@ namespace SmartRemont.ExportRooms.Views
                 ? System.Windows.Visibility.Collapsed
                 : System.Windows.Visibility.Visible;
 
-            // После init — материалы и ТК; замеры/ДС скрыты до отдельной задачи.
+            // После init — все функции доступны через client_request_id (PLUGIN_API.md).
+            // ДС «изменение площади» дополнительно требует remont_id — гейтится внутри окна.
             var workButtons = new[]
             {
                 RevitMaterialsButton,
-                RoomMaterialsButton
+                RoomMaterialsButton,
+                DsAreaChangeButton,
+                MeasuresButton,
+                MeasuresFromCodeButton,
+                MeasuresCompareButton,
+                TypeParametersButton
             };
 
             foreach (var button in workButtons)
@@ -213,9 +211,6 @@ namespace SmartRemont.ExportRooms.Views
                     ? System.Windows.Visibility.Visible
                     : System.Windows.Visibility.Collapsed;
             }
-
-            DsAreaChangeButton.Visibility = System.Windows.Visibility.Collapsed;
-            MeasuresButton.Visibility = System.Windows.Visibility.Collapsed;
 
             FunctionsSectionLabel.Text = isInitialized ? "ФУНКЦИИ" : "ИНИЦИАЛИЗАЦИЯ";
         }
