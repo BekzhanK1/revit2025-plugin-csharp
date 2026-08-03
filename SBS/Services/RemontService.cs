@@ -76,10 +76,10 @@ namespace SmartRemont.ExportRooms.Services
 
         static string FormatDisplayName(QuickSearchItemDto item)
         {
-            var parts = new List<string>();
-            if (item.RemontId.HasValue)
+            var parts = new List<string> { $"Заявка #{item.ClientRequestId}" };
+
+            if (item.RemontId is > 0)
                 parts.Add($"Ремонт #{item.RemontId}");
-            parts.Add($"Заявка #{item.ClientRequestId}");
 
             if (!string.IsNullOrWhiteSpace(item.ClientName))
                 parts.Add(item.ClientName.Trim());
@@ -90,10 +90,10 @@ namespace SmartRemont.ExportRooms.Services
                 parts.Add($"{item.ResidentName.Trim()}{flat}");
             }
 
-            if (!string.IsNullOrWhiteSpace(item.RemontStatusName))
-                parts.Add(item.RemontStatusName.Trim());
-            else if (!string.IsNullOrWhiteSpace(item.RequestStatusName))
+            if (!string.IsNullOrWhiteSpace(item.RequestStatusName))
                 parts.Add(item.RequestStatusName.Trim());
+            else if (!string.IsNullOrWhiteSpace(item.RemontStatusName))
+                parts.Add(item.RemontStatusName.Trim());
 
             if (!string.IsNullOrWhiteSpace(item.RemontType))
                 parts.Add(item.RemontType.Trim());

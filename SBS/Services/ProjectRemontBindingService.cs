@@ -19,28 +19,30 @@ namespace SmartRemont.ExportRooms.Services
         public static BindResult TryBindFromDocument(Document doc)
         {
             var metadata = ProjectRemontMetadataService.TryRead(doc);
-            if (metadata == null || metadata.RemontId <= 0)
+            if (metadata == null || metadata.ClientRequestId <= 0)
                 return new BindResult { Bound = false };
 
             var remont = CreateRemontOptionFromMetadata(metadata);
             ExportRoomsApplication.SelectedRemont = remont;
 
             ExportRoomsApplication._logger?.Information(
-                "Auto-bound remont from document storage: remont_id={RemontId}, client_request_id={ClientRequestId}",
-                metadata.RemontId,
-                metadata.ClientRequestId);
+                "Auto-bound remont from document storage: client_request_id={ClientRequestId}, remont_id={RemontId}",
+                metadata.ClientRequestId,
+                metadata.RemontId);
 
             return new BindResult { Bound = true, Metadata = metadata, Remont = remont };
         }
 
         public static async Task TryEnrichFromQuickSearchAsync(RemontOption remont)
         {
-            if (remont?.RemontId is not int remontId || remontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
                 return;
+
+            var clientRequestId = remont.ClientRequestId;
 
             try
             {
-                var results = await RemontService.QuickSearchAsync(byRemontId: true, remontId)
+                var results = await RemontService.QuickSearchAsync(byRemontId: false, clientRequestId)
                     .ConfigureAwait(false);
                 var match = FindBestMatch(results, remont);
                 if (match == null)
@@ -48,21 +50,23 @@ namespace SmartRemont.ExportRooms.Services
 
                 ApplyEnrichment(remont, match);
                 ExportRoomsApplication._logger?.Information(
-                    "Enriched bound remont from quick_search: remont_id={RemontId}", remontId);
+                    "Enriched bound remont from quick_search: client_request_id={ClientRequestId}", clientRequestId);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex,
-                    "Could not enrich bound remont from quick_search: remont_id={RemontId}", remontId);
+                    "Could not enrich bound remont from quick_search: client_request_id={ClientRequestId}", clientRequestId);
             }
         }
 
         static RemontOption CreateRemontOptionFromMetadata(ProjectRemontMetadata metadata) =>
             new RemontOption
             {
-                RemontId = metadata.RemontId,
+                RemontId = metadata.RemontId > 0 ? metadata.RemontId : null,
                 ClientRequestId = metadata.ClientRequestId,
-                Name = $"Ремонт #{metadata.RemontId}"
+                Name = metadata.RemontId > 0
+                    ? $"Ремонт #{metadata.RemontId}"
+                    : $"Заявка #{metadata.ClientRequestId}"
             };
 
         static RemontOption FindBestMatch(IReadOnlyList<RemontOption> results, RemontOption bound)
@@ -70,18 +74,9 @@ namespace SmartRemont.ExportRooms.Services
             if (results == null || results.Count == 0)
                 return null;
 
-            if (bound.ClientRequestId > 0)
-            {
-                foreach (var item in results)
-                {
-                    if (item.RemontId == bound.RemontId && item.ClientRequestId == bound.ClientRequestId)
-                        return item;
-                }
-            }
-
             foreach (var item in results)
             {
-                if (item.RemontId == bound.RemontId)
+                if (item.ClientRequestId == bound.ClientRequestId)
                     return item;
             }
 

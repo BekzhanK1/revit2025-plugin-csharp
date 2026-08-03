@@ -112,9 +112,9 @@ namespace SmartRemont.ExportRooms.Views
         async Task LoadSystemComparisonAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
             {
-                SystemDsInfoText.Text = "Сравнение с системой недоступно: нет ID ремонта.";
+                SystemDsInfoText.Text = "Сравнение с системой недоступно: нет ID заявки.";
                 ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
                 return;
             }
@@ -124,7 +124,7 @@ namespace SmartRemont.ExportRooms.Views
             try
             {
                 var system = await DsRoomChangeService
-                    .ReadAsync(remont.RemontId.Value)
+                    .ReadAsync(remont.ClientRequestId)
                     .ConfigureAwait(true);
 
                 ApplySystemComparison(system);
@@ -345,7 +345,7 @@ namespace SmartRemont.ExportRooms.Views
             var remont = ExportRoomsApplication.SelectedRemont;
             if (remont?.RemontId == null || remont.RemontId <= 0)
             {
-                MessageBox.Show("У выбранного ремонта нет remont_id.", "Smart Remont",
+                MessageBox.Show("У выбранной заявки ещё нет ремонта — отправка недоступна.", "Smart Remont",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

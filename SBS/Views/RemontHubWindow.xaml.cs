@@ -15,12 +15,12 @@ namespace SmartRemont.ExportRooms.Views
     {
         readonly Document _doc;
 
-        const string InitProjectSubtitle = "Копия RVT, remont_id в модели, все материалы";
+        const string InitProjectSubtitle = "Копия RVT по заявке, метаданные и материалы";
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
         const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
-        const string RoomMaterialsSubtitle = "ДС на изменение технологической карты";
+        const string RoomMaterialsSubtitle = "Сверка материалов с технологической картой";
         const string RevitMaterialsSubtitle = "Загрузка RFA и surface-типов из Smart Remont";
         const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
 
@@ -48,17 +48,18 @@ namespace SmartRemont.ExportRooms.Views
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
             RefreshProjectInitState();
             await EnrichSelectedRemontIfNeededAsync().ConfigureAwait(true);
-            await RefreshEventStatusesAsync().ConfigureAwait(true);
             RefreshProjectInitState();
         }
 
         async Task EnrichSelectedRemontIfNeededAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId is not int remontId || remontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
                 return;
 
-            var placeholder = $"Ремонт #{remontId}";
+            var placeholder = remont.RemontId is int remontId && remontId > 0
+                ? $"Ремонт #{remontId}"
+                : $"Заявка #{remont.ClientRequestId}";
             if (!string.IsNullOrWhiteSpace(remont.Name)
                 && !string.Equals(remont.Name.Trim(), placeholder, StringComparison.Ordinal))
                 return;
@@ -70,17 +71,19 @@ namespace SmartRemont.ExportRooms.Views
         {
             ConfigureFeatureButton(InitProjectButton, "\uE8C8", InitProjectSubtitle);
             ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
+            ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
+
+            // Events/замеры — later (прямая запись без буфера); пока скрыты.
+            DsAreaChangeButton.Visibility = System.Windows.Visibility.Collapsed;
+            MeasuresButton.Visibility = System.Windows.Visibility.Collapsed;
+            MeasuresFromCodeButton.Visibility = System.Windows.Visibility.Collapsed;
+            MeasuresCompareButton.Visibility = System.Windows.Visibility.Collapsed;
+            TypeParametersButton.Visibility = System.Windows.Visibility.Collapsed;
+
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
             ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
-            ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
-            // TODO: plugin-ui-redesign — Замеры по коду
-            MeasuresFromCodeButton.Visibility = System.Windows.Visibility.Collapsed;
             ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
-            // TODO: plugin-ui-redesign — Сравнение замеров
-            MeasuresCompareButton.Visibility = System.Windows.Visibility.Collapsed;
             ConfigureFeatureButton(MeasuresCompareButton, "\uE8AB", MeasuresCompareSubtitle);
-            // TODO: plugin-ui-redesign — Изменение параметров типов
-            TypeParametersButton.Visibility = System.Windows.Visibility.Collapsed;
             ConfigureFeatureButton(TypeParametersButton, "\uE8B9", TypeParametersSubtitle);
         }
 
@@ -93,59 +96,13 @@ namespace SmartRemont.ExportRooms.Views
                 sub.Text = subtitle;
         }
 
-        async Task RefreshEventStatusesAsync()
-        {
-            var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
-            {
-                RevitEventStatusUi.ApplyFeatureBadge(DsAreaChangeButton, null);
-                RevitEventStatusUi.ApplyFeatureBadge(MeasuresButton, null);
-                return;
-            }
-
-            var remontId = remont.RemontId.Value;
-            RevitEventStatusDataDto dsStatus = null;
-            RevitEventStatusDataDto measuresStatus = null;
-
-            try
-            {
-                var dsTask = RevitEventsService.GetStatusAsync(remontId, RevitEventTypes.DsAreaChange);
-                var measuresTask = RevitEventsService.GetStatusAsync(remontId, RevitEventTypes.Measures);
-                await Task.WhenAll(dsTask, measuresTask).ConfigureAwait(true);
-                dsStatus = dsTask.Result;
-                measuresStatus = measuresTask.Result;
-            }
-            catch (System.Exception ex)
-            {
-                ExportRoomsApplication._logger?.Warning(ex, "Не удалось загрузить статус revit_events");
-            }
-
-            ApplyFeatureStatus(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle, dsStatus);
-            ApplyFeatureStatus(MeasuresButton, "\uE8B7", MeasuresSubtitle, measuresStatus);
-        }
-
-        static void ApplyFeatureStatus(
-            Button button,
-            string iconGlyph,
-            string baseSubtitle,
-            RevitEventStatusDataDto status)
-        {
-            ConfigureFeatureButton(button, iconGlyph, baseSubtitle);
-
-            var suffix = RevitEventStatusFormatter.FormatSubtitleSuffix(status);
-            if (!string.IsNullOrEmpty(suffix) &&
-                button.Template.FindName("FeatureSubtitle", button) is TextBlock sub)
-                sub.Text = baseSubtitle + " · " + suffix;
-
-            RevitEventStatusUi.ApplyFeatureBadge(button, status);
-        }
-
         void BindRemontInfo(RemontOption remont)
         {
             if (remont == null)
             {
-                RemontIdHeroText.Text = "Ремонт #—";
                 ClientRequestIdHeroText.Text = "Заявка #—";
+                RemontIdHeroText.Text = string.Empty;
+                RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
                 RemontNameText.Text = string.Empty;
                 RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
                 ClientNameText.Text = "—";
@@ -156,12 +113,20 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            RemontIdHeroText.Text = remont.RemontId.HasValue && remont.RemontId.Value > 0
-                ? $"Ремонт #{remont.RemontId.Value}"
-                : "Ремонт #—";
             ClientRequestIdHeroText.Text = remont.ClientRequestId > 0
                 ? $"Заявка #{remont.ClientRequestId}"
                 : "Заявка #—";
+
+            if (remont.RemontId is int remontId && remontId > 0)
+            {
+                RemontIdHeroText.Text = $"Ремонт #{remontId}";
+                RemontIdHeroText.Visibility = System.Windows.Visibility.Visible;
+            }
+            else
+            {
+                RemontIdHeroText.Text = string.Empty;
+                RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
+            }
 
             var name = BuildSubtitle(remont);
             if (string.IsNullOrEmpty(name))
@@ -187,14 +152,14 @@ namespace SmartRemont.ExportRooms.Views
 
         void UpdateProjectInitializedBadge(ProjectRemontMetadata metadata)
         {
-            if (metadata == null || metadata.RemontId <= 0)
+            if (metadata == null || metadata.ClientRequestId <= 0)
             {
                 ProjectInitializedBadge.Visibility = System.Windows.Visibility.Collapsed;
                 return;
             }
 
             ProjectInitializedBadge.Visibility = System.Windows.Visibility.Visible;
-            ProjectInitializedBadgeText.Text = $"Проект инициализирован · #{metadata.RemontId}";
+            ProjectInitializedBadgeText.Text = $"Проект инициализирован · #{metadata.ClientRequestId}";
         }
 
         static string BuildSubtitle(RemontOption remont) =>
@@ -206,7 +171,7 @@ namespace SmartRemont.ExportRooms.Views
         void RefreshProjectInitState()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            var selectedRemontId = remont?.RemontId ?? remont?.Id ?? 0;
+            var selectedClientRequestId = remont?.ClientRequestId ?? 0;
             var isInitialized = ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
 
             ApplyHubMenuVisibility(isInitialized);
@@ -214,17 +179,17 @@ namespace SmartRemont.ExportRooms.Views
             if (!isInitialized)
             {
                 ApplyInitFeatureBadge(InitProjectButton, null);
-                InitProjectButton.IsEnabled = !_initInProgress && selectedRemontId > 0;
+                InitProjectButton.IsEnabled = !_initInProgress && selectedClientRequestId > 0;
                 return;
             }
 
             var metadata = ProjectRemontMetadataService.TryRead(_doc);
-            ApplyInitFeatureBadge(InitProjectButton, metadata?.RemontId);
+            ApplyInitFeatureBadge(InitProjectButton, metadata?.ClientRequestId);
 
-            if (selectedRemontId > 0 && metadata != null && metadata.RemontId != selectedRemontId)
+            if (selectedClientRequestId > 0 && metadata != null && metadata.ClientRequestId != selectedClientRequestId)
             {
                 SetStatus(
-                    $"Проект привязан к ремонту #{metadata.RemontId}. Выбран ремонт #{selectedRemontId}.",
+                    $"Проект привязан к заявке #{metadata.ClientRequestId}. Выбрана заявка #{selectedClientRequestId}.",
                     isSuccess: false);
             }
         }
@@ -235,11 +200,10 @@ namespace SmartRemont.ExportRooms.Views
                 ? System.Windows.Visibility.Collapsed
                 : System.Windows.Visibility.Visible;
 
+            // После init — материалы и ТК; замеры/ДС скрыты до отдельной задачи.
             var workButtons = new[]
             {
                 RevitMaterialsButton,
-                DsAreaChangeButton,
-                MeasuresButton,
                 RoomMaterialsButton
             };
 
@@ -250,10 +214,13 @@ namespace SmartRemont.ExportRooms.Views
                     : System.Windows.Visibility.Collapsed;
             }
 
+            DsAreaChangeButton.Visibility = System.Windows.Visibility.Collapsed;
+            MeasuresButton.Visibility = System.Windows.Visibility.Collapsed;
+
             FunctionsSectionLabel.Text = isInitialized ? "ФУНКЦИИ" : "ИНИЦИАЛИЗАЦИЯ";
         }
 
-        static void ApplyInitFeatureBadge(Button button, int? remontId)
+        static void ApplyInitFeatureBadge(Button button, int? clientRequestId)
         {
             button.ApplyTemplate();
 
@@ -262,14 +229,14 @@ namespace SmartRemont.ExportRooms.Views
             if (badge == null || badgeText == null)
                 return;
 
-            if (remontId == null || remontId <= 0)
+            if (clientRequestId == null || clientRequestId <= 0)
             {
                 badge.Visibility = System.Windows.Visibility.Collapsed;
                 return;
             }
 
             badge.Visibility = System.Windows.Visibility.Visible;
-            badgeText.Text = $"Инициализирован #{remontId.Value}";
+            badgeText.Text = $"Инициализирован #{clientRequestId.Value}";
             badge.Background = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#DCFCE7"));
             badge.BorderBrush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#BBF7D0"));
             badgeText.Foreground = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#166534"));
@@ -292,27 +259,27 @@ namespace SmartRemont.ExportRooms.Views
                 return;
 
             var remont = ExportRoomsApplication.SelectedRemont;
-            var remontId = remont?.RemontId ?? remont?.Id ?? 0;
-            if (remontId <= 0)
+            var clientRequestId = remont?.ClientRequestId ?? 0;
+            if (clientRequestId <= 0)
             {
-                SetStatus("Не указан ID ремонта", isSuccess: false);
+                SetStatus("Не указан ID заявки", isSuccess: false);
                 return;
             }
 
             if (ProjectRemontMetadataService.IsInitialized(_doc)
-                && !ProjectRemontMetadataService.ValidateMatches(_doc, remontId))
+                && !ProjectRemontMetadataService.ValidateMatches(_doc, clientRequestId))
             {
                 var existing = ProjectRemontMetadataService.TryRead(_doc);
                 AppMessageDialog.Show(
                     this,
                     AppMessageKind.InDevelopment,
                     "Нельзя инициализировать",
-                    $"Проект уже привязан к ремонту #{existing?.RemontId}.",
-                    $"Выбран ремонт #{remontId}. Откройте другой файл или выберите соответствующий ремонт.");
+                    $"Проект уже привязан к заявке #{existing?.ClientRequestId}.",
+                    $"Выбрана заявка #{clientRequestId}. Откройте другой файл или выберите соответствующую заявку.");
                 return;
             }
 
-            var targetPath = ProjectFileNamingService.BuildFullPath(remontId, ResolveResidentName(remont));
+            var targetPath = ProjectFileNamingService.BuildFullPath(clientRequestId, ResolveResidentName(remont));
             var fileExists = File.Exists(targetPath);
 
             SetStatus("Загрузка списка материалов...", isSuccess: true);
@@ -320,7 +287,7 @@ namespace SmartRemont.ExportRooms.Views
             RevitMaterialReadResponse materialsResponse;
             try
             {
-                materialsResponse = await RevitMaterialsService.ReadAsync(remontId).ConfigureAwait(true);
+                materialsResponse = await RevitMaterialsService.ReadAsync(clientRequestId).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -334,7 +301,7 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var preview = new ProjectInitPreviewWindow(remontId, targetPath, fileExists, materialsResponse)
+            var preview = new ProjectInitPreviewWindow(clientRequestId, targetPath, fileExists, materialsResponse)
             {
                 Owner = this
             };
@@ -432,7 +399,7 @@ namespace SmartRemont.ExportRooms.Views
             return string.Join("\n\n", lines);
         }
 
-        async void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)
+        void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)
         {
             var summaryWindow = new SelectedRemontSummaryWindow(_doc);
             summaryWindow.Owner = this;
@@ -440,8 +407,6 @@ namespace SmartRemont.ExportRooms.Views
 
             if (summaryWindow.DialogResult == true)
                 SetStatus(summaryWindow.LastSuccessMessage ?? "Площади отправлены", isSuccess: true);
-
-            await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
 
         void SetStatus(string message, bool isSuccess)
@@ -460,7 +425,7 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        async void MeasuresButton_Click(object sender, RoutedEventArgs e)
+        void MeasuresButton_Click(object sender, RoutedEventArgs e)
         {
             var window = new RoomMeasurementsWindow(_doc);
             window.Owner = this;
@@ -468,11 +433,9 @@ namespace SmartRemont.ExportRooms.Views
 
             if (window.DialogResult == true)
                 SetStatus(window.LastSuccessMessage ?? "Замеры отправлены", isSuccess: true);
-
-            await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
 
-        async void MeasuresFromCodeButton_Click(object sender, RoutedEventArgs e)
+        void MeasuresFromCodeButton_Click(object sender, RoutedEventArgs e)
         {
             var window = new RoomMeasurementsFromCodeWindow(_doc);
             window.Owner = this;
@@ -480,8 +443,6 @@ namespace SmartRemont.ExportRooms.Views
 
             if (window.DialogResult == true)
                 SetStatus(window.LastSuccessMessage ?? "Замеры по коду отправлены", isSuccess: true);
-
-            await RefreshEventStatusesAsync().ConfigureAwait(true);
         }
 
         void MeasuresCompareButton_Click(object sender, RoutedEventArgs e)
@@ -501,13 +462,13 @@ namespace SmartRemont.ExportRooms.Views
         void RevitMaterialsButton_Click(object sender, RoutedEventArgs e)
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
             {
-                SetStatus("Не указан ID ремонта", isSuccess: false);
+                SetStatus("Не указан ID заявки", isSuccess: false);
                 return;
             }
 
-            var window = new RevitMaterialsWindow(remont.RemontId.Value, _doc);
+            var window = new RevitMaterialsWindow(remont.ClientRequestId, _doc);
             window.Owner = this;
             window.ShowDialog();
         }

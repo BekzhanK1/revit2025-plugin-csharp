@@ -22,6 +22,14 @@
 7. [smart-remont-revit-plugin/FILE_MAP.md](smart-remont-revit-plugin/FILE_MAP.md) — карта файлов
 8. [smart-remont-revit-plugin/ROADMAP.md](smart-remont-revit-plugin/ROADMAP.md) — обсуждённые направления (код, сверка с моделью, `SPECIFICATION_CODE`)
 
+## Эпики в работе
+
+| Эпик | Документ |
+|------|----------|
+| Primary key = `client_request_id` | [client-request-primary/](client-request-primary/) · [EPIC_TASKS](client-request-primary/task/EPIC_TASKS.md) |
+| Project init | [project-init/](project-init/) |
+| Revit materials sync | [revit-materials-sync/](revit-materials-sync/) |
+
 ## Корневые документы репозитория
 
 - [../AGENTS.md](../AGENTS.md) — правила для агентов (сборка, деплой)

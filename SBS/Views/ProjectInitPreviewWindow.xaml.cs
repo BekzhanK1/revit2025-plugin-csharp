@@ -9,19 +9,19 @@ namespace SmartRemont.ExportRooms.Views
 {
     public partial class ProjectInitPreviewWindow : Window
     {
-        readonly int _remontId;
+        readonly int _clientRequestId;
 
         public ProjectInitPreviewWindow(
-            int remontId,
+            int clientRequestId,
             string targetPath,
             bool fileExists,
             RevitMaterialReadResponse materialsResponse)
         {
             InitializeComponent();
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
-            _remontId = remontId;
+            _clientRequestId = clientRequestId;
 
-            SubtitleTextBlock.Text = BuildSubtitle(materialsResponse);
+            SubtitleTextBlock.Text = BuildSubtitle(clientRequestId, materialsResponse);
             TargetPathTextBlock.Text = targetPath ?? "—";
 
             if (fileExists)
@@ -45,16 +45,18 @@ namespace SmartRemont.ExportRooms.Views
             MaterialsDataGrid.ItemsSource = rows;
         }
 
-        static string BuildSubtitle(RevitMaterialReadResponse response)
+        static string BuildSubtitle(int clientRequestId, RevitMaterialReadResponse response)
         {
+            var crId = response?.ClientRequestId is > 0
+                ? response.ClientRequestId.Value
+                : clientRequestId;
             var remontId = response?.RemontId ?? 0;
-            var clientRequestId = response?.ClientRequestId;
 
-            if (clientRequestId.HasValue && clientRequestId.Value > 0 && remontId > 0)
-                return $"Ремонт #{remontId} · Заявка #{clientRequestId.Value}";
+            if (crId > 0 && remontId > 0)
+                return $"Заявка #{crId} · Ремонт #{remontId}";
 
-            if (remontId > 0)
-                return $"Ремонт #{remontId}";
+            if (crId > 0)
+                return $"Заявка #{crId}";
 
             return "Проверьте список материалов перед созданием проекта.";
         }
@@ -98,7 +100,7 @@ namespace SmartRemont.ExportRooms.Views
         string BuildStepsText(PreviewStats stats) =>
             "Будет выполнено:\n"
             + $"• SaveAs копии проекта\n"
-            + $"• Запись remont_id #{_remontId} в модель\n"
+            + $"• Запись client_request_id #{_clientRequestId} в модель\n"
             + $"• Загрузка материалов: {stats.Total} шт. (RFA: {stats.RfaCount}, surface: {stats.SurfaceCount})\n"
             + $"• Библиотека surfaces.rvt: {(stats.HasSurfacesLibrary ? "да" : "нет")}";
 

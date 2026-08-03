@@ -15,18 +15,18 @@ namespace SmartRemont.ExportRooms.Services
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        public static async Task<RevitMaterialReadResponse> ReadAsync(int remontId)
+        public static async Task<RevitMaterialReadResponse> ReadAsync(int clientRequestId)
         {
             var session = ExportRoomsApplication.CurrentSession;
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
                 throw new InvalidOperationException("Требуется авторизация");
 
-            if (remontId <= 0)
-                throw new InvalidOperationException("Не указан ID ремонта");
+            if (clientRequestId <= 0)
+                throw new InvalidOperationException("Не указан ID заявки");
 
             using var httpRequest = new HttpRequestMessage(
                 HttpMethod.Get,
-                Configs.RevitMaterialReadUrl(remontId));
+                Configs.RevitMaterialReadUrl(clientRequestId));
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
 
             using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);

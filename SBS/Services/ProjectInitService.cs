@@ -35,14 +35,14 @@ namespace SmartRemont.ExportRooms.Services
             if (remont == null)
                 throw new ArgumentNullException(nameof(remont));
 
-            var remontId = remont.RemontId ?? remont.Id;
-            if (remontId <= 0)
+            var clientRequestId = remont.ClientRequestId;
+            if (clientRequestId <= 0)
             {
-                return Fail("Не указан ID ремонта.");
+                return Fail("Не указан ID заявки (client_request_id).");
             }
 
             if (ProjectRemontMetadataService.IsInitialized(doc)
-                && !ProjectRemontMetadataService.ValidateMatches(doc, remontId))
+                && !ProjectRemontMetadataService.ValidateMatches(doc, clientRequestId))
             {
                 var existing = ProjectRemontMetadataService.TryRead(doc);
                 return new ProjectInitResult
@@ -50,8 +50,8 @@ namespace SmartRemont.ExportRooms.Services
                     Success = false,
                     RemontConflict = true,
                     ErrorMessage =
-                        $"Проект уже привязан к ремонту #{existing?.RemontId}. " +
-                        $"Нельзя инициализировать с ремонтом #{remontId}."
+                        $"Проект уже привязан к заявке #{existing?.ClientRequestId}. " +
+                        $"Нельзя инициализировать с заявкой #{clientRequestId}."
                 };
             }
 
@@ -60,7 +60,7 @@ namespace SmartRemont.ExportRooms.Services
             {
                 try
                 {
-                    materialsResponse = await RevitMaterialsService.ReadAsync(remontId).ConfigureAwait(true);
+                    materialsResponse = await RevitMaterialsService.ReadAsync(clientRequestId).ConfigureAwait(true);
                 }
                 catch (Exception ex)
                 {
@@ -74,7 +74,7 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             var targetPath = ProjectFileNamingService.BuildFullPath(
-                remontId,
+                clientRequestId,
                 ResolveResidentName(remont));
 
             Report(progress, "Сохранение копии проекта...");
@@ -91,12 +91,10 @@ namespace SmartRemont.ExportRooms.Services
                 };
             }
 
-            Report(progress, "Запись метаданных ремонта...");
+            Report(progress, "Запись метаданных заявки...");
             try
             {
-                var clientRequestId = remont.ClientRequestId;
-                if (clientRequestId <= 0 && materialsResponse.ClientRequestId.HasValue)
-                    clientRequestId = materialsResponse.ClientRequestId.Value;
+                var remontId = remont.RemontId ?? materialsResponse.RemontId ?? 0;
 
                 ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
                 {
@@ -107,7 +105,7 @@ namespace SmartRemont.ExportRooms.Services
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Error(ex, "Project init: metadata write failed");
-                return Fail("Не удалось записать метаданные ремонта: " + ex.Message, copyResult.TargetPath);
+                return Fail("Не удалось записать метаданные заявки: " + ex.Message, copyResult.TargetPath);
             }
 
             Report(progress, "Синхронизация материалов...");
@@ -116,7 +114,7 @@ namespace SmartRemont.ExportRooms.Services
             {
                 syncResult = await RevitMaterialsSyncOrchestrator.SyncAllAsync(
                     doc,
-                    remontId,
+                    clientRequestId,
                     materialsResponse.Data,
                     materialsResponse.SurfacesFileUrl?.Trim(),
                     materialsResponse.SurfacesFileHash?.Trim()).ConfigureAwait(true);
@@ -149,8 +147,8 @@ namespace SmartRemont.ExportRooms.Services
             CleanupBackupFiles(copyResult.TargetPath);
 
             ExportRoomsApplication._logger?.Information(
-                "Project init completed: remont_id={RemontId}, path={Path}, loaded={Loaded}, errors={Errors}",
-                remontId,
+                "Project init completed: client_request_id={ClientRequestId}, path={Path}, loaded={Loaded}, errors={Errors}",
+                clientRequestId,
                 copyResult.TargetPath,
                 syncResult.MaterialsLoaded,
                 syncResult.ErrorCount);

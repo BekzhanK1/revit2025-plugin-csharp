@@ -14,7 +14,7 @@ namespace SmartRemont.ExportRooms.Views
 {
     public partial class RevitMaterialsWindow : Window
     {
-        readonly int _remontId;
+        readonly int _clientRequestId;
         readonly Document _doc;
         bool _loadInProgress;
         bool _syncInProgress;
@@ -22,11 +22,11 @@ namespace SmartRemont.ExportRooms.Views
         string _surfacesFileHash;
         List<RevitMaterialRowVm> _rows = new();
 
-        public RevitMaterialsWindow(int remontId, Document doc)
+        public RevitMaterialsWindow(int clientRequestId, Document doc)
         {
             InitializeComponent();
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
-            _remontId = remontId;
+            _clientRequestId = clientRequestId;
             _doc = doc;
             Loaded += RevitMaterialsWindow_Loaded;
         }
@@ -51,23 +51,18 @@ namespace SmartRemont.ExportRooms.Views
 
             try
             {
-                var response = await RevitMaterialsService.ReadAsync(_remontId).ConfigureAwait(true);
+                var response = await RevitMaterialsService.ReadAsync(_clientRequestId).ConfigureAwait(true);
                 _surfacesFileUrl = response.SurfacesFileUrl?.Trim();
                 _surfacesFileHash = response.SurfacesFileHash?.Trim();
                 _rows = (response.Data ?? new List<RevitMaterialRowDto>())
                     .Select(ToRowVm)
                     .ToList();
 
-                if (response.ClientRequestId.HasValue)
-                {
-                    ClientRequestTextBlock.Text =
-                        $"Заявка #{response.ClientRequestId.Value} · Ремонт #{response.RemontId ?? _remontId}";
-                    ClientRequestTextBlock.Visibility = System.Windows.Visibility.Visible;
-                }
-                else
-                {
-                    ClientRequestTextBlock.Visibility = System.Windows.Visibility.Collapsed;
-                }
+                var clientRequestId = response.ClientRequestId ?? _clientRequestId;
+                ClientRequestTextBlock.Text = response.RemontId is int remontId && remontId > 0
+                    ? $"Заявка #{clientRequestId} · Ремонт #{remontId}"
+                    : $"Заявка #{clientRequestId}";
+                ClientRequestTextBlock.Visibility = System.Windows.Visibility.Visible;
 
                 if (_rows.Count == 0)
                 {
@@ -153,7 +148,7 @@ namespace SmartRemont.ExportRooms.Views
 
                 var result = await RevitMaterialsSyncOrchestrator.SyncAllAsync(
                     _doc,
-                    _remontId,
+                    _clientRequestId,
                     _rows.Select(r => r.Source),
                     _surfacesFileUrl,
                     _surfacesFileHash,

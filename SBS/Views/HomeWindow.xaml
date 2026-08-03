@@ -200,8 +200,8 @@
                     Padding="20,16"
                     Margin="0,0,0,20">
                 <StackPanel>
-                    <TextBlock Text="ПОИСК РЕМОНТА" Style="{StaticResource SectionLabel}"/>
-                    <TextBlock Text="ID ремонта"
+                    <TextBlock Text="ПОИСК ЗАЯВКИ" Style="{StaticResource SectionLabel}"/>
+                    <TextBlock Text="ID заявки"
                                FontSize="13"
                                FontWeight="SemiBold"
                                Foreground="#374151"
@@ -220,7 +220,7 @@
                                      GotFocus="IdTextBox_GotFocus"
                                      LostFocus="IdTextBox_LostFocus"/>
                             <TextBlock x:Name="IdPlaceholderTextBlock"
-                                       Text="Введите ID ремонта"
+                                       Text="Введите ID заявки"
                                        IsHitTestVisible="False"
                                        Foreground="#9CA3AF"
                                        FontSize="14"
@@ -251,7 +251,7 @@
                                Foreground="#9CA3AF"
                                TextWrapping="Wrap"
                                Margin="2,10,0,0"
-                               Text="Введите ID ремонта и нажмите Enter"/>
+                               Text="Введите ID заявки и нажмите Enter"/>
                 </StackPanel>
             </Border>
 

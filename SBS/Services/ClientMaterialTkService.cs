@@ -24,10 +24,10 @@ namespace SmartRemont.ExportRooms.Services
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        public static async Task<ClientMaterialTkSnapshot> ReadAsync(int remontId)
+        public static async Task<ClientMaterialTkSnapshot> ReadAsync(int clientRequestId)
         {
-            if (remontId <= 0)
-                throw new InvalidOperationException("Не указан ID ремонта");
+            if (clientRequestId <= 0)
+                throw new InvalidOperationException("Не указан ID заявки");
 
             var session = ExportRoomsApplication.CurrentSession;
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
@@ -35,7 +35,7 @@ namespace SmartRemont.ExportRooms.Services
 
             using var httpRequest = new HttpRequestMessage(
                 HttpMethod.Get,
-                Configs.ClientMaterialTkReadUrl(remontId));
+                Configs.ClientMaterialTkReadUrl(clientRequestId));
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
 
             using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);

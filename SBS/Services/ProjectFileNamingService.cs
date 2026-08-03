@@ -8,7 +8,7 @@ namespace SmartRemont.ExportRooms.Services
     public static class ProjectFileNamingService
     {
         public const int MaxBaseNameLength = 80;
-        public const string DefaultResidentFallback = "Remont";
+        public const string DefaultResidentFallback = "Zayavka";
         public const string ProjectFileExtension = ".rvt";
 
         public static string GetDefaultProjectsFolder()
@@ -19,38 +19,38 @@ namespace SmartRemont.ExportRooms.Services
                 "Projects");
         }
 
-        public static string BuildBaseName(int remontId, string residentName)
+        public static string BuildBaseName(int clientRequestId, string residentName)
         {
-            if (remontId <= 0)
-                throw new ArgumentOutOfRangeException(nameof(remontId), "remontId must be positive.");
+            if (clientRequestId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(clientRequestId), "clientRequestId must be positive.");
 
             var sanitizedResident = SanitizeResidentName(residentName);
             if (string.IsNullOrEmpty(sanitizedResident))
                 sanitizedResident = DefaultResidentFallback;
 
-            var baseName = $"{remontId}_{sanitizedResident}";
-            return TruncateBaseName(baseName, remontId, sanitizedResident);
+            var baseName = $"{clientRequestId}_{sanitizedResident}";
+            return TruncateBaseName(baseName, clientRequestId, sanitizedResident);
         }
 
-        public static string BuildFileName(int remontId, string residentName) =>
-            BuildBaseName(remontId, residentName) + ProjectFileExtension;
+        public static string BuildFileName(int clientRequestId, string residentName) =>
+            BuildBaseName(clientRequestId, residentName) + ProjectFileExtension;
 
-        public static string BuildProjectDirectory(int remontId, string residentName, string baseFolder = null)
+        public static string BuildProjectDirectory(int clientRequestId, string residentName, string baseFolder = null)
         {
             var folder = string.IsNullOrWhiteSpace(baseFolder)
                 ? GetDefaultProjectsFolder()
                 : baseFolder.Trim();
 
-            return Path.Combine(folder, BuildBaseName(remontId, residentName));
+            return Path.Combine(folder, BuildBaseName(clientRequestId, residentName));
         }
 
         /// <summary>
-        /// Documents\SmartRemont\Projects\{remont_id}_{name}\{remont_id}_{name}.rvt
+        /// Documents\SmartRemont\Projects\{client_request_id}_{name}\{client_request_id}_{name}.rvt
         /// </summary>
-        public static string BuildFullPath(int remontId, string residentName, string baseFolder = null)
+        public static string BuildFullPath(int clientRequestId, string residentName, string baseFolder = null)
         {
-            var projectDirectory = BuildProjectDirectory(remontId, residentName, baseFolder);
-            return Path.Combine(projectDirectory, BuildFileName(remontId, residentName));
+            var projectDirectory = BuildProjectDirectory(clientRequestId, residentName, baseFolder);
+            return Path.Combine(projectDirectory, BuildFileName(clientRequestId, residentName));
         }
 
         public static void EnsureDirectoryExists(string folderPath)
@@ -83,15 +83,15 @@ namespace SmartRemont.ExportRooms.Services
             return sanitized.Trim('_', ' ');
         }
 
-        static string TruncateBaseName(string baseName, int remontId, string sanitizedResident)
+        static string TruncateBaseName(string baseName, int clientRequestId, string sanitizedResident)
         {
             if (baseName.Length <= MaxBaseNameLength)
                 return baseName;
 
-            var prefix = $"{remontId}_";
+            var prefix = $"{clientRequestId}_";
             var maxResidentLength = MaxBaseNameLength - prefix.Length;
             if (maxResidentLength <= 0)
-                return remontId.ToString();
+                return clientRequestId.ToString();
 
             var truncatedResident = sanitizedResident.Length <= maxResidentLength
                 ? sanitizedResident
@@ -100,7 +100,7 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrEmpty(truncatedResident))
                 truncatedResident = DefaultResidentFallback;
 
-            return $"{remontId}_{truncatedResident}";
+            return $"{clientRequestId}_{truncatedResident}";
         }
 
         static string CollapseWhitespaceToUnderscores(string value)

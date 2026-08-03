@@ -210,9 +210,9 @@ namespace SmartRemont.ExportRooms.Views
                 return;
 
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId == null || remont.RemontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
             {
-                FinalizeMaterialView(_lastCatalogNote, "ТК: нет remont_id для загрузки.");
+                FinalizeMaterialView(_lastCatalogNote, "ТК: нет client_request_id для загрузки.");
                 return;
             }
 
@@ -228,7 +228,7 @@ namespace SmartRemont.ExportRooms.Views
             try
             {
                 _tkSnapshot = await ClientMaterialTkService
-                    .ReadAsync(remont.RemontId.Value)
+                    .ReadAsync(remont.ClientRequestId)
                     .ConfigureAwait(true);
 
                 _allRooms = ApplyTkComparison(_baseRooms, _tkSnapshot);

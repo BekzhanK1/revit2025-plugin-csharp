@@ -58,7 +58,7 @@ namespace SmartRemont.ExportRooms.Views
             if (_doc == null)
                 return;
 
-            if (ExportRoomsApplication.SelectedRemont?.RemontId is int remontId && remontId > 0)
+            if (ExportRoomsApplication.SelectedRemont?.ClientRequestId > 0)
                 return;
 
             ProjectRemontBindingService.TryBindFromDocument(_doc);
@@ -67,24 +67,22 @@ namespace SmartRemont.ExportRooms.Views
         bool TryShowBoundRemontBanner()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            var remontId = remont?.RemontId;
+            var clientRequestId = remont?.ClientRequestId ?? 0;
             var docInitialized = _doc != null && ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
 
-            if (remontId is not int id || id <= 0)
+            if (clientRequestId <= 0)
             {
                 if (!docInitialized)
                     return false;
 
                 EnsureBoundFromDocument();
                 remont = ExportRoomsApplication.SelectedRemont;
-                remontId = remont?.RemontId;
-                if (remontId is not int boundId || boundId <= 0)
+                clientRequestId = remont?.ClientRequestId ?? 0;
+                if (clientRequestId <= 0)
                     return false;
-
-                id = boundId;
             }
 
-            BoundRemontBannerText.Text = $"Ремонт привязан к проекту #{id}";
+            BoundRemontBannerText.Text = BuildBoundBannerText(remont);
             BoundRemontBanner.Visibility = Visibility.Visible;
             return true;
         }
@@ -92,7 +90,7 @@ namespace SmartRemont.ExportRooms.Views
         async System.Threading.Tasks.Task EnrichBoundRemontAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.RemontId is not int remontId || remontId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
                 return;
 
             await ProjectRemontBindingService.TryEnrichFromQuickSearchAsync(remont)
@@ -103,21 +101,26 @@ namespace SmartRemont.ExportRooms.Views
 
         static string BuildBoundBannerText(RemontOption remont)
         {
-            if (remont?.RemontId is not int remontId || remontId <= 0)
-                return "Ремонт привязан к проекту";
+            if (remont == null || remont.ClientRequestId <= 0)
+                return "Проект привязан к заявке";
+
+            var idPart = remont.RemontId is int boundRemontId && boundRemontId > 0
+                ? $"заявке #{remont.ClientRequestId} · ремонту #{boundRemontId}"
+                : $"заявке #{remont.ClientRequestId}";
+            var placeholder = $"Ремонт #{remont.RemontId}";
 
             if (!string.IsNullOrWhiteSpace(remont.Name)
-                && !string.Equals(remont.Name.Trim(), $"Ремонт #{remontId}", StringComparison.Ordinal))
-                return $"Ремонт привязан к проекту #{remontId} · {remont.Name.Trim()}";
+                && !string.Equals(remont.Name.Trim(), placeholder, StringComparison.Ordinal))
+                return $"Проект привязан к {idPart} · {remont.Name.Trim()}";
 
-            return $"Ремонт привязан к проекту #{remontId}";
+            return $"Проект привязан к {idPart}";
         }
 
         void ContinueToHubButton_Click(object sender, RoutedEventArgs e)
         {
-            if (ExportRoomsApplication.SelectedRemont?.RemontId is not int remontId || remontId <= 0)
+            if (ExportRoomsApplication.SelectedRemont?.ClientRequestId is not int clientRequestId || clientRequestId <= 0)
             {
-                SetStatus("Не удалось определить привязанный ремонт", isError: true);
+                SetStatus("Не удалось определить привязанную заявку", isError: true);
                 return;
             }
 
@@ -147,7 +150,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (!TryParseSearchId(out var id))
             {
-                SetStatus("Введите корректный числовой ID ремонта", isError: true);
+                SetStatus("Введите корректный числовой ID заявки", isError: true);
                 ClearResults();
                 return;
             }
@@ -157,7 +160,7 @@ namespace SmartRemont.ExportRooms.Views
 
             try
             {
-                var results = await RemontService.QuickSearchAsync(byRemontId: true, id)
+                var results = await RemontService.QuickSearchAsync(byRemontId: false, id)
                     .ConfigureAwait(true);
 
                 ResultsListBox.ItemsSource = results;

@@ -125,7 +125,7 @@ namespace SmartRemont.ExportRooms.Views
             var remont = ExportRoomsApplication.SelectedRemont;
             if (remont?.RemontId == null || remont.RemontId <= 0)
             {
-                MessageBox.Show("У выбранного ремонта нет remont_id.", "Smart Remont",
+                MessageBox.Show("У выбранной заявки ещё нет ремонта — отправка недоступна.", "Smart Remont",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

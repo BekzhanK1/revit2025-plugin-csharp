@@ -200,12 +200,12 @@
                        Visibility="Collapsed"/>
 
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="RemontIdHeroText"
+                    <TextBlock x:Name="ClientRequestIdHeroText"
                                FontSize="30"
                                FontWeight="SemiBold"
                                Foreground="#111827"
                                VerticalAlignment="Bottom"/>
-                    <TextBlock x:Name="ClientRequestIdHeroText"
+                    <TextBlock x:Name="RemontIdHeroText"
                                FontSize="24"
                                FontWeight="SemiBold"
                                Foreground="#1B6FC8"

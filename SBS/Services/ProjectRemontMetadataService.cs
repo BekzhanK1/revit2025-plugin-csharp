@@ -91,29 +91,33 @@ namespace SmartRemont.ExportRooms.Services
         public static bool IsInitialized(Document doc)
         {
             var metadata = TryRead(doc);
-            return metadata != null && metadata.RemontId > 0;
+            return metadata != null && metadata.ClientRequestId > 0;
         }
 
         /// <summary>
-        /// Шаблон или несохранённый RVT может содержать remont_id в Storage после неудачной init —
+        /// Шаблон или несохранённый RVT может содержать client_request_id в Storage после неудачной init —
         /// для меню хаба «инициализирован» только файл из SmartRemont\Projects.
         /// </summary>
         public static bool CanUseHubWorkFeatures(Document doc)
         {
             var metadata = TryRead(doc);
-            if (metadata == null || metadata.RemontId <= 0)
+            if (metadata == null || metadata.ClientRequestId <= 0)
                 return false;
 
-            return IsSavedInitializedProjectFile(doc, metadata.RemontId);
+            return IsSavedInitializedProjectFile(doc, metadata.ClientRequestId, metadata.RemontId);
         }
 
-        public static bool ValidateMatches(Document doc, int expectedRemontId)
+        public static bool ValidateMatches(Document doc, int expectedClientRequestId)
         {
             var metadata = TryRead(doc);
-            return metadata != null && metadata.RemontId == expectedRemontId;
+            return metadata != null && metadata.ClientRequestId == expectedClientRequestId;
         }
 
-        static bool IsSavedInitializedProjectFile(Document doc, int remontId)
+        /// <summary>
+        /// Новые проекты именуются {client_request_id}_{name}.rvt; старые — {remont_id}_{name}.rvt
+        /// (совместимость чтения, remontId опционален).
+        /// </summary>
+        static bool IsSavedInitializedProjectFile(Document doc, int clientRequestId, int remontId)
         {
             var pathName = doc?.PathName;
             if (string.IsNullOrWhiteSpace(pathName))
@@ -138,8 +142,13 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrEmpty(fileName))
                 return false;
 
-            if (!fileName.StartsWith(remontId + "_", StringComparison.OrdinalIgnoreCase)
-                || !fileName.EndsWith(ProjectFileNamingService.ProjectFileExtension, StringComparison.OrdinalIgnoreCase))
+            if (!fileName.EndsWith(ProjectFileNamingService.ProjectFileExtension, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var matchesPrimary = fileName.StartsWith(clientRequestId + "_", StringComparison.OrdinalIgnoreCase);
+            var matchesLegacy = remontId > 0
+                && fileName.StartsWith(remontId + "_", StringComparison.OrdinalIgnoreCase);
+            if (!matchesPrimary && !matchesLegacy)
                 return false;
 
             var baseName = Path.GetFileNameWithoutExtension(fileName);

@@ -29,7 +29,7 @@ namespace SmartRemont.ExportRooms.Services
     {
         public static async Task<RevitMaterialsSyncResult> SyncAllAsync(
             Document doc,
-            int remontId,
+            int clientRequestId,
             string surfacesFileUrl,
             string surfacesFileHash,
             IProgress<RevitMaterialsSyncProgress> progress = null)
@@ -37,13 +37,13 @@ namespace SmartRemont.ExportRooms.Services
             if (doc == null)
                 throw new ArgumentNullException(nameof(doc));
 
-            var response = await RevitMaterialsService.ReadAsync(remontId).ConfigureAwait(true);
+            var response = await RevitMaterialsService.ReadAsync(clientRequestId).ConfigureAwait(true);
             var url = surfacesFileUrl ?? response.SurfacesFileUrl?.Trim();
             var hash = surfacesFileHash ?? response.SurfacesFileHash?.Trim();
 
             return await SyncAllAsync(
                 doc,
-                remontId,
+                clientRequestId,
                 response.Data,
                 url,
                 hash,
@@ -52,7 +52,7 @@ namespace SmartRemont.ExportRooms.Services
 
         public static async Task<RevitMaterialsSyncResult> SyncAllAsync(
             Document doc,
-            int remontId,
+            int clientRequestId,
             IEnumerable<RevitMaterialRowDto> materials,
             string surfacesFileUrl,
             string surfacesFileHash,
@@ -60,8 +60,8 @@ namespace SmartRemont.ExportRooms.Services
         {
             if (doc == null)
                 throw new ArgumentNullException(nameof(doc));
-            if (remontId <= 0)
-                throw new ArgumentOutOfRangeException(nameof(remontId), "remontId must be positive.");
+            if (clientRequestId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(clientRequestId), "clientRequestId must be positive.");
 
             var materialList = (materials ?? Enumerable.Empty<RevitMaterialRowDto>()).ToList();
 
@@ -105,7 +105,7 @@ namespace SmartRemont.ExportRooms.Services
             if (surfaceRows.Count > 0)
             {
                 var surfacesDownload = await RevitMaterialsDownloadService
-                    .EnsureSurfacesLibraryAsync(remontId, surfacesFileUrl, surfacesFileHash)
+                    .EnsureSurfacesLibraryAsync(clientRequestId, surfacesFileUrl, surfacesFileHash)
                     .ConfigureAwait(true);
 
                 downloadDone = downloadTotal;
@@ -150,8 +150,8 @@ namespace SmartRemont.ExportRooms.Services
                 errorCount += surfaceRows.Count;
 
             ExportRoomsApplication._logger?.Information(
-                "Materials sync completed: remont_id={RemontId}, loaded={Loaded}, errors={Errors}, syncable={Syncable}",
-                remontId,
+                "Materials sync completed: client_request_id={ClientRequestId}, loaded={Loaded}, errors={Errors}, syncable={Syncable}",
+                clientRequestId,
                 materialsLoaded,
                 errorCount,
                 rfaRows.Count + surfaceRows.Count);

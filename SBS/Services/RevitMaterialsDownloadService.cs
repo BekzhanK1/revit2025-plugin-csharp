@@ -88,7 +88,7 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             var tempPath = targetPath + ".tmp." + Guid.NewGuid().ToString("N");
-            var downloadUrl = UnwrapMinioConsoleShareUrl(surfacesFileUrl.Trim());
+            var downloadUrl = UnwrapMinioConsoleShareUrl(Configs.ResolveDownloadUrl(surfacesFileUrl.Trim()));
 
             try
             {
@@ -325,7 +325,8 @@ namespace SmartRemont.ExportRooms.Services
             try
             {
                 progress?.Report((materialId, done, total, downloading: true));
-                var bytes = await Http.GetByteArrayAsync(row.RevitFileUrl).ConfigureAwait(false);
+                var downloadUrl = UnwrapMinioConsoleShareUrl(Configs.ResolveDownloadUrl(row.RevitFileUrl));
+                var bytes = await Http.GetByteArrayAsync(downloadUrl).ConfigureAwait(false);
                 await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
                 if (File.Exists(targetPath))
                 {
