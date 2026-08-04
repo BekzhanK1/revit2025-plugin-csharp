@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:services="clr-namespace:SmartRemont.ExportRooms.Services"
-        Title="Настройки маппинга"
+        Title="Откуда брать замеры"
         Width="1040" Height="720"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
@@ -75,8 +75,9 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Настройки маппинга" Style="{StaticResource Heading1}"/>
-            <TextBlock Text="Только выбор из списков проекта Revit — без ручного ввода названий." Style="{StaticResource BodyText}"/>
+            <TextBlock Text="Откуда брать замеры" Style="{StaticResource Heading1}"/>
+            <TextBlock Text="Для каждого параметра системы выберите спецификацию и колонки из открытого проекта Revit. Только выбор из списков — без ручного ввода."
+                       Style="{StaticResource BodyText}" TextWrapping="Wrap"/>
         </StackPanel>
 
         <Grid Grid.Row="1">

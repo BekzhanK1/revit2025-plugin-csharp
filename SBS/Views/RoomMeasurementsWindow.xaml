@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont — Замеры комнат"
-        Width="960"
-        MinWidth="800"
+        Width="1100"
+        MinWidth="900"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
@@ -20,11 +20,10 @@
             <Style x:Key="AnimatedRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}">
                 <Setter Property="Opacity" Value="0"/>
                 <Style.Triggers>
-                    <!-- Fade-in animation for rows -->
                     <EventTrigger RoutedEvent="Loaded">
                         <BeginStoryboard>
                             <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.4">
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.35">
                                     <DoubleAnimation.EasingFunction>
                                         <CubicEase EasingMode="EaseOut"/>
                                     </DoubleAnimation.EasingFunction>
@@ -33,6 +32,20 @@
                         </BeginStoryboard>
                     </EventTrigger>
                 </Style.Triggers>
+            </Style>
+
+            <Style x:Key="HeaderIconButton" TargetType="Button" BasedOn="{StaticResource ModernSecondaryButton}">
+                <Setter Property="Padding" Value="14,0"/>
+                <Setter Property="Height" Value="40"/>
+            </Style>
+
+            <Style x:Key="PreviewCard" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF"/>
+                <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="Padding" Value="12,10"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -47,10 +60,36 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,24">
-                <TextBlock Text="Замеры комнат" Style="{StaticResource Heading1}"/>
-                <TextBlock Text="По каждому помещению: param_name, param_code, param_value из спецификаций Revit." Style="{StaticResource BodyText}"/>
-            </StackPanel>
+            <!-- Header -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Замеры комнат" Style="{StaticResource Heading1}"/>
+                    <TextBlock Text="Сравниваем значения в системе с тем, что нашлось в ведомостях Revit. После «Отправить» в систему уйдут значения из колонки «Из Revit»."
+                               Style="{StaticResource BodyText}" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Click="OpenSettingsButton_Click"
+                        Style="{StaticResource HeaderIconButton}"
+                        VerticalAlignment="Center"
+                        ToolTip="Указать, из каких спецификаций Revit брать каждый параметр">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE713;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock Text="Настроить источники"
+                                   FontFamily="Segoe UI"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
 
             <Border x:Name="EventStatusBanner"
                     Grid.Row="1"
@@ -76,6 +115,7 @@
                 </StackPanel>
             </Border>
 
+            <!-- Main compare -->
             <Border Grid.Row="2" Background="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -84,31 +124,42 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="ПО КОМНАТАМ" Style="{StaticResource SectionLabel}" Margin="0,0,0,16"/>
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <TextBlock Text="СРАВНЕНИЕ ПО КОМНАТАМ" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="SummaryHintText"
+                                   HorizontalAlignment="Right"
+                                   FontSize="12"
+                                   Foreground="#64748B"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
 
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="260"/>
-                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="20"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        
-                        <!-- MASTER: Rooms List -->
-                        <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8">
-                            <ListBox x:Name="RoomsListBox" 
-                                     BorderThickness="0" 
+
+                        <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8">
+                            <ListBox x:Name="RoomsListBox"
+                                     BorderThickness="0"
                                      Background="Transparent"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     SelectionChanged="RoomsListBox_SelectionChanged">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding" Value="16,12"/>
+                                        <Setter Property="Padding" Value="14,12"/>
                                         <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                         <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
                                         <Setter Property="Background" Value="Transparent"/>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListBoxItem">
-                                                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            Padding="{TemplateBinding Padding}">
                                                         <ContentPresenter/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -127,81 +178,127 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding RoomName}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding RoomName}"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                            <Border Grid.Column="1"
+                                                    Background="#DBEAFE"
+                                                    CornerRadius="10"
+                                                    Padding="7,2"
+                                                    Margin="8,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Visibility="{Binding BadgeVisibility}">
+                                                <TextBlock Text="{Binding OutgoingCount}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#1D4ED8"/>
+                                            </Border>
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Border>
-                        
-                        <!-- DETAIL: Parameters DataGrid -->
-                        <Border Grid.Column="2" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="{Binding ElementName=RoomsListBox, Path=SelectedItem.RoomName}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                        <Border Grid.Column="2" Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                    <TextBlock Text="{Binding ElementName=RoomsListBox, Path=SelectedItem.RoomName}"
+                                               FontSize="18" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Слева — что сейчас в системе. Справа — что найдено в Revit и уйдёт при отправке."
+                                               FontSize="12" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+
                                 <DataGrid ItemsSource="{Binding ElementName=RoomsListBox, Path=SelectedItem.Parameters}"
                                           Style="{StaticResource ModernDataGrid}"
                                           RowStyle="{StaticResource AnimatedRowStyle}"
-                                          MinHeight="120"
-                                          IsReadOnly="True">
+                                          MinHeight="160"
+                                          IsReadOnly="True"
+                                          HeadersVisibility="Column"
+                                          AutoGenerateColumns="False">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="param_name" Binding="{Binding param_name}" Width="2*">
+                                        <DataGridTextColumn Header="Параметр" Binding="{Binding param_name}" Width="2.2*">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="TextWrapping" Value="Wrap"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    <Setter Property="Padding" Value="0,6"/>
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Header="param_code" Binding="{Binding param_code}" Width="160">
+                                        <DataGridTextColumn Header="Код" Binding="{Binding param_code}" Width="130">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                    <Setter Property="Foreground" Value="#94A3B8"/>
+                                                    <Setter Property="FontSize" Value="12"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Header="Система" Binding="{Binding CurrentValueDisplay}" Width="95">
-                                             <DataGridTextColumn.ElementStyle>
-                                                 <Style TargetType="TextBlock">
-                                                     <Setter Property="HorizontalAlignment" Value="Right"/>
-                                                     <Setter Property="Margin" Value="0,0,12,0"/>
-                                                     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                                 </Style>
-                                             </DataGridTextColumn.ElementStyle>
-                                         </DataGridTextColumn>
-                                         <DataGridTemplateColumn Header="Разница" Width="95">
-                                             <DataGridTemplateColumn.CellTemplate>
-                                                 <DataTemplate>
-                                                     <TextBlock Text="{Binding DiffDisplay}" HorizontalAlignment="Right" Margin="0,0,12,0" FontWeight="SemiBold">
-                                                         <TextBlock.Style>
-                                                             <Style TargetType="TextBlock">
-                                                                 <Setter Property="Foreground" Value="#64748B"/>
-                                                                 <Style.Triggers>
-                                                                     <DataTrigger Binding="{Binding IsDifference}" Value="True">
-                                                                         <Setter Property="Foreground" Value="#DC2626"/>
-                                                                     </DataTrigger>
-                                                                 </Style.Triggers>
-                                                             </Style>
-                                                         </TextBlock.Style>
-                                                     </TextBlock>
-                                                 </DataTemplate>
-                                             </DataGridTemplateColumn.CellTemplate>
-                                         </DataGridTemplateColumn>
-                                         <DataGridTextColumn Header="Из Revit" Binding="{Binding param_value_display}" Width="95">
-                                             <DataGridTextColumn.ElementStyle>
-                                                 <Style TargetType="TextBlock">
-                                                     <Setter Property="HorizontalAlignment" Value="Right"/>
-                                                     <Setter Property="Margin" Value="0,0,12,0"/>
-                                                     <Setter Property="FontWeight" Value="SemiBold"/>
-                                                 </Style>
-                                             </DataGridTextColumn.ElementStyle>
-                                         </DataGridTextColumn>
+                                        <DataGridTextColumn Header="В системе" Binding="{Binding CurrentValueDisplay}" Width="90">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                                    <Setter Property="Margin" Value="0,0,10,0"/>
+                                                    <Setter Property="Foreground" Value="#64748B"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTemplateColumn Header="Изменение" Width="100">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DiffDisplay}"
+                                                               HorizontalAlignment="Right"
+                                                               Margin="0,0,10,0"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding WillSend}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#DC2626"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsMatch}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#16A34A"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Уйдёт в систему" Binding="{Binding param_value_display}" Width="110">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                                    <Setter Property="Margin" Value="0,0,8,0"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                            </StackPanel>
+                            </DockPanel>
                         </Border>
                     </Grid>
 
                     <TextBlock Grid.Row="2"
                                x:Name="NoDataTextBlock"
-                               Text="Не удалось прочитать данные из спецификаций."
+                               Text="Не удалось прочитать данные из спецификаций. Проверьте «Настроить источники»."
                                FontSize="14"
                                Foreground="{StaticResource TextSecondaryBrush}"
                                Margin="0,16,0,0"
@@ -210,37 +307,93 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="MappingPanel"
+            <!-- Preview panel -->
+            <Border x:Name="PreviewPanel"
                     Grid.Row="3"
-                    Background="#FAFAFA"
+                    Background="#F8FAFC"
                     BorderBrush="{StaticResource CardBorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="20"
-                    Margin="0,16,0,0"
+                    CornerRadius="10"
+                    Padding="18"
+                    Margin="0,14,0,0"
                     Visibility="Collapsed">
-                <StackPanel>
-                    <TextBlock Text="МАППИНГ ПАРАМЕТРОВ → СПЕЦИФИКАЦИИ" Style="{StaticResource SectionLabel}" Margin="0,0,0,12"/>
-                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl x:Name="SourcesItemsControl">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <TextBlock Text="ПРЕВЬЮ ОТПРАВКИ" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock x:Name="PreviewSummaryText"
+                                   FontSize="13"
+                                   Foreground="#334155"
+                                   Margin="0,6,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="PreviewItemsControl">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock FontSize="13" Margin="0,0,0,8" Text="{Binding LineText}" Foreground="{Binding StatusBrush}" TextWrapping="Wrap"/>
+                                    <Border Style="{StaticResource PreviewCard}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="140"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="28"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="160"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding RoomName}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                                                <TextBlock Text="{Binding ParamName}" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding SourceHint}" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding SystemDisplay}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#64748B"/>
+                                            <TextBlock Grid.Column="3" Text="→" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#94A3B8"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding RevitDisplay}" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                            <Border Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Background="{Binding ActionBrush}" CornerRadius="10" Padding="8,3">
+                                                <TextBlock Text="{Binding ActionLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding ActionForeground}"/>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                </StackPanel>
+                </DockPanel>
             </Border>
 
-            <Grid Grid.Row="4" Margin="0,24,0,0">
-                <TextBlock x:Name="StatusTextBlock" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,400,0"/>
+            <!-- Footer -->
+            <Grid Grid.Row="4" Margin="0,20,0,0">
+                <TextBlock x:Name="StatusTextBlock"
+                           VerticalAlignment="Center"
+                           FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,420,0"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button x:Name="MappingToggleButton" Content="Маппинг параметров" Style="{StaticResource ModernSecondaryButton}" Margin="0,0,12,0" Padding="20,0" Click="MappingToggleButton_Click"/>
-                    <Button x:Name="CloseButton" Content="Закрыть" Style="{StaticResource ModernSecondaryButton}" Margin="0,0,12,0" Padding="20,0" IsCancel="True" Click="CloseButton_Click"/>
-                    <Button x:Name="SendButton" Content="Отправить" Style="{StaticResource ModernPrimaryButton}" IsDefault="True" IsEnabled="False" Padding="32,0" Click="SendButton_Click"/>
+                    <Button x:Name="PreviewToggleButton"
+                            Content="Превью отправки"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            Margin="0,0,12,0"
+                            Padding="18,0"
+                            Click="PreviewToggleButton_Click"/>
+                    <Button x:Name="CloseButton"
+                            Content="Закрыть"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            Margin="0,0,12,0"
+                            Padding="20,0"
+                            IsCancel="True"
+                            Click="CloseButton_Click"/>
+                    <Button x:Name="SendButton"
+                            Content="Отправить"
+                            Style="{StaticResource ModernPrimaryButton}"
+                            IsDefault="True"
+                            IsEnabled="False"
+                            Padding="32,0"
+                            Click="SendButton_Click"/>
                 </StackPanel>
             </Grid>
+
             <local:LoadingOverlay x:Name="LoaderOverlay" Grid.RowSpan="5" Panel.ZIndex="1000"/>
         </Grid>
     </Border>

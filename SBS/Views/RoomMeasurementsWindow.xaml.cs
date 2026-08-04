@@ -3,10 +3,12 @@ using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace SmartRemont.ExportRooms.Views
@@ -16,42 +18,47 @@ namespace SmartRemont.ExportRooms.Views
         public string param_code { get; set; }
         public string param_name { get; set; }
         public double? param_value { get; set; }
-        
         public double? CurrentValue { get; set; }
+        public string SourceHint { get; set; }
 
-        public string param_value_display =>
-            param_value.HasValue
-                ? param_value.Value.ToString("0.##", CultureInfo.InvariantCulture)
-                : "—";
+        public string param_value_display => Format(param_value);
+        public string CurrentValueDisplay => Format(CurrentValue);
 
-        public string CurrentValueDisplay =>
-            CurrentValue.HasValue
-                ? CurrentValue.Value.ToString("0.##", CultureInfo.InvariantCulture)
-                : "—";
+        public bool WillSend => param_value.HasValue &&
+            (!CurrentValue.HasValue || Math.Abs(param_value.Value - CurrentValue.Value) > 0.001);
 
-        public bool IsDifference => param_value.HasValue && CurrentValue.HasValue && Math.Abs(param_value.Value - CurrentValue.Value) > 0.001;
+        public bool IsMatch => param_value.HasValue && CurrentValue.HasValue &&
+            Math.Abs(param_value.Value - CurrentValue.Value) <= 0.001;
 
         public string DiffDisplay
         {
             get
             {
-                if (!param_value.HasValue) return string.Empty;
-                if (!CurrentValue.HasValue) return "Новое";
-                
+                if (!param_value.HasValue && !CurrentValue.HasValue) return "—";
+                if (!param_value.HasValue) return "нет в Revit";
+                if (!CurrentValue.HasValue) return "новое";
+                if (IsMatch) return "совпадает";
+
                 var diff = param_value.Value - CurrentValue.Value;
-                if (Math.Abs(diff) <= 0.001) return string.Empty;
-                
-                return diff > 0 
+                return diff > 0
                     ? $"▲ +{diff.ToString("0.##", CultureInfo.InvariantCulture)}"
                     : $"▼ {diff.ToString("0.##", CultureInfo.InvariantCulture)}";
             }
         }
+
+        static string Format(double? value) =>
+            value.HasValue
+                ? value.Value.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
     }
 
     public class RoomMeasuresRoomVm
     {
         public string RoomName { get; set; }
-        public System.Collections.Generic.List<RoomMeasurementParamVm> Parameters { get; set; }
+        public List<RoomMeasurementParamVm> Parameters { get; set; } = new();
+        public int OutgoingCount => Parameters?.Count(p => p.WillSend) ?? 0;
+        public System.Windows.Visibility BadgeVisibility =>
+            OutgoingCount > 0 ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
     }
 
     public class RoomMeasurementSourceVm
@@ -60,13 +67,26 @@ namespace SmartRemont.ExportRooms.Views
         public Brush StatusBrush { get; set; }
     }
 
+    public class MeasurePreviewItemVm
+    {
+        public string RoomName { get; set; }
+        public string ParamName { get; set; }
+        public string SourceHint { get; set; }
+        public string SystemDisplay { get; set; }
+        public string RevitDisplay { get; set; }
+        public string ActionLabel { get; set; }
+        public Brush ActionBrush { get; set; }
+        public Brush ActionForeground { get; set; }
+    }
+
     public partial class RoomMeasurementsWindow : Window
     {
         readonly Document _doc;
-        bool _mappingVisible;
+        bool _previewVisible;
         RoomMeasurementsSnapshot _snapshot;
-        System.Collections.Generic.Dictionary<string, int> _roomIdsByKey = new();
-        System.Collections.Generic.Dictionary<string, MeasureRoomInfoDto> _backendRoomsByKey = new();
+        Dictionary<string, int> _roomIdsByKey = new();
+        Dictionary<string, MeasureRoomInfoDto> _backendRoomsByKey = new();
+        List<RoomMeasuresRoomVm> _roomVms = new();
 
         public string LastSuccessMessage { get; private set; }
 
@@ -81,49 +101,89 @@ namespace SmartRemont.ExportRooms.Views
         async void RoomMeasurementsWindow_Loaded(object sender, RoutedEventArgs e)
         {
             await LoadRoomIdsAsync().ConfigureAwait(true);
+            ReloadUi();
+            await LoaderOverlay.HideAsync();
+        }
 
+        void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new ScheduleMappingWindow(_doc) { Owner = this };
+            if (win.ShowDialog() == true)
+                ReloadUi();
+        }
+
+        void ReloadUi()
+        {
             _snapshot = RoomMeasurementsService.Collect(_doc);
-            var rooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
+            MergeMissingSystemRooms();
 
-            RoomsListBox.ItemsSource = rooms;
-            if (rooms.Count > 0)
+            _roomVms = _snapshot.Rooms.Select(ToRoomVm).OrderBy(r => r.RoomName).ToList();
+            RoomsListBox.ItemsSource = _roomVms;
+            if (_roomVms.Count > 0)
                 RoomsListBox.SelectedIndex = 0;
 
-            SourcesItemsControl.ItemsSource = _snapshot.Sources.Select(ToSourceVm).ToList();
+            var hasRows = _roomVms.Count > 0;
+            RoomsListBox.Visibility = hasRows ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            NoDataTextBlock.Visibility = hasRows ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
 
-            var hasRows = rooms.Count > 0;
-            RoomsListBox.Visibility = hasRows
-                ? System.Windows.Visibility.Visible
-                : System.Windows.Visibility.Collapsed;
-            NoDataTextBlock.Visibility = hasRows
-                ? System.Windows.Visibility.Collapsed
-                : System.Windows.Visibility.Visible;
-
-            var foundCount = _snapshot.Sources.Count(s => s.Found);
+            RefreshPreview();
             UpdateSendButtonState();
-            if (string.IsNullOrWhiteSpace(StatusTextBlock.Text) || StatusTextBlock.Text.StartsWith("Помещений"))
+            UpdateSummaryHint();
+        }
+
+        void MergeMissingSystemRooms()
+        {
+            if (_backendRoomsByKey == null || _backendRoomsByKey.Count == 0)
+                return;
+
+            var existing = new HashSet<string>(
+                _snapshot.Rooms.Select(r => RoomNameMatcher.GetBaseName(r.RoomName)),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var kvp in _backendRoomsByKey)
             {
-                StatusTextBlock.Text = hasRows
-                    ? $"Помещений: {rooms.Count}. Параметров с данными: {foundCount} из {_snapshot.Sources.Count}."
-                    : $"Параметров с данными: {foundCount} из {_snapshot.Sources.Count}.";
+                if (!existing.Add(kvp.Key))
+                    continue;
+
+                _snapshot.Rooms.Add(new RoomMeasurementsRoomRow
+                {
+                    RoomName = kvp.Key,
+                    Parameters = RoomMeasurementsScheduleMapping.All
+                        .Where(entry => RoomMeasurementsService.ParamAppliesToRoom(entry, kvp.Key))
+                        .Select(entry => new RoomMeasurementParamItem
+                        {
+                            param_code = entry.ParamCode,
+                            param_name = entry.ParamName,
+                            param_value = null
+                        })
+                        .ToList()
+                });
             }
-            
-            await LoaderOverlay.HideAsync();
+        }
+
+        void UpdateSummaryHint()
+        {
+            var outgoing = _roomVms.Sum(r => r.OutgoingCount);
+            var withRevit = _roomVms.SelectMany(r => r.Parameters).Count(p => p.param_value.HasValue);
+            SummaryHintText.Text = outgoing > 0
+                ? $"К отправке: {outgoing} измен. · найдено в Revit: {withRevit}"
+                : withRevit > 0
+                    ? $"В Revit найдено {withRevit} знач., изменений нет"
+                    : "В Revit пока нет значений — проверьте источники";
         }
 
         void UpdateSendButtonState()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
             var hasValues = HasAnyParamValues(_snapshot);
-            var canSend = (remont?.ClientRequestId ?? 0) > 0 && hasValues;
-            SendButton.IsEnabled = canSend;
+            SendButton.IsEnabled = (remont?.ClientRequestId ?? 0) > 0 && hasValues;
 
             if ((remont?.ClientRequestId ?? 0) <= 0)
                 SetStatus("Отправка недоступна: не указан ID заявки.", isError: true);
             else if (!hasValues)
-                SetStatus("Нет заполненных замеров для отправки.", isError: false);
+                SetStatus("Нет значений из Revit для отправки. Откройте «Настроить источники» или проверьте ведомости.", isError: false);
             else
-                SetStatus("Проверьте замеры и нажмите «Отправить».", isError: false);
+                SetStatus("Проверьте превью и нажмите «Отправить» — в систему уйдут значения из колонки «Уйдёт в систему».", isError: false);
         }
 
         async Task LoadRoomIdsAsync()
@@ -136,8 +196,8 @@ namespace SmartRemont.ExportRooms.Views
             {
                 var rooms = await MeasuresService.ReadAsync(remont.ClientRequestId).ConfigureAwait(true);
                 _roomIdsByKey = MeasuresService.BuildRoomIdsByKey(rooms);
-                _backendRoomsByKey = (rooms ?? System.Linq.Enumerable.Empty<MeasureRoomInfoDto>())
-                    .Where(r => r != null && !string.IsNullOrWhiteSpace(r.RoomName))
+                _backendRoomsByKey = (rooms ?? Enumerable.Empty<MeasureRoomInfoDto>())
+                    .Where(r => r != null && !string.IsNullOrWhiteSpace(r.RoomName) && r.PlanirovkaRoomId > 0)
                     .GroupBy(r => RoomNameMatcher.GetBaseName(r.RoomName), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             }
@@ -155,7 +215,7 @@ namespace SmartRemont.ExportRooms.Views
         async void SendButton_Click(object sender, RoutedEventArgs e) =>
             await SendMeasuresAsync();
 
-        async System.Threading.Tasks.Task SendMeasuresAsync()
+        async Task SendMeasuresAsync()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
             if (remont == null || remont.ClientRequestId <= 0)
@@ -217,7 +277,7 @@ namespace SmartRemont.ExportRooms.Views
                 hasValues;
             SendButton.Content = isBusy ? "Отправка…" : "Отправить";
             CloseButton.IsEnabled = !isBusy;
-            MappingToggleButton.IsEnabled = !isBusy;
+            PreviewToggleButton.IsEnabled = !isBusy;
         }
 
         void SetStatus(string message, bool isError)
@@ -232,48 +292,124 @@ namespace SmartRemont.ExportRooms.Views
             var baseName = RoomNameMatcher.GetBaseName(r.RoomName);
             _backendRoomsByKey.TryGetValue(baseName, out var backendRoom);
             var currentParams = backendRoom?.CurrentParameters;
+            var sourcesByCode = (_snapshot?.Sources ?? new List<RoomMeasurementSourceInfo>())
+                .GroupBy(s => s.param_code, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
             return new RoomMeasuresRoomVm
             {
                 RoomName = r.RoomName,
-                Parameters = r.Parameters
-                    .Select(p => 
+                Parameters = (r.Parameters ?? new List<RoomMeasurementParamItem>())
+                    .Select(p =>
                     {
-                        var currentParam = currentParams?.FirstOrDefault(cp => string.Equals(cp.ParamCode, p.param_code, StringComparison.OrdinalIgnoreCase));
+                        var currentParam = currentParams?.FirstOrDefault(cp =>
+                            string.Equals(cp.ParamCode, p.param_code, StringComparison.OrdinalIgnoreCase));
                         double? currentVal = null;
-                        if (currentParam != null && double.TryParse(currentParam.ParamValue?.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var cv))
+                        if (currentParam != null &&
+                            double.TryParse(currentParam.ParamValue?.Replace(',', '.'),
+                                NumberStyles.Any, CultureInfo.InvariantCulture, out var cv))
                             currentVal = cv;
+
+                        sourcesByCode.TryGetValue(p.param_code ?? "", out var source);
+                        var sourceHint = source == null
+                            ? "источник не настроен"
+                            : source.Found
+                                ? $"из «{source.schedule_name_found}»"
+                                : $"ведомость «{source.schedule_name_expected}» не найдена";
 
                         return new RoomMeasurementParamVm
                         {
                             param_code = p.param_code,
                             param_name = p.param_name,
                             param_value = p.param_value,
-                            CurrentValue = currentVal
+                            CurrentValue = currentVal,
+                            SourceHint = sourceHint
                         };
                     })
                     .ToList()
             };
         }
 
-        static RoomMeasurementSourceVm ToSourceVm(RoomMeasurementSourceInfo s) =>
-            new RoomMeasurementSourceVm
-            {
-                LineText = $"{s.param_code} · {s.param_name}\n"
-                           + $"  ведомость: «{s.schedule_name_expected}» → "
-                           + (s.Found ? $"«{s.schedule_name_found}»" : "не найдена") + "\n"
-                           + $"  {s.Message}",
-                StatusBrush = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(
-                    s.Found ? "#1B6FC8" : "#CC6666"))
-            };
-
-        void MappingToggleButton_Click(object sender, RoutedEventArgs e)
+        void RefreshPreview()
         {
-            _mappingVisible = !_mappingVisible;
-            MappingPanel.Visibility = _mappingVisible
+            var items = new List<MeasurePreviewItemVm>();
+            foreach (var room in _roomVms)
+            {
+                foreach (var p in room.Parameters.Where(x => x.param_value.HasValue || x.CurrentValue.HasValue))
+                {
+                    string action;
+                    string bg;
+                    string fg;
+                    if (p.WillSend && !p.CurrentValue.HasValue)
+                    {
+                        action = "новое → система";
+                        bg = "#DBEAFE";
+                        fg = "#1D4ED8";
+                    }
+                    else if (p.WillSend)
+                    {
+                        action = "обновит систему";
+                        bg = "#FEE2E2";
+                        fg = "#B91C1C";
+                    }
+                    else if (p.IsMatch)
+                    {
+                        action = "без изменений";
+                        bg = "#DCFCE7";
+                        fg = "#15803D";
+                    }
+                    else
+                    {
+                        action = "не уйдёт";
+                        bg = "#F1F5F9";
+                        fg = "#64748B";
+                    }
+
+                    items.Add(new MeasurePreviewItemVm
+                    {
+                        RoomName = room.RoomName,
+                        ParamName = p.param_name,
+                        SourceHint = p.SourceHint,
+                        SystemDisplay = p.CurrentValueDisplay,
+                        RevitDisplay = p.param_value_display,
+                        ActionLabel = action,
+                        ActionBrush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(bg)),
+                        ActionForeground = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(fg))
+                    });
+                }
+            }
+
+            // Show outgoing first, then matches, then the rest
+            PreviewItemsControl.ItemsSource = items
+                .OrderBy(i => i.ActionLabel.StartsWith("обновит") ? 0
+                    : i.ActionLabel.StartsWith("новое") ? 1
+                    : i.ActionLabel.StartsWith("без") ? 2 : 3)
+                .ThenBy(i => i.RoomName)
+                .ThenBy(i => i.ParamName)
+                .ToList();
+
+            var sendCount = items.Count(i =>
+                i.ActionLabel.Contains("обновит", StringComparison.Ordinal) ||
+                i.ActionLabel.Contains("новое", StringComparison.Ordinal));
+            PreviewSummaryText.Text = sendCount > 0
+                ? $"В систему уйдёт {sendCount} значений (новые или отличающиеся). Остальные строки — для справки."
+                : "Сейчас нечего менять в системе: либо Revit совпадает с системой, либо в ведомостях нет значений.";
+        }
+
+        void RoomsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // no-op — binding handles detail; kept for future hooks
+        }
+
+        void PreviewToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _previewVisible = !_previewVisible;
+            PreviewPanel.Visibility = _previewVisible
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
-            MappingToggleButton.Content = _mappingVisible ? "Скрыть маппинг" : "Маппинг параметров";
+            PreviewToggleButton.Content = _previewVisible ? "Скрыть превью" : "Превью отправки";
+            if (_previewVisible)
+                RefreshPreview();
         }
 
         void CloseButton_Click(object sender, RoutedEventArgs e)
