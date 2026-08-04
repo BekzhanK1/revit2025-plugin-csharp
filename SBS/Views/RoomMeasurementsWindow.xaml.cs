@@ -16,10 +16,36 @@ namespace SmartRemont.ExportRooms.Views
         public string param_code { get; set; }
         public string param_name { get; set; }
         public double? param_value { get; set; }
+        
+        public double? CurrentValue { get; set; }
+
         public string param_value_display =>
             param_value.HasValue
                 ? param_value.Value.ToString("0.##", CultureInfo.InvariantCulture)
                 : "—";
+
+        public string CurrentValueDisplay =>
+            CurrentValue.HasValue
+                ? CurrentValue.Value.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
+
+        public bool IsDifference => param_value.HasValue && CurrentValue.HasValue && Math.Abs(param_value.Value - CurrentValue.Value) > 0.001;
+
+        public string DiffDisplay
+        {
+            get
+            {
+                if (!param_value.HasValue) return string.Empty;
+                if (!CurrentValue.HasValue) return "Новое";
+                
+                var diff = param_value.Value - CurrentValue.Value;
+                if (Math.Abs(diff) <= 0.001) return string.Empty;
+                
+                return diff > 0 
+                    ? $"▲ +{diff.ToString("0.##", CultureInfo.InvariantCulture)}"
+                    : $"▼ {diff.ToString("0.##", CultureInfo.InvariantCulture)}";
+            }
+        }
     }
 
     public class RoomMeasuresRoomVm
@@ -40,6 +66,7 @@ namespace SmartRemont.ExportRooms.Views
         bool _mappingVisible;
         RoomMeasurementsSnapshot _snapshot;
         System.Collections.Generic.Dictionary<string, int> _roomIdsByKey = new();
+        System.Collections.Generic.Dictionary<string, MeasureRoomInfoDto> _backendRoomsByKey = new();
 
         public string LastSuccessMessage { get; private set; }
 
@@ -58,11 +85,14 @@ namespace SmartRemont.ExportRooms.Views
             _snapshot = RoomMeasurementsService.Collect(_doc);
             var rooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
 
-            RoomsItemsControl.ItemsSource = rooms;
+            RoomsListBox.ItemsSource = rooms;
+            if (rooms.Count > 0)
+                RoomsListBox.SelectedIndex = 0;
+
             SourcesItemsControl.ItemsSource = _snapshot.Sources.Select(ToSourceVm).ToList();
 
             var hasRows = rooms.Count > 0;
-            RoomsItemsControl.Visibility = hasRows
+            RoomsListBox.Visibility = hasRows
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
             NoDataTextBlock.Visibility = hasRows
@@ -106,6 +136,10 @@ namespace SmartRemont.ExportRooms.Views
             {
                 var rooms = await MeasuresService.ReadAsync(remont.ClientRequestId).ConfigureAwait(true);
                 _roomIdsByKey = MeasuresService.BuildRoomIdsByKey(rooms);
+                _backendRoomsByKey = (rooms ?? System.Linq.Enumerable.Empty<MeasureRoomInfoDto>())
+                    .Where(r => r != null && !string.IsNullOrWhiteSpace(r.RoomName))
+                    .GroupBy(r => RoomNameMatcher.GetBaseName(r.RoomName), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             }
             catch (Exception ex)
             {
@@ -193,19 +227,34 @@ namespace SmartRemont.ExportRooms.Views
                 (System.Windows.Media.Color)ColorConverter.ConvertFromString(isError ? "#C0392B" : "#666666"));
         }
 
-        static RoomMeasuresRoomVm ToRoomVm(RoomMeasurementsRoomRow r) =>
-            new RoomMeasuresRoomVm
+        RoomMeasuresRoomVm ToRoomVm(RoomMeasurementsRoomRow r)
+        {
+            var baseName = RoomNameMatcher.GetBaseName(r.RoomName);
+            _backendRoomsByKey.TryGetValue(baseName, out var backendRoom);
+            var currentParams = backendRoom?.CurrentParameters;
+
+            return new RoomMeasuresRoomVm
             {
                 RoomName = r.RoomName,
                 Parameters = r.Parameters
-                    .Select(p => new RoomMeasurementParamVm
+                    .Select(p => 
                     {
-                        param_code = p.param_code,
-                        param_name = p.param_name,
-                        param_value = p.param_value
+                        var currentParam = currentParams?.FirstOrDefault(cp => string.Equals(cp.ParamCode, p.param_code, StringComparison.OrdinalIgnoreCase));
+                        double? currentVal = null;
+                        if (currentParam != null && double.TryParse(currentParam.ParamValue?.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var cv))
+                            currentVal = cv;
+
+                        return new RoomMeasurementParamVm
+                        {
+                            param_code = p.param_code,
+                            param_name = p.param_name,
+                            param_value = p.param_value,
+                            CurrentValue = currentVal
+                        };
                     })
                     .ToList()
             };
+        }
 
         static RoomMeasurementSourceVm ToSourceVm(RoomMeasurementSourceInfo s) =>
             new RoomMeasurementSourceVm

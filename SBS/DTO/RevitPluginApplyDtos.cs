@@ -21,6 +21,9 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("is_measure_confirm")]
         public int IsMeasureConfirm { get; set; }
+
+        [JsonProperty("parameters")]
+        public List<MeasureApplyParamDto> CurrentParameters { get; set; }
     }
 
     public class MeasuresReadResponse
