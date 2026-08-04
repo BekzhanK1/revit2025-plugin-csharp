@@ -1,145 +1,72 @@
 <Window x:Class="SmartRemont.ExportRooms.Views.RoomMeasurementsCompareWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Smart Remont — Сравнение замеров"
-        Width="1100"
-        MinWidth="900"
+        xmlns:local="clr-namespace:SmartRemont.ExportRooms.Views"
+        Title="Smart Remont — Расхождения в замерах"
+        Width="1140"
+        MinWidth="960"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
-        Background="#F5F5F5">
+        Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
-        <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="32,28"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.08" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style x:Key="SectionBlock" TargetType="Border">
-            <Setter Property="Background" Value="#FAFAFA"/>
-            <Setter Property="BorderBrush" Value="#EEEEEE"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="18,16"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
-        </Style>
+            <Style x:Key="LegendSwatch" TargetType="Border">
+                <Setter Property="Width" Value="14"/>
+                <Setter Property="Height" Value="14"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="BorderThickness" Value="1"/>
+            </Style>
 
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#888888"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-
-        <Style x:Key="RoomBlock" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#EEEEEE"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="14,12"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-
-        <Style x:Key="LegendSwatch" TargetType="Border">
-            <Setter Property="Width" Value="12"/>
-            <Setter Property="Height" Value="12"/>
-            <Setter Property="CornerRadius" Value="2"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="MinWidth" Value="100"/>
-            <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#555555"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#F0F0F0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="RowHeight" Value="36"/>
-            <Setter Property="HeadersVisibility" Value="Column"/>
-            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#EEEEEE"/>
-            <Setter Property="AutoGenerateColumns" Value="False"/>
-            <Setter Property="CanUserAddRows" Value="False"/>
-            <Setter Property="CanUserDeleteRows" Value="False"/>
-            <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="SelectionMode" Value="Single"/>
-            <Setter Property="SelectionUnit" Value="FullRow"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="Foreground" Value="#666666"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="Padding" Value="10,0"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="CompareRowStyle" TargetType="DataGridRow">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Status}" Value="Match">
-                    <Setter Property="Background" Value="#E8F5E9"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="Mismatch">
-                    <Setter Property="Background" Value="#FFEBEE"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="ScheduleOnly">
-                    <Setter Property="Background" Value="#FFF8E1"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="CodeOnly">
-                    <Setter Property="Background" Value="#E3F2FD"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+            <Style x:Key="CompareRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}">
+                <Setter Property="Opacity" Value="0"/>
+                <Style.Triggers>
+                    <!-- Fade-in animation for rows -->
+                    <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.4">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                    <DataTrigger Binding="{Binding Status}" Value="Match">
+                        <Setter Property="Background" Value="#F0FDF4"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Status}" Value="Mismatch">
+                        <Setter Property="Background" Value="#FEF2F2"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Status}" Value="ScheduleOnly">
+                        <Setter Property="Background" Value="#FFFBEB"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Status}" Value="CodeOnly">
+                        <Setter Property="Background" Value="#EFF6FF"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            
+            <Style TargetType="CheckBox">
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource Card}" Margin="24">
+    <Border Style="{StaticResource ModernCard}" Margin="24">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -147,57 +74,37 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
-                       Text="Сравнение замеров"
-                       FontSize="24"
-                       FontWeight="SemiBold"
-                       Foreground="#1B1B1B"
-                       Margin="0,0,0,8"/>
+            <StackPanel Grid.Row="0" Margin="0,0,0,24">
+                <TextBlock Text="Сравнение замеров" Style="{StaticResource Heading1}"/>
+                <TextBlock Text="Спецификация Revit и расчёт по модели — в одной таблице. Цвет строки показывает результат сравнения." Style="{StaticResource BodyText}"/>
+            </StackPanel>
 
-            <TextBlock Grid.Row="1"
-                       Text="Спецификация Revit и расчёт по модели — в одной таблице. Цвет строки показывает результат сравнения."
-                       FontSize="13"
-                       Foreground="#888888"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,16"/>
-
-            <Border Grid.Row="2"
-                    Background="#FAFAFA"
-                    BorderBrush="#EEEEEE"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="14,10"
-                    Margin="0,0,0,12">
+            <Border Grid.Row="1" Background="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20,16" Margin="0,0,0,16">
                 <WrapPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                        <Border Style="{StaticResource LegendSwatch}" Background="#E8F5E9"/>
-                        <TextBlock Text="Совпадает" FontSize="12" Foreground="#555555" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
+                        <Border Style="{StaticResource LegendSwatch}" Background="#F0FDF4" BorderBrush="#BBF7D0"/>
+                        <TextBlock Text="Совпадает" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                        <Border Style="{StaticResource LegendSwatch}" Background="#FFEBEE"/>
-                        <TextBlock Text="Расхождение" FontSize="12" Foreground="#555555" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
+                        <Border Style="{StaticResource LegendSwatch}" Background="#FEF2F2" BorderBrush="#FECACA"/>
+                        <TextBlock Text="Расхождение" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                        <Border Style="{StaticResource LegendSwatch}" Background="#FFF8E1"/>
-                        <TextBlock Text="Только спецификация" FontSize="12" Foreground="#555555" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
+                        <Border Style="{StaticResource LegendSwatch}" Background="#FFFBEB" BorderBrush="#FDE68A"/>
+                        <TextBlock Text="Только спецификация" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                        <Border Style="{StaticResource LegendSwatch}" Background="#E3F2FD"/>
-                        <TextBlock Text="Только код" FontSize="12" Foreground="#555555" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
+                        <Border Style="{StaticResource LegendSwatch}" Background="#EFF6FF" BorderBrush="#BFDBFE"/>
+                        <TextBlock Text="Только код" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </WrapPanel>
             </Border>
 
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
-                <CheckBox x:Name="DifferencesOnlyCheckBox"
-                          Content="Только расхождения"
-                          FontSize="13"
-                          VerticalAlignment="Center"
-                          Checked="FilterCheckBox_Changed"
-                          Unchecked="FilterCheckBox_Changed"/>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,16">
+                <CheckBox x:Name="DifferencesOnlyCheckBox" Content="Только расхождения" Checked="FilterCheckBox_Changed" Unchecked="FilterCheckBox_Changed"/>
             </StackPanel>
 
-            <Border Grid.Row="4" Style="{StaticResource SectionBlock}" Margin="0">
+            <Border Grid.Row="3" Background="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -205,43 +112,57 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="ПО КОМНАТАМ" Style="{StaticResource SectionLabel}"/>
+                    <TextBlock Grid.Row="0" Text="ПО КОМНАТАМ" Style="{StaticResource SectionLabel}" Margin="0,0,0,16"/>
 
-                    <ScrollViewer Grid.Row="1"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl x:Name="RoomsItemsControl">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource RoomBlock}">
+                                    <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <TextBlock Text="{Binding RoomName}"
-                                                       FontSize="15"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#333333"
-                                                       Margin="0,0,0,10"/>
+                                            <TextBlock Text="{Binding RoomName}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                                             <DataGrid ItemsSource="{Binding Parameters}"
+                                                      Style="{StaticResource ModernDataGrid}"
                                                       RowStyle="{StaticResource CompareRowStyle}"
-                                                      MinHeight="80">
+                                                      MinHeight="80"
+                                                      IsReadOnly="True">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="param_name"
-                                                                        Binding="{Binding param_name}"
-                                                                        Width="2*"/>
-                                                    <DataGridTextColumn Header="param_code"
-                                                                        Binding="{Binding param_code}"
-                                                                        Width="130"/>
-                                                    <DataGridTextColumn Header="Спецификация"
-                                                                        Binding="{Binding schedule_value_display}"
-                                                                        Width="110"/>
-                                                    <DataGridTextColumn Header="Код"
-                                                                        Binding="{Binding code_value_display}"
-                                                                        Width="110"/>
-                                                    <DataGridTextColumn Header="Δ (код − спец.)"
-                                                                        Binding="{Binding delta_display}"
-                                                                        Width="110"/>
-                                                    <DataGridTextColumn Header="Статус"
-                                                                        Binding="{Binding status_display}"
-                                                                        Width="140"/>
+                                                    <DataGridTextColumn Header="param_name" Binding="{Binding param_name}" Width="2*">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
+                                                    <DataGridTextColumn Header="param_code" Binding="{Binding param_code}" Width="140">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
+                                                    <DataGridTextColumn Header="Спецификация" Binding="{Binding schedule_value_display}" Width="120">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
+                                                    <DataGridTextColumn Header="Код" Binding="{Binding code_value_display}" Width="120">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
+                                                    <DataGridTextColumn Header="Δ (код − спец.)" Binding="{Binding delta_display}" Width="120"/>
+                                                    <DataGridTextColumn Header="Статус" Binding="{Binding status_display}" Width="140">
+                                                        <DataGridTextColumn.ElementStyle>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            </Style>
+                                                        </DataGridTextColumn.ElementStyle>
+                                                    </DataGridTextColumn>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                         </StackPanel>
@@ -254,28 +175,21 @@
                     <TextBlock Grid.Row="2"
                                x:Name="NoDataTextBlock"
                                Text="Нет данных для сравнения."
-                               FontSize="13"
-                               Foreground="#999999"
+                               FontSize="14"
+                               Foreground="{StaticResource TextSecondaryBrush}"
                                Margin="0,16,0,0"
                                HorizontalAlignment="Center"
                                Visibility="Collapsed"/>
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="5" Margin="0,20,0,0">
-                <TextBlock x:Name="StatusTextBlock"
-                           VerticalAlignment="Center"
-                           FontSize="13"
-                           Foreground="#666666"
-                           TextWrapping="Wrap"
-                           Margin="0,0,120,0"/>
-                <Button x:Name="CloseButton"
-                        Content="Закрыть"
-                        Style="{StaticResource SecondaryButton}"
-                        HorizontalAlignment="Right"
-                        IsCancel="True"
-                        Click="CloseButton_Click"/>
+            <Grid Grid.Row="4" Margin="0,24,0,0">
+                <TextBlock x:Name="StatusTextBlock" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,160,0"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CloseButton" Content="Закрыть" Style="{StaticResource ModernPrimaryButton}" Margin="0,0,0,0" Padding="32,0" IsCancel="True" Click="CloseButton_Click"/>
+                </StackPanel>
             </Grid>
+            <local:LoadingOverlay x:Name="LoaderOverlay" Grid.RowSpan="5" Panel.ZIndex="1000"/>
         </Grid>
     </Border>
 </Window>

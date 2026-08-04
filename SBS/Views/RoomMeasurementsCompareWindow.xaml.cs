@@ -77,7 +77,7 @@ namespace SmartRemont.ExportRooms.Views
             Loaded += RoomMeasurementsCompareWindow_Loaded;
         }
 
-        void RoomMeasurementsCompareWindow_Loaded(object sender, RoutedEventArgs e)
+        async void RoomMeasurementsCompareWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _snapshot = RoomMeasurementsCompareService.Compare(_doc);
             _allRooms = _snapshot.Rooms.Select(ToRoomVm).ToList();
@@ -92,6 +92,8 @@ namespace SmartRemont.ExportRooms.Views
                 ? $"Строк: {total}. Совпадений: {_snapshot.MatchCount}, расхождений: {_snapshot.MismatchCount}, "
                   + $"только спецификация: {_snapshot.ScheduleOnlyCount}, только код: {_snapshot.CodeOnlyCount}."
                 : "Нет заполненных значений ни в спецификациях, ни в расчёте по модели.";
+                
+            await LoaderOverlay.HideAsync();
         }
 
         void ApplyFilter()

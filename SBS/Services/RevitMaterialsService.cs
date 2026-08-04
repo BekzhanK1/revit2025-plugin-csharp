@@ -53,6 +53,40 @@ namespace SmartRemont.ExportRooms.Services
             return parsed;
         }
 
+        public static async Task<(RevitMaterialReadResponse Data, bool Status, string Error)> TryReadAsync(int clientRequestId)
+        {
+            try
+            {
+                if (clientRequestId <= 0) return (null, false, "Не указан ID заявки");
+                var session = ExportRoomsApplication.CurrentSession;
+                if (session == null || string.IsNullOrWhiteSpace(session.AccessToken)) return (null, false, "Требуется авторизация");
+
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Get, Configs.RevitMaterialReadUrl(clientRequestId));
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+                using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+                var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var message = TryReadErrorMessage(responseBody) ?? $"Ошибка запроса материалов ({(int)response.StatusCode})";
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized) message = "Сессия истекла. Выйдите и войдите снова.";
+                    return (null, false, message);
+                }
+
+                var parsed = JsonConvert.DeserializeObject<RevitMaterialReadResponse>(responseBody);
+                if (parsed == null) return (null, false, "Сервер вернул некорректный ответ");
+                if (!parsed.Status) return (null, false, string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка запроса материалов" : parsed.Error);
+
+                parsed.Data ??= new List<RevitMaterialRowDto>();
+                return (parsed, true, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, false, ex.Message);
+            }
+        }
+
         static string TryReadErrorMessage(string responseBody)
         {
             if (string.IsNullOrWhiteSpace(responseBody))

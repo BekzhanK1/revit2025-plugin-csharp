@@ -1,4 +1,8 @@
+using Newtonsoft.Json;
 using SmartRemont.ExportRooms.DTO;
+using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace SmartRemont.ExportRooms.Models
 {
@@ -32,5 +36,45 @@ namespace SmartRemont.ExportRooms.Models
 
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(AccessToken) && User != null;
+
+        public bool HasGrant(string grant)
+        {
+            if (string.IsNullOrWhiteSpace(AccessToken) || string.IsNullOrWhiteSpace(grant))
+                return false;
+
+            try
+            {
+                var parts = AccessToken.Split('.');
+                if (parts.Length != 3) return false;
+
+                var payload = parts[1].Replace('-', '+').Replace('_', '/');
+                switch (payload.Length % 4)
+                {
+                    case 2: payload += "=="; break;
+                    case 3: payload += "="; break;
+                }
+
+                var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+                var data = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(json);
+                if (data?.grants != null)
+                {
+                    foreach (var g in data.grants)
+                    {
+                        if (string.Equals(g.ToString(), grant, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                    return false; // Grants array exists but doesn't contain the grant
+                }
+                
+                // If grants array is missing from token, assume true to not block the UI
+                return true;
+            }
+            catch
+            {
+                // ignore parsing errors
+            }
+
+            return true;
+        }
     }
 }

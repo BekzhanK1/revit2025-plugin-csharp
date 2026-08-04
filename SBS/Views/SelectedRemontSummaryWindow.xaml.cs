@@ -65,6 +65,7 @@ namespace SmartRemont.ExportRooms.Views
         double? _systemWallHeightM;
         DsAreaCompareStatus? _wallHeightCompareStatus;
         Dictionary<string, int> _roomIdsByKey = new();
+        bool _isDsAccepted;
 
         public string LastSuccessMessage { get; private set; }
 
@@ -108,6 +109,7 @@ namespace SmartRemont.ExportRooms.Views
 
             UpdateSendButtonState();
             await LoadSystemComparisonAsync().ConfigureAwait(true);
+            await LoaderOverlay.HideAsync();
         }
 
         async Task LoadSystemComparisonAsync()
@@ -145,13 +147,13 @@ namespace SmartRemont.ExportRooms.Views
             {
                 SystemDsInfoText.Text = system?.EmptyMessage
                     ?? "В системе пока нет ДС по изменению площадей для этого ремонта.";
-                CompareLegendPanel.Visibility = System.Windows.Visibility.Collapsed;
+                _isDsAccepted = false;
                 ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
                 UpdateSendButtonState();
                 return;
             }
 
-            CompareLegendPanel.Visibility = System.Windows.Visibility.Visible;
+            _isDsAccepted = system.Header?.IsAccept == 1;
 
             var dsParts = new List<string>();
             if (system.DsId.HasValue)
@@ -306,23 +308,29 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (remont == null)
             {
-                RemontNameText.Text = "—";
-                RemontIdText.Text = "—";
-                ClientRequestIdText.Text = "—";
+                RemontIdHeroText.Text = "Ремонт не выбран";
+                ClientRequestIdHeroText.Text = "ID заявки: —";
                 return;
             }
 
-            RemontNameText.Text = remont.Name ?? "—";
-            RemontIdText.Text = remont.RemontId.HasValue
-                ? remont.RemontId.Value.ToString()
-                : "—";
-            ClientRequestIdText.Text = remont.ClientRequestId.ToString();
+            RemontIdHeroText.Text = remont.RemontId.HasValue
+                ? $"Ремонт #{remont.RemontId.Value}"
+                : "Ремонт не создан";
+            ClientRequestIdHeroText.Text = $"Заявка #{remont.ClientRequestId}";
         }
 
         void UpdateSendButtonState()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
             var revitRows = _allRows.Where(r => r.AreaM2 > 0d).ToList();
+            
+            if (_isDsAccepted)
+            {
+                SendButton.IsEnabled = false;
+                SetStatus("ДС уже утверждена. Изменения невозможны.", isError: true);
+                return;
+            }
+
             var canSend = remont?.RemontId != null && remont.RemontId > 0 && revitRows.Count > 0;
             SendButton.IsEnabled = canSend;
 
@@ -457,10 +465,6 @@ namespace SmartRemont.ExportRooms.Views
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
 
-            SystemWallHeightText.Text = _systemWallHeightM.HasValue
-                ? _systemWallHeightM.Value.ToString("0.##", CultureInfo.InvariantCulture)
-                : "—";
-
             PayloadWallHeightText.Text = hasHeight
                 ? wallHeight.ToString("0.##", CultureInfo.InvariantCulture)
                 : "—";
@@ -469,37 +473,6 @@ namespace SmartRemont.ExportRooms.Views
                 row.IsPayloadHeight = hasHeight && Math.Abs(row.WallHeightM - wallHeight) < 0.005d;
 
             ApplyWallHeightCompareText(wallHeightStatus);
-
-            if (!hasHeight)
-            {
-                PayloadWallHeightNoteText.Text =
-                    "Высота по стенам Revit не определена.";
-                return;
-            }
-
-            var distinct = rowList
-                .Select(r => r.WallHeightM)
-                .Where(h => h > 0d)
-                .Distinct()
-                .OrderBy(h => h)
-                .ToList();
-
-            if (distinct.Count <= 1)
-            {
-                PayloadWallHeightNoteText.Visibility = wallHeightStatus == DsAreaCompareStatus.Match
-                    ? System.Windows.Visibility.Collapsed
-                    : System.Windows.Visibility.Visible;
-                PayloadWallHeightNoteText.Text =
-                    "В отправку — одно значение wall_height (мода по стенам Revit).";
-                return;
-            }
-
-            PayloadWallHeightNoteText.Visibility = System.Windows.Visibility.Visible;
-
-            var min = distinct.First().ToString("0.##", CultureInfo.InvariantCulture);
-            var max = distinct.Last().ToString("0.##", CultureInfo.InvariantCulture);
-            PayloadWallHeightNoteText.Text =
-                $"В Revit по помещениям: {min}–{max} м; синим в таблице — значение для отправки.";
         }
 
         void ApplyWallHeightCompareText(DsAreaCompareStatus? status)
@@ -544,6 +517,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             var revitRows = _allRows.Where(r => r.AreaM2 > 0d).ToList();
             SendButton.IsEnabled = !isBusy &&
+                !_isDsAccepted &&
                 ExportRoomsApplication.SelectedRemont?.RemontId > 0 &&
                 revitRows.Count > 0;
             SendButton.Content = isBusy ? "Отправка…" : "Отправить";

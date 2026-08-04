@@ -5,409 +5,294 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="SmartRemont — Экспорт помещений"
-        Width="700"
-        MinWidth="640"
-        SizeToContent="Width"
+        Width="780"
+        MinWidth="720"
+        SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         FontFamily="Segoe UI"
-        Background="#F5F5F5">
+        Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
-        <!-- Card style -->
-        <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="16"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.08" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            
+            <Style TargetType="ComboBox">
+                <Setter Property="Height" Value="38"/>
+                <Setter Property="Padding" Value="10,0"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}"/>
+            </Style>
 
-        <!-- Section label -->
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#888888"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
+            <Style TargetType="CheckBox">
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,6"/>
+            </Style>
 
-        <!-- Field label -->
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#555555"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Width" Value="160"/>
-        </Style>
-
-        <!-- ComboBox style -->
-        <Style TargetType="ComboBox">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
-        </Style>
-
-        <!-- TextBox style -->
-        <Style TargetType="TextBox">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-
-        <!-- CheckBox style -->
-        <Style TargetType="CheckBox">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#333333"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,3"/>
-        </Style>
-
-        <!-- Primary button -->
-        <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Height" Value="38"/>
-            <Setter Property="Padding" Value="20,0"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#1B6FC8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#155BB0"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#AAAAAA"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Secondary button -->
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="38"/>
-            <Setter Property="Padding" Value="20,0"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#555555"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#F0F0F0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Stat badge -->
-        <Style x:Key="StatBadge" TargetType="Border">
-            <Setter Property="Background" Value="#EEF4FC"/>
-            <Setter Property="CornerRadius" Value="5"/>
-            <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-        </Style>
+            <Style x:Key="StatBadge" TargetType="Border">
+                <Setter Property="Background" Value="#F8FAFC"/>
+                <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="Padding" Value="16,12"/>
+                <Setter Property="Margin" Value="0,0,12,0"/>
+                <Setter Property="MinWidth" Value="130"/>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <!-- Header -->
-            <RowDefinition Height="Auto"/>
-            <!-- Phase -->
-            <RowDefinition Height="Auto"/>
-            <!-- Parameters -->
-            <RowDefinition Height="Auto"/>
-            <!-- Filters -->
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <!-- Schedules -->
-            <RowDefinition Height="Auto"/>
-            <!-- Output -->
-            <RowDefinition Height="Auto"/>
-            <!-- Stats preview -->
-            <RowDefinition Height="Auto"/>
-            <!-- Buttons -->
-        </Grid.RowDefinitions>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Border Margin="24">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-        <!-- ─── Header ─── -->
-        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,10">
-            <StackPanel>
-                <TextBlock Text="Экспорт помещений" FontSize="18" FontWeight="SemiBold" Foreground="#1B1B1B"/>
-                <TextBlock Text="Настройте параметры экспорта перед выгрузкой JSON" FontSize="12" Foreground="#888888" Margin="0,3,0,0"/>
-            </StackPanel>
-        </Border>
-
-        <!-- ─── Phase selection ─── -->
-        <Border Grid.Row="1" Style="{StaticResource Card}">
-            <StackPanel>
-                <TextBlock Text="Фаза" Style="{StaticResource SectionLabel}"/>
-
-                <Grid Margin="0,0,0,10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="160"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Стадия проекта" Style="{StaticResource FieldLabel}"/>
-                    <ComboBox Grid.Column="1"
-                              x:Name="CmbPhase"
-                              DisplayMemberPath="Name"
-                              SelectionChanged="CmbPhase_SelectionChanged"
-                              ToolTip="Выберите фазу из которой будут взяты помещения"/>
+                <!-- ─── Header ─── -->
+                <Grid Grid.Row="0" Margin="0,0,0,24">
+                    <StackPanel>
+                        <TextBlock Text="Экспорт помещений" Style="{StaticResource Heading1}"/>
+                        <TextBlock Text="Настройте параметры экспорта перед выгрузкой JSON" Style="{StaticResource BodyText}"/>
+                    </StackPanel>
                 </Grid>
 
-                <!-- Phase info strip -->
-                <Border x:Name="PhaseInfoBorder" Background="#F0F7FF" CornerRadius="4" Padding="10,7" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="TxtPhaseInfo" FontSize="12" Foreground="#1B6FC8"/>
+                <!-- ─── Phase selection ─── -->
+                <Border Grid.Row="1" Style="{StaticResource ModernCard}" Margin="0,0,0,16" Padding="24,20">
+                    <StackPanel>
+                        <TextBlock Text="ФАЗА ПРОЕКТА" Style="{StaticResource SectionLabel}"/>
+                        
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Стадия проекта" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1"
+                                      x:Name="CmbPhase"
+                                      DisplayMemberPath="Name"
+                                      SelectionChanged="CmbPhase_SelectionChanged"
+                                      ToolTip="Выберите фазу из которой будут взяты помещения"/>
+                        </Grid>
+
+                        <Border x:Name="PhaseInfoBorder" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,16,0,0" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="TxtPhaseInfo" FontSize="13" Foreground="#1D4ED8"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
-            </StackPanel>
-        </Border>
 
-        <!-- ─── Parameter mapping ─── -->
-        <Border Grid.Row="2" Style="{StaticResource Card}">
-            <StackPanel>
-                <TextBlock Text="Параметры помещений" Style="{StaticResource SectionLabel}"/>
-                <TextBlock Text="Укажите точные названия параметров из вашего Revit-проекта" FontSize="12" Foreground="#888888" Margin="0,0,0,12"/>
+                <!-- ─── Parameter mapping ─── -->
+                <Border Grid.Row="2" Style="{StaticResource ModernCard}" Margin="0,0,0,16" Padding="24,20">
+                    <StackPanel>
+                        <TextBlock Text="ПАРАМЕТРЫ ПОМЕЩЕНИЙ" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Укажите точные названия параметров из вашего Revit-проекта" Style="{StaticResource BodyText}" Margin="0,0,0,16"/>
 
-                <!-- Row helper macro via Grid -->
-                <ItemsControl x:Name="ParameterRows">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="160"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Label}" Style="{StaticResource FieldLabel}"/>
-                                <TextBox  Grid.Column="1"  Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Tag="{Binding Key}"/>
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </Border>
-
-        <!-- ─── Filters ─── -->
-        <Border Grid.Row="3" Style="{StaticResource Card}">
-            <StackPanel>
-                <TextBlock Text="Фильтры" Style="{StaticResource SectionLabel}"/>
-
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="160"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Квартира (фильтр)" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Grid.Column="1" x:Name="TxtApartmentFilter"
-                             TextChanged="TxtApartmentFilter_TextChanged"
-                             ToolTip="Оставьте пустым для экспорта всех квартир. Можно ввести несколько номеров через запятую: 1, 2, 5"/>
-                </Grid>
-
-                <CheckBox x:Name="ChkOnlyPlaced" Content="Только размещённые помещения (площадь > 0)" IsChecked="True"
-                          Checked="Filter_Changed" Unchecked="Filter_Changed"/>
-                <CheckBox x:Name="ChkIncludeContours" Content="Включить контуры помещений (координаты)" IsChecked="True" Margin="0,3,0,0"/>
-                <CheckBox x:Name="ChkIncludeFinishes" Content="Включить объёмы отделки (полы, потолки, плинтусы/молдинги)" IsChecked="False" Margin="0,3,0,0"
-                          ToolTip="Выполняет пространственный поиск элементов отделки в каждом помещении. Может замедлить экспорт для больших моделей."/>
-            </StackPanel>
-        </Border>
-
-        <!-- ─── Schedules & mapping ─── -->
-        <Border Grid.Row="4" Style="{StaticResource Card}">
-            <StackPanel>
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Спецификации и маппинг" Style="{StaticResource SectionLabel}"/>
-                        <TextBlock Text="Отметьте спецификации и укажите, какие колонки содержат материал/кол-во. Настройки сохраняются в отдельный *.mapping.json рядом с экспортом."
-                                   FontSize="12" Foreground="#888888" TextWrapping="Wrap"/>
-                    </StackPanel>
-
-                    <Button Grid.Column="1" Content="Выбрать все" Style="{StaticResource SecondaryButton}"
-                            Click="BtnSchedulesSelectAll_Click"/>
-                    <Button Grid.Column="3" Content="Снять все" Style="{StaticResource SecondaryButton}"
-                            Click="BtnSchedulesSelectNone_Click"/>
-                </Grid>
-
-                <DataGrid x:Name="SchedulesGrid"
-                          ItemsSource="{Binding ScheduleRows}"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          HeadersVisibility="Column"
-                          GridLinesVisibility="Horizontal"
-                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                          RowHeight="34"
-                          ColumnHeaderHeight="34"
-                          Background="White"
-                          BorderBrush="#EEEEEE"
-                          BorderThickness="1"
-                          IsReadOnly="False">
-                    <DataGrid.Columns>
-                        <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsEnabled, Mode=TwoWay}" Width="36"/>
-                        <DataGridTextColumn Header="Спецификация" Binding="{Binding ScheduleName}" Width="2*"
-                                            IsReadOnly="True"/>
-
-                        <DataGridTemplateColumn Header="Раздел (SR)" Width="140">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <ComboBox ItemsSource="{Binding DataContext.Disciplines, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                              SelectedItem="{Binding Discipline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              Height="28"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-
-                        <DataGridTextColumn Header="WorkType" Binding="{Binding WorkType, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
-
-                        <DataGridTextColumn Header="Колонка: Material" Binding="{Binding ColMaterialName, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
-                        <DataGridTextColumn Header="Колонка: Code" Binding="{Binding ColMaterialCode, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
-                        <DataGridTextColumn Header="Колонка: Qty" Binding="{Binding ColQuantity, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                        <DataGridTextColumn Header="Колонка: Unit" Binding="{Binding ColUnit, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                        <DataGridTextColumn Header="Колонка: Room" Binding="{Binding ColRoomName, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
-                        <DataGridTextColumn Header="Колонка: Apt" Binding="{Binding ColApartment, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </StackPanel>
-        </Border>
-
-        <!-- ─── Output settings ─── -->
-        <Border Grid.Row="5" Style="{StaticResource Card}">
-            <StackPanel>
-                <TextBlock Text="Файл" Style="{StaticResource SectionLabel}"/>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="160"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Путь сохранения" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Grid.Column="1" x:Name="TxtOutputPath" IsReadOnly="True" Background="#FAFAFA" Foreground="#555555"/>
-                    <Button Grid.Column="2" Content="Обзор…" Style="{StaticResource SecondaryButton}"
-                            Margin="8,0,0,0" Click="BtnBrowse_Click"/>
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <!-- ─── Stats preview ─── -->
-        <Border Grid.Row="6" Style="{StaticResource Card}">
-            <StackPanel>
-                <TextBlock Text="Предпросмотр" Style="{StaticResource SectionLabel}"/>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <Border Style="{StaticResource StatBadge}">
-                        <StackPanel>
-                            <TextBlock x:Name="TxtRoomCount" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#1B6FC8" HorizontalAlignment="Center"/>
-                            <TextBlock Text="помещений" FontSize="11" Foreground="#888888" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource StatBadge}">
-                        <StackPanel>
-                            <TextBlock x:Name="TxtApartmentCount" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#1B6FC8" HorizontalAlignment="Center"/>
-                            <TextBlock Text="квартир" FontSize="11" Foreground="#888888" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource StatBadge}">
-                        <StackPanel>
-                            <TextBlock x:Name="TxtLevelCount" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#1B6FC8" HorizontalAlignment="Center"/>
-                            <TextBlock Text="уровней" FontSize="11" Foreground="#888888" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource StatBadge}" Margin="0">
-                        <StackPanel>
-                            <TextBlock x:Name="TxtTotalArea" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#1B6FC8" HorizontalAlignment="Center"/>
-                            <TextBlock Text="м² общая площадь" FontSize="11" Foreground="#888888" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- Mini room list -->
-                <Border BorderBrush="#EEEEEE" BorderThickness="1" CornerRadius="4" MaxHeight="160">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl x:Name="PreviewList">
+                        <ItemsControl x:Name="ParameterRows">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="8,5" BorderBrush="#F0F0F0" BorderThickness="0,0,0,1">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="60"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="80"/>
-                                                <ColumnDefinition Width="70"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding ApartmentNumber}" FontSize="12" Foreground="#888888"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12" Foreground="#333333"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding LevelName}" FontSize="12" Foreground="#888888" HorizontalAlignment="Center"/>
-                                            <TextBlock Grid.Column="3" Text="{Binding AreaStr}" FontSize="12" Foreground="#555555" HorizontalAlignment="Right"/>
-                                        </Grid>
-                                    </Border>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Tag="{Binding Key}" Style="{StaticResource ModernInputField}"/>
+                                    </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </ScrollViewer>
+                    </StackPanel>
                 </Border>
-                <TextBlock x:Name="TxtPreviewNote" FontSize="11" Foreground="#AAAAAA" Margin="0,6,0,0"/>
-            </StackPanel>
+
+                <!-- ─── Filters ─── -->
+                <Border Grid.Row="3" Style="{StaticResource ModernCard}" Margin="0,0,0,16" Padding="24,20">
+                    <StackPanel>
+                        <TextBlock Text="ФИЛЬТРЫ И НАСТРОЙКИ" Style="{StaticResource SectionLabel}"/>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Квартира (фильтр)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" x:Name="TxtApartmentFilter" Style="{StaticResource ModernInputField}"
+                                     TextChanged="TxtApartmentFilter_TextChanged"
+                                     ToolTip="Оставьте пустым для экспорта всех квартир. Можно ввести несколько номеров через запятую: 1, 2, 5"/>
+                        </Grid>
+
+                        <CheckBox x:Name="ChkOnlyPlaced" Content="Только размещённые помещения (площадь > 0)" IsChecked="True"
+                                  Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+                        <CheckBox x:Name="ChkIncludeContours" Content="Включить контуры помещений (координаты)" IsChecked="True"/>
+                        <CheckBox x:Name="ChkIncludeFinishes" Content="Включить объёмы отделки (полы, потолки, плинтусы/молдинги)" IsChecked="False"
+                                  ToolTip="Выполняет пространственный поиск элементов отделки в каждом помещении. Может замедлить экспорт для больших моделей."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ─── Schedules & mapping ─── -->
+                <Border Grid.Row="4" Style="{StaticResource ModernCard}" Margin="0,0,0,16" Padding="24,20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="СПЕЦИФИКАЦИИ И МАППИНГ" Style="{StaticResource SectionLabel}"/>
+                                <TextBlock Text="Отметьте спецификации и укажите, какие колонки содержат данные. Настройки сохраняются автоматически."
+                                           Style="{StaticResource BodyText}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Выбрать все" Style="{StaticResource ModernSecondaryButton}" Padding="16,0" Click="BtnSchedulesSelectAll_Click"/>
+                            <Button Grid.Column="3" Content="Снять все" Style="{StaticResource ModernSecondaryButton}" Padding="16,0" Click="BtnSchedulesSelectNone_Click"/>
+                        </Grid>
+
+                        <DataGrid x:Name="SchedulesGrid"
+                                  Style="{StaticResource ModernDataGrid}"
+                                  ItemsSource="{Binding ScheduleRows}"
+                                  MaxHeight="400"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  RowHeight="44"
+                                  IsReadOnly="False">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsEnabled, Mode=TwoWay}" Width="40"/>
+                                <DataGridTextColumn Header="Спецификация" Binding="{Binding ScheduleName}" Width="250" IsReadOnly="True"/>
+
+                                <DataGridTemplateColumn Header="Раздел (SR)" Width="150">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox ItemsSource="{Binding DataContext.Disciplines, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                      SelectedItem="{Binding Discipline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Height="32" Padding="8,0" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTextColumn Header="WorkType" Binding="{Binding WorkType, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                                <DataGridTextColumn Header="Колонка: Material" Binding="{Binding ColMaterialName, UpdateSourceTrigger=PropertyChanged}" Width="150"/>
+                                <DataGridTextColumn Header="Колонка: Code" Binding="{Binding ColMaterialCode, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                                <DataGridTextColumn Header="Колонка: Qty" Binding="{Binding ColQuantity, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                <DataGridTextColumn Header="Колонка: Unit" Binding="{Binding ColUnit, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
+                                <DataGridTextColumn Header="Колонка: Room" Binding="{Binding ColRoomName, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                                <DataGridTextColumn Header="Колонка: Apt" Binding="{Binding ColApartment, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ─── Output settings ─── -->
+                <Border Grid.Row="5" Style="{StaticResource ModernCard}" Margin="0,0,0,16" Padding="24,20">
+                    <StackPanel>
+                        <TextBlock Text="СОХРАНЕНИЕ" Style="{StaticResource SectionLabel}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Путь сохранения" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" x:Name="TxtOutputPath" IsReadOnly="True" Style="{StaticResource ModernInputField}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Button Grid.Column="3" Content="Обзор…" Style="{StaticResource ModernSecondaryButton}" Padding="20,0" Click="BtnBrowse_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ─── Stats preview ─── -->
+                <Border Grid.Row="6" Style="{StaticResource ModernCard}" Margin="0,0,0,24" Padding="24,20">
+                    <StackPanel>
+                        <TextBlock Text="ПРЕДПРОСМОТР" Style="{StaticResource SectionLabel}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Border Style="{StaticResource StatBadge}">
+                                <StackPanel>
+                                    <TextBlock x:Name="TxtRoomCount" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="помещений" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource StatBadge}">
+                                <StackPanel>
+                                    <TextBlock x:Name="TxtApartmentCount" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="квартир" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource StatBadge}">
+                                <StackPanel>
+                                    <TextBlock x:Name="TxtLevelCount" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="уровней" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource StatBadge}" Margin="0">
+                                <StackPanel>
+                                    <TextBlock x:Name="TxtTotalArea" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="м² площадь" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Mini room list -->
+                        <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" MaxHeight="200" Background="#F8FAFC">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="PreviewList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Padding="16,12" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="60"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="100"/>
+                                                        <ColumnDefinition Width="90"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding ApartmentNumber}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding LevelName}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding AreaStr}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock x:Name="TxtPreviewNote" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ─── Action buttons ─── -->
+                <Grid Grid.Row="7">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" x:Name="TxtStatus" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+
+                    <Button Grid.Column="1" Content="Отмена" Style="{StaticResource ModernSecondaryButton}" Padding="24,0" Click="BtnCancel_Click"/>
+                    <Button Grid.Column="3" x:Name="BtnExport" Content="Экспортировать JSON"
+                            Style="{StaticResource ModernPrimaryButton}"
+                            Padding="32,0"
+                            IsEnabled="False"
+                            Click="BtnExport_Click"/>
+                </Grid>
+            </Grid>
         </Border>
-
-        <!-- ─── Action buttons ─── -->
-        <Grid Grid.Row="7" Margin="0,4,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="8"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Grid.Column="0" x:Name="TxtStatus" FontSize="12" Foreground="#888888" VerticalAlignment="Center"/>
-
-            <Button Grid.Column="1" Content="Отмена" Style="{StaticResource SecondaryButton}" Click="BtnCancel_Click"/>
-            <Button Grid.Column="3" x:Name="BtnExport" Content="Экспортировать JSON →"
-                    Style="{StaticResource PrimaryButton}"
-                    IsEnabled="False"
-                    Click="BtnExport_Click"/>
-        </Grid>
-    </Grid>
     </ScrollViewer>
 </Window>

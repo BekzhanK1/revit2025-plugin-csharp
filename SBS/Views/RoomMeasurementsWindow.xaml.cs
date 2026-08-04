@@ -77,6 +77,8 @@ namespace SmartRemont.ExportRooms.Views
                     ? $"Помещений: {rooms.Count}. Параметров с данными: {foundCount} из {_snapshot.Sources.Count}."
                     : $"Параметров с данными: {foundCount} из {_snapshot.Sources.Count}.";
             }
+            
+            await LoaderOverlay.HideAsync();
         }
 
         void UpdateSendButtonState()

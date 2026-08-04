@@ -20,8 +20,23 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("ds_id")]
         public int? DsId { get; set; }
 
+        [JsonProperty("header")]
+        public DsRoomChangeHeaderDto Header { get; set; }
+
         [JsonProperty("data")]
         public DsRoomChangeBodyDto Data { get; set; }
+    }
+
+    public class DsRoomChangeHeaderDto
+    {
+        [JsonProperty("is_accept")]
+        public int? IsAccept { get; set; }
+
+        [JsonProperty("is_send_sign")]
+        public bool? IsSendSign { get; set; }
+
+        [JsonProperty("card_id")]
+        public int? CardId { get; set; }
     }
 
     public class DsRoomChangeBodyDto
@@ -37,6 +52,9 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("ds_info")]
         public DsRoomChangeInfoDto DsInfo { get; set; }
+
+        [JsonProperty("header")]
+        public DsRoomChangeHeaderDto Header { get; set; }
     }
 
     public class DsRoomChangeRoomDto

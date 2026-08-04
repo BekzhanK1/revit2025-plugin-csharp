@@ -20,6 +20,7 @@ namespace SmartRemont.ExportRooms.Services
         public string DsTypeName { get; set; }
         public double? WallHeightM { get; set; }
         public List<DsRoomChangeRoomDto> Rooms { get; set; } = new();
+        public DsRoomChangeHeaderDto Header { get; set; }
         public string EmptyMessage { get; set; }
     }
 
@@ -65,6 +66,39 @@ namespace SmartRemont.ExportRooms.Services
                     string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка запроса ДС" : parsed.Error);
 
             return MapSnapshot(parsed);
+        }
+
+        public static async Task<(DsRoomChangeSnapshot Data, bool Status, string Error, int? RemontId)> TryReadAsync(int clientRequestId)
+        {
+            try
+            {
+                if (clientRequestId <= 0) return (null, false, "Не указан ID заявки", null);
+                var session = ExportRoomsApplication.CurrentSession;
+                if (session == null || string.IsNullOrWhiteSpace(session.AccessToken)) return (null, false, "Требуется авторизация", null);
+
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Get, Configs.DsRoomChangeReadUrl(clientRequestId));
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+                using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+                var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var message = TryReadErrorMessage(responseBody) ?? $"Ошибка запроса ДС ({(int)response.StatusCode})";
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized) message = "Сессия истекла. Выйдите и войдите снова.";
+                    return (null, false, message, null);
+                }
+
+                var parsed = ParseResponse(responseBody);
+                if (parsed == null) return (null, false, "Сервер вернул некорректный ответ", null);
+                if (!parsed.Status) return (null, false, string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка запроса ДС" : parsed.Error, parsed.RemontId);
+
+                return (MapSnapshot(parsed), true, null, parsed.RemontId);
+            }
+            catch (Exception ex)
+            {
+                return (null, false, ex.Message, null);
+            }
         }
 
         /// <summary>
@@ -132,6 +166,7 @@ namespace SmartRemont.ExportRooms.Services
                 RemontId = ReadInt(root["remont_id"]),
                 ClientRequestId = ReadInt(root["client_request_id"]),
                 DsId = ReadInt(root["ds_id"]),
+                Header = ParseHeaderToken(root["header"]),
                 Data = ParseBodyToken(root["data"])
             };
         }
@@ -172,6 +207,7 @@ namespace SmartRemont.ExportRooms.Services
             var body = new DsRoomChangeBodyDto
             {
                 DsInfo = bodyObject["ds_info"]?.ToObject<DsRoomChangeInfoDto>(),
+                Header = ParseHeaderToken(bodyObject["header"]),
                 WallHeight = ReadDouble(bodyObject["wall_height"]),
                 WallHeightNew = ReadDouble(bodyObject["wall_height_new"])
             };
@@ -187,6 +223,22 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             return body;
+        }
+
+        static DsRoomChangeHeaderDto ParseHeaderToken(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+
+            if (token.Type == JTokenType.String)
+            {
+                var raw = token.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(raw))
+                    return null;
+                return JObject.Parse(raw).ToObject<DsRoomChangeHeaderDto>();
+            }
+
+            return token.ToObject<DsRoomChangeHeaderDto>();
         }
 
         static DsRoomChangeRoomDto ParseRoom(JObject roomObject)
@@ -273,6 +325,7 @@ namespace SmartRemont.ExportRooms.Services
             snapshot.DsId = parsed.DsId ?? body?.DsInfo?.DsId;
             snapshot.DsDate = body?.DsInfo?.DsDate;
             snapshot.DsTypeName = body?.DsInfo?.DsTypeName;
+            snapshot.Header = parsed.Header ?? body?.Header;
             snapshot.WallHeightM = wallHeight;
             snapshot.Rooms = rooms;
             return snapshot;

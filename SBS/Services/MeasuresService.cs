@@ -61,6 +61,39 @@ namespace SmartRemont.ExportRooms.Services
             return parsed.Data ?? new List<MeasureRoomInfoDto>();
         }
 
+        public static async Task<(List<MeasureRoomInfoDto> Data, bool Status, string Error)> TryReadAsync(int clientRequestId)
+        {
+            try
+            {
+                if (clientRequestId <= 0) return (null, false, "Не указан ID заявки");
+                var session = ExportRoomsApplication.CurrentSession;
+                if (session == null || string.IsNullOrWhiteSpace(session.AccessToken)) return (null, false, "Требуется авторизация");
+
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Get, Configs.MeasuresReadUrl(clientRequestId));
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+                using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+                var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var message = TryReadErrorMessage(responseBody) ?? $"Ошибка запроса замеров ({(int)response.StatusCode})";
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized) message = "Сессия истекла. Выйдите и войдите снова.";
+                    return (null, false, message);
+                }
+
+                var parsed = JsonConvert.DeserializeObject<MeasuresReadResponse>(responseBody);
+                if (parsed == null) return (null, false, "Сервер вернул некорректный ответ");
+                if (!parsed.Status) return (null, false, string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка запроса замеров" : parsed.Error);
+
+                return (parsed.Data ?? new List<MeasureRoomInfoDto>(), true, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, false, ex.Message);
+            }
+        }
+
         /// <summary>Ключ — базовое имя комнаты (RoomNameMatcher), значение — системный room_id.</summary>
         public static Dictionary<string, int> BuildRoomIdsByKey(IEnumerable<MeasureRoomInfoDto> rooms) =>
             (rooms ?? Enumerable.Empty<MeasureRoomInfoDto>())

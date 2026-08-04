@@ -9,7 +9,7 @@
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
-        Background="#F0F2F5">
+        Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
         <ResourceDictionary>
@@ -17,90 +17,14 @@
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="SecondaryButton" TargetType="Button">
-                <Setter Property="Height" Value="38"/>
-                <Setter Property="MinWidth" Value="96"/>
-                <Setter Property="Padding" Value="14,0"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Foreground" Value="#555555"/>
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderBrush" Value="#CCCCCC"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#F0F0F0"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="MaterialsDataGrid" TargetType="DataGrid">
-                <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="MinRowHeight" Value="40"/>
-                <Setter Property="HeadersVisibility" Value="Column"/>
-                <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-                <Setter Property="HorizontalGridLinesBrush" Value="#F3F4F6"/>
-                <Setter Property="AutoGenerateColumns" Value="False"/>
-                <Setter Property="CanUserAddRows" Value="False"/>
-                <Setter Property="CanUserDeleteRows" Value="False"/>
-                <Setter Property="CanUserResizeRows" Value="False"/>
-                <Setter Property="IsReadOnly" Value="True"/>
-                <Setter Property="SelectionMode" Value="Single"/>
-                <Setter Property="SelectionUnit" Value="FullRow"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="RowBackground" Value="White"/>
-                <Setter Property="AlternatingRowBackground" Value="#FAFAFA"/>
-            </Style>
-
-            <Style TargetType="DataGridColumnHeader">
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="Foreground" Value="#64748B"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontSize" Value="11"/>
-                <Setter Property="Padding" Value="12,10"/>
-                <Setter Property="BorderBrush" Value="#E5E7EB"/>
-                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            </Style>
-
-            <Style TargetType="DataGridCell">
-                <Setter Property="Padding" Value="12,8"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="VerticalContentAlignment" Value="Center"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            </Style>
-
             <Style x:Key="WrapCellText" TargetType="TextBlock">
                 <Setter Property="TextWrapping" Value="Wrap"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
             </Style>
-
-            <Style x:Key="StatusInProject" TargetType="TextBlock">
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Foreground" Value="#16A34A"/>
-            </Style>
-
-            <Style x:Key="StatusNotInProject" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#9CA3AF"/>
-            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource Card}" Margin="28">
+    <Border Style="{StaticResource ModernCard}" Margin="24">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -109,103 +33,87 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                <TextBlock Text="Синхронизация материалов из Revit"
-                           FontSize="22"
-                           FontWeight="SemiBold"
-                           Foreground="#111827"/>
-                <TextBlock Text="Загрузка RFA и surface-типов по SR_ID."
-                           FontSize="12"
-                           Foreground="#6B7280"
-                           Margin="0,4,0,0"/>
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock Text="Синхронизация материалов из Revit" Style="{StaticResource Heading1}"/>
+                <TextBlock Text="Загрузка RFA и surface-типов по SR_ID." Style="{StaticResource BodyText}"/>
             </StackPanel>
 
             <TextBlock x:Name="ClientRequestTextBlock"
                        Grid.Row="1"
-                       FontSize="12"
-                       Foreground="#6B7280"
-                       Margin="0,0,0,12"
+                       FontSize="13"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Margin="0,0,0,16"
                        Visibility="Collapsed"/>
 
             <Border Grid.Row="2"
-                    BorderBrush="#E5E7EB"
-                    BorderThickness="0,1,0,0"
-                    Padding="0,8,0,0">
-                <Grid MinHeight="240">
-                    <StackPanel x:Name="LoadingPanel"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Visibility="Visible">
-                        <ProgressBar Width="120"
-                                     Height="4"
-                                     IsIndeterminate="True"
-                                     Margin="0,0,0,10"/>
-                        <TextBlock Text="Загрузка..."
-                                   FontSize="13"
-                                   Foreground="#6B7280"
-                                   HorizontalAlignment="Center"/>
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Background="#F8FAFC">
+                <Grid MinHeight="300">
+                    <StackPanel x:Name="LoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
+                        <ProgressBar Width="160" Height="4" IsIndeterminate="True" Margin="0,0,0,16"/>
+                        <TextBlock Text="Загрузка списка материалов..." FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
 
-                    <TextBlock x:Name="EmptyTextBlock"
-                               Text="Нет материалов для синхронизации."
-                               FontSize="13"
-                               Foreground="#9CA3AF"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Visibility="Collapsed"/>
+                    <TextBlock x:Name="EmptyTextBlock" Text="Нет материалов для синхронизации." FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
 
-                    <StackPanel x:Name="ErrorPanel"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Visibility="Collapsed">
-                        <TextBlock x:Name="ErrorTextBlock"
-                                   FontSize="13"
-                                   Foreground="#991B1B"
-                                   TextWrapping="Wrap"
-                                   TextAlignment="Center"
-                                   MaxWidth="520"
-                                   Margin="0,0,0,12"/>
-                        <Button x:Name="RetryButton"
-                                Content="Повторить"
-                                Style="{StaticResource SecondaryButton}"
-                                HorizontalAlignment="Center"
-                                Click="RetryButton_Click"/>
+                    <StackPanel x:Name="ErrorPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="ErrorTextBlock" FontSize="14" Foreground="#DC2626" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="520" Margin="0,0,0,16"/>
+                        <Button x:Name="RetryButton" Content="Повторить загрузку" Style="{StaticResource ModernSecondaryButton}" HorizontalAlignment="Center" Padding="20,0" Click="RetryButton_Click"/>
                     </StackPanel>
 
-                    <DataGrid x:Name="MaterialsDataGrid"
-                              Style="{StaticResource MaterialsDataGrid}"
-                              Visibility="Collapsed">
+                    <DataGrid x:Name="MaterialsDataGrid" Style="{StaticResource ModernDataGrid}" Visibility="Collapsed" BorderThickness="0" Background="Transparent">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="ID"
-                                                Binding="{Binding MaterialIdDisplay}"
-                                                Width="72"/>
-                            <DataGridTextColumn Header="Название"
-                                                Binding="{Binding MaterialName}"
-                                                Width="*"
-                                                MinWidth="240">
+                            <DataGridTextColumn Header="ID" Binding="{Binding MaterialIdDisplay}" Width="90">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Название" Binding="{Binding MaterialName}" Width="*" MinWidth="240">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Тип"
-                                                Binding="{Binding TypeDisplay}"
-                                                Width="140"/>
-                            <DataGridTemplateColumn Header="Статус" Width="160">
+                            <DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="160">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Статус" Width="180">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding ProjectStatusDisplay}">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#9CA3AF"/>
+                                        <Border Padding="10,4" CornerRadius="4" HorizontalAlignment="Left">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#F1F5F9"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsInProject}" Value="True">
-                                                            <Setter Property="Foreground" Value="#16A34A"/>
-                                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            <Setter Property="Background" Value="#DCFCE7"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding ProjectStatusDisplay}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                        <Setter Property="FontSize" Value="12"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsInProject}" Value="True">
+                                                                <Setter Property="Foreground" Value="#166534"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -214,25 +122,15 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="3" Margin="0,16,0,0">
+            <Grid Grid.Row="3" Margin="0,24,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel x:Name="SyncProgressPanel"
-                            Grid.Row="0"
-                            Margin="0,0,0,12"
-                            Visibility="Collapsed">
-                    <TextBlock x:Name="SyncProgressTextBlock"
-                               FontSize="12"
-                               Foreground="#374151"
-                               Margin="0,0,0,6"/>
-                    <ProgressBar x:Name="SyncProgressBar"
-                                 Height="4"
-                                 Minimum="0"
-                                 Maximum="1"
-                                 Value="0"/>
+                <StackPanel x:Name="SyncProgressPanel" Grid.Row="0" Margin="0,0,0,16" Visibility="Collapsed">
+                    <TextBlock x:Name="SyncProgressTextBlock" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                    <ProgressBar x:Name="SyncProgressBar" Height="6" Minimum="0" Maximum="1" Value="0" Foreground="{StaticResource AppPrimaryBrush}"/>
                 </StackPanel>
 
                 <Grid Grid.Row="1">
@@ -241,25 +139,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Button x:Name="SyncButton"
-                            Grid.Column="0"
-                            Content="Синхронизировать"
-                            Style="{StaticResource PrimaryButton}"
-                            Margin="0,0,12,0"
-                            IsEnabled="False"
-                            Click="SyncButton_Click"/>
-                    <TextBlock x:Name="StatusTextBlock"
-                               Grid.Column="1"
-                               VerticalAlignment="Center"
-                               FontSize="12"
-                               Foreground="#6B7280"
-                               TextWrapping="Wrap"/>
-                    <Button x:Name="CloseButton"
-                            Grid.Column="2"
-                            Content="Закрыть"
-                            Style="{StaticResource SecondaryButton}"
-                            IsCancel="True"
-                            Click="CloseButton_Click"/>
+                    <Button x:Name="SyncButton" Grid.Column="0" Content="Синхронизировать" Style="{StaticResource ModernPrimaryButton}" Margin="0,0,16,0" Padding="32,0" IsEnabled="False" Click="SyncButton_Click"/>
+                    <TextBlock x:Name="StatusTextBlock" Grid.Column="1" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    <Button x:Name="CloseButton" Grid.Column="2" Content="Закрыть" Style="{StaticResource ModernSecondaryButton}" Padding="32,0" IsCancel="True" Click="CloseButton_Click"/>
                 </Grid>
             </Grid>
         </Grid>

@@ -9,7 +9,7 @@
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
-        Background="#F0F2F5">
+        Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
         <ResourceDictionary>
@@ -17,75 +17,12 @@
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <Style TargetType="TextBox">
-                <Setter Property="Height" Value="40"/>
-                <Setter Property="Padding" Value="12,0"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="BorderBrush" Value="#DDDDDD"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="VerticalContentAlignment" Value="Center"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="TextBox">
-                            <Border x:Name="border"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6">
-                                <ScrollViewer x:Name="PART_ContentHost"
-                                              Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="border" Property="BorderBrush" Value="#1B6FC8"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="SecondaryButton" TargetType="Button">
-                <Setter Property="Height" Value="40"/>
-                <Setter Property="MinWidth" Value="100"/>
-                <Setter Property="Padding" Value="18,0"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Foreground" Value="#555555"/>
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderBrush" Value="#CCCCCC"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#F0F0F0"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.55"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource ModernSecondaryButton}">
                 <Setter Property="Height" Value="32"/>
                 <Setter Property="MinWidth" Value="0"/>
                 <Setter Property="Padding" Value="10,0"/>
                 <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Foreground" Value="#9CA3AF"/>
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Background" Value="Transparent"/>
             </Style>
@@ -101,20 +38,20 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="ListBoxItem">
                             <Border x:Name="ItemBorder"
-                                    Background="White"
-                                    BorderBrush="#E5E7EB"
-                                    BorderThickness="1.5"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16,14">
                                 <ContentPresenter/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#1B6FC8"/>
-                                    <Setter TargetName="ItemBorder" Property="Background" Value="#F8FBFF"/>
+                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#3B82F6"/>
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="#F8FAFC"/>
                                 </Trigger>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#1B6FC8"/>
+                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#2563EB"/>
                                     <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
@@ -125,7 +62,7 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource Card}" Margin="28">
+    <Border Style="{StaticResource ModernCard}" Margin="28" Padding="32">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -139,13 +76,9 @@
             <Grid Grid.Row="0" Margin="0,0,0,24">
                 <StackPanel>
                     <TextBlock Text="Smart Remont"
-                               FontSize="22"
-                               FontWeight="SemiBold"
-                               Foreground="#111827"/>
+                               Style="{StaticResource Heading1}"/>
                     <TextBlock x:Name="WelcomeTextBlock"
-                               FontSize="14"
-                               Foreground="#6B7280"
-                               Margin="0,4,0,0"/>
+                               Style="{StaticResource BodyText}"/>
                 </StackPanel>
                 <Button x:Name="LogoutButton"
                         Content="Выйти"
@@ -160,7 +93,7 @@
             <Border Grid.Row="1"
                     x:Name="BoundRemontBanner"
                     Background="#ECFDF5"
-                    BorderBrush="#BBF7D0"
+                    BorderBrush="#10B981"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="20,16"
@@ -172,17 +105,24 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock x:Name="BoundRemontBannerText"
-                                   FontSize="15"
-                                   FontWeight="SemiBold"
-                                   Foreground="#166534"
-                                   TextWrapping="Wrap"/>
-                        <!-- TODO: оставить разработку для одинаковых квартир на потом -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Path Data="{StaticResource IconCheckCircle}" 
+                                  Fill="#10B981" 
+                                  Width="18" Height="18" 
+                                  Stretch="Uniform"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,8,0"/>
+                            <TextBlock x:Name="BoundRemontBannerText"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="#065F46"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
                     <Button Grid.Column="1"
                             x:Name="ContinueToHubButton"
                             Content="Продолжить"
-                            Style="{StaticResource PrimaryButton}"
+                            Style="{StaticResource ModernPrimaryButton}"
                             MinWidth="140"
                             Margin="16,0,0,0"
                             VerticalAlignment="Center"
@@ -190,23 +130,21 @@
                 </Grid>
             </Border>
 
-            <!-- Search (скрывается, если ремонт уже привязан к открытому проекту) -->
+            <!-- Search -->
             <Border Grid.Row="2"
                     x:Name="SearchSection"
-                    Background="#F9FAFB"
-                    BorderBrush="#E5E7EB"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="20,16"
-                    Margin="0,0,0,20">
+                    Padding="24,20"
+                    Margin="0,0,0,24">
                 <StackPanel>
                     <TextBlock Text="ПОИСК ЗАЯВКИ" Style="{StaticResource SectionLabel}"/>
                     <TextBlock Text="ID заявки"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Foreground="#374151"
-                               Margin="0,0,0,8"/>
-                    <Grid Margin="0,0,0,0">
+                               Style="{StaticResource FieldLabel}"/>
+                    
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -215,14 +153,15 @@
                         </Grid.ColumnDefinitions>
                         <Grid Grid.Column="0">
                             <TextBox x:Name="IdTextBox"
+                                     Style="{StaticResource ModernInputField}"
                                      KeyDown="IdTextBox_KeyDown"
                                      TextChanged="IdTextBox_TextChanged"
                                      GotFocus="IdTextBox_GotFocus"
                                      LostFocus="IdTextBox_LostFocus"/>
                             <TextBlock x:Name="IdPlaceholderTextBlock"
-                                       Text="Введите ID заявки"
+                                       Text="Введите ID заявки (например, 100234)"
                                        IsHitTestVisible="False"
-                                       Foreground="#9CA3AF"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
                                        FontSize="14"
                                        Margin="14,0,0,0"
                                        VerticalAlignment="Center"/>
@@ -234,31 +173,31 @@
                                      IsIndeterminate="True"
                                      Visibility="Collapsed"
                                      VerticalAlignment="Center"
-                                     Margin="10,0,0,0"
+                                     Margin="12,0,0,0"
                                      Foreground="{StaticResource AppPrimaryBrush}"
-                                     Background="#E5E7EB"
+                                     Background="#E2E8F0"
                                      BorderThickness="0"/>
                         <Button x:Name="SearchButton"
                                 Grid.Column="3"
                                 Content="Найти"
-                                Style="{StaticResource SecondaryButton}"
+                                Style="{StaticResource ModernPrimaryButton}"
                                 MinWidth="100"
                                 Click="SearchButton_Click"/>
                     </Grid>
 
                     <TextBlock x:Name="StatusTextBlock"
                                FontSize="13"
-                               Foreground="#9CA3AF"
+                               Foreground="{StaticResource TextSecondaryBrush}"
                                TextWrapping="Wrap"
-                               Margin="2,10,0,0"
-                               Text="Введите ID заявки и нажмите Enter"/>
+                               Margin="2,12,0,0"
+                               Text="Введите ID заявки и нажмите Найти или Enter"/>
                 </StackPanel>
             </Border>
 
             <!-- Results list -->
             <Border Grid.Row="3"
                     x:Name="ResultsSection"
-                    Margin="0,0,0,16"
+                    Margin="0,0,0,24"
                     Visibility="Collapsed">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -286,19 +225,19 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="{Binding Name}"
-                                                   FontSize="14"
+                                                   FontSize="15"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#111827"/>
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock Text="{Binding ClientName}"
-                                                   FontSize="13"
-                                                   Foreground="#6B7280"
-                                                   Margin="0,3,0,0"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                   FontSize="14"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <Border Background="#EFF6FF"
                                                     CornerRadius="4"
-                                                    Padding="7,2"
-                                                    Margin="0,0,6,0">
-                                                <TextBlock FontSize="11"
+                                                    Padding="8,4"
+                                                    Margin="0,0,8,0">
+                                                <TextBlock FontSize="12"
                                                            FontWeight="SemiBold"
                                                            Foreground="#1D4ED8">
                                                     <Run Text="Заявка #"/>
@@ -307,7 +246,7 @@
                                             </Border>
                                             <Border Background="#F0FDF4"
                                                     CornerRadius="4"
-                                                    Padding="7,2">
+                                                    Padding="8,4">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Visible"/>
@@ -318,7 +257,7 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
-                                                <TextBlock FontSize="11"
+                                                <TextBlock FontSize="12"
                                                            FontWeight="SemiBold"
                                                            Foreground="#16A34A">
                                                     <Run Text="Ремонт #"/>
@@ -330,8 +269,8 @@
                                     <TextBlock Grid.Column="1"
                                                Text="&#xE76C;"
                                                FontFamily="Segoe MDL2 Assets"
-                                               FontSize="14"
-                                               Foreground="#9CA3AF"
+                                               FontSize="16"
+                                               Foreground="{StaticResource TextTertiaryBrush}"
                                                VerticalAlignment="Center"
                                                Margin="12,0,0,0"/>
                                 </Grid>
@@ -344,8 +283,9 @@
             <!-- Actions -->
             <Grid Grid.Row="4">
                 <Button Content="Отмена"
-                        Style="{StaticResource SecondaryButton}"
+                        Style="{StaticResource ModernSecondaryButton}"
                         HorizontalAlignment="Right"
+                        MinWidth="100"
                         IsCancel="True"
                         Click="CancelButton_Click"/>
             </Grid>

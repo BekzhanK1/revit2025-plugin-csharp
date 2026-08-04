@@ -1,469 +1,287 @@
 <Window x:Class="SmartRemont.ExportRooms.Views.SelectedRemontSummaryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Smart Remont — Помещения"
-        Width="760"
-        MinWidth="640"
+        xmlns:local="clr-namespace:SmartRemont.ExportRooms.Views"
+        Title="Smart Remont — Площади (ДС)"
+        Width="800"
+        MinWidth="700"
+        Height="700"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
-        Background="#F5F5F5">
+        Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
-        <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="32,28"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.08" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style x:Key="SectionBlock" TargetType="Border">
-            <Setter Property="Background" Value="#FAFAFA"/>
-            <Setter Property="BorderBrush" Value="#EEEEEE"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="18,16"/>
-            <Setter Property="Margin" Value="0,0,0,20"/>
-        </Style>
+            <Style x:Key="CompareRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Opacity" Value="0"/>
+                <Style.Triggers>
+                    <!-- Fade-in animation for rows -->
+                    <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.4">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
 
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#888888"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-
-        <Style x:Key="InfoLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#888888"/>
-            <Setter Property="Width" Value="120"/>
-            <Setter Property="Margin" Value="0,0,12,8"/>
-        </Style>
-
-        <Style x:Key="InfoValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#333333"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="MinWidth" Value="100"/>
-            <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#555555"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#F0F0F0"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.55"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="MinWidth" Value="120"/>
-            <Setter Property="Padding" Value="20,0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#1B6FC8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#155BB0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="RowHeight" Value="40"/>
-            <Setter Property="HeadersVisibility" Value="Column"/>
-            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#EEEEEE"/>
-            <Setter Property="AutoGenerateColumns" Value="False"/>
-            <Setter Property="CanUserAddRows" Value="False"/>
-            <Setter Property="CanUserDeleteRows" Value="False"/>
-            <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="SelectionMode" Value="Single"/>
-            <Setter Property="SelectionUnit" Value="FullRow"/>
-            <Setter Property="FontSize" Value="14"/>
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="Foreground" Value="#666666"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="12,10"/>
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="Padding" Value="12,0"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-
-        <Style TargetType="DataGridRow">
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#F8FBFF"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="AreaCompareRowStyle" TargetType="DataGridRow">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Match">
-                    <Setter Property="Background" Value="#E8F5E9"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Mismatch">
-                    <Setter Property="Background" Value="#FFEBEE"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
-                    <Setter Property="Background" Value="#FFF8E1"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
-                    <Setter Property="Background" Value="#E3F2FD"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#F8FAFC"/>
+                    </Trigger>
+                    
+                    <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Match">
+                        <Setter Property="Background" Value="#F0FDF4"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Mismatch">
+                        <Setter Property="Background" Value="#FEF2F2"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
+                        <Setter Property="Background" Value="#FFFBEB"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
+                        <Setter Property="Background" Value="#EFF6FF"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource Card}" Margin="24">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <Border x:Name="EventStatusBanner"
-                    Grid.Row="0"
-                    Visibility="Collapsed"
-                    Background="#EFF6FF"
-                    BorderBrush="#BFDBFE"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="14,12"
-                    Margin="0,0,0,16">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE73E;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="16"
-                               Foreground="#1B6FC8"
-                               VerticalAlignment="Top"
-                               Margin="0,2,10,0"/>
-                    <TextBlock x:Name="EventStatusBannerText"
-                               FontSize="13"
-                               Foreground="#1E40AF"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <TextBlock Grid.Row="1"
-                       Text="Помещения"
-                       FontSize="24"
-                       FontWeight="SemiBold"
-                       Foreground="#1B1B1B"
-                       Margin="0,0,0,20"/>
-
-            <Border Grid.Row="2" Style="{StaticResource SectionBlock}">
-                <StackPanel>
-                    <TextBlock Text="РЕМОНТ" Style="{StaticResource SectionLabel}"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Название" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RemontNameText" Style="{StaticResource InfoValue}"/>
-
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="ID ремонта" Style="{StaticResource InfoLabel}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="RemontIdText" Style="{StaticResource InfoValue}"/>
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="ID заявки" Style="{StaticResource InfoLabel}" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ClientRequestIdText" Style="{StaticResource InfoValue}" Margin="0,0,0,0"/>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Row="3" Style="{StaticResource SectionBlock}" Margin="0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <StackPanel>
-                            <Grid>
-                                <TextBlock Text="ПЛОЩАДИ: СИСТЕМА И REVIT" Style="{StaticResource SectionLabel}" Margin="0"/>
-                                <TextBlock x:Name="PhaseHintText"
-                                           HorizontalAlignment="Right"
-                                           VerticalAlignment="Center"
-                                           FontSize="12"
-                                           Foreground="#999999"/>
-                            </Grid>
-                            <TextBlock x:Name="SystemDsInfoText"
-                                       FontSize="12"
-                                       Foreground="#475569"
-                                       TextWrapping="Wrap"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <Border x:Name="CompareLegendPanel"
-                            Grid.Row="1"
-                            Background="#FAFAFA"
-                            BorderBrush="#EEEEEE"
+        <!-- HEADER -->
+        <Border Grid.Row="0" 
+                Background="{StaticResource CardBackgroundBrush}" 
+                BorderBrush="{StaticResource CardBorderBrush}" 
+                BorderThickness="0,0,0,1" 
+                Padding="24,20">
+            <StackPanel>
+                <TextBlock Text="Сверка площадей: Система и Revit"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Border Background="#EFF6FF"
+                            BorderBrush="#BFDBFE"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="10,6"
-                            Margin="0,0,0,6"
-                            Visibility="Collapsed">
-                        <WrapPanel>
+                            Padding="8,4"
+                            Margin="0,0,12,0">
+                        <TextBlock x:Name="RemontIdHeroText"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#1D4ED8"/>
+                    </Border>
+                    <TextBlock x:Name="ClientRequestIdHeroText"
+                               FontSize="14"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" 
+                               x:Name="SystemDsInfoText"
+                               FontSize="13"
+                               Foreground="#475569"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" 
+                               x:Name="PhaseHintText"
+                               FontSize="13"
+                               Foreground="#94A3B8"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- MAIN CONTENT (Table) -->
+        <Border Grid.Row="1" Margin="24,20,24,0" 
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Padding="16" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <!-- Legend -->
+                        <WrapPanel VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="2" Background="#E8F5E9" Margin="0,0,6,0"/>
-                                <TextBlock Text="Совпадает" FontSize="11" Foreground="#555555"/>
+                                <Border Width="12" Height="12" CornerRadius="3" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" Margin="0,0,6,0"/>
+                                <TextBlock Text="Совпадает" FontSize="12" Foreground="#475569"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="2" Background="#FFEBEE" Margin="0,0,6,0"/>
-                                <TextBlock Text="Расхождение" FontSize="11" Foreground="#555555"/>
+                                <Border Width="12" Height="12" CornerRadius="3" Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1" Margin="0,0,6,0"/>
+                                <TextBlock Text="Расхождение" FontSize="12" Foreground="#475569"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="2" Background="#FFF8E1" Margin="0,0,6,0"/>
-                                <TextBlock Text="Только система" FontSize="11" Foreground="#555555"/>
+                                <Border Width="12" Height="12" CornerRadius="3" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" Margin="0,0,6,0"/>
+                                <TextBlock Text="Только система" FontSize="12" Foreground="#475569"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <Border Width="12" Height="12" CornerRadius="2" Background="#E3F2FD" Margin="0,0,6,0"/>
-                                <TextBlock Text="Только Revit" FontSize="11" Foreground="#555555"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                                <Border Width="12" Height="12" CornerRadius="3" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Margin="0,0,6,0"/>
+                                <TextBlock Text="Только Revit" FontSize="12" Foreground="#475569"/>
                             </StackPanel>
                         </WrapPanel>
-                    </Border>
+                        
+                        <CheckBox x:Name="DifferencesOnlyCheckBox"
+                                  Content="Показать только разницу"
+                                  FontSize="13"
+                                  Foreground="#334155"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center"
+                                  Checked="DifferencesOnlyCheckBox_Changed"
+                                  Unchecked="DifferencesOnlyCheckBox_Changed"/>
+                    </Grid>
+                </Border>
 
-                    <Border x:Name="PayloadWallHeightPanel"
-                            Grid.Row="2"
-                            Background="#EFF6FF"
-                            BorderBrush="#93C5FD"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="12,8"
-                            Margin="0,0,0,8">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Высота потолка"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="#1D4ED8"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,16,0"/>
-                                <WrapPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                                        <TextBlock Text="Система"
-                                                   FontSize="11"
-                                                   Foreground="#64748B"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,6,0"/>
-                                        <TextBlock x:Name="SystemWallHeightText"
-                                                   FontSize="16"
-                                                   FontWeight="Bold"
-                                                   Foreground="#334155"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Text=" м"
-                                                   FontSize="12"
-                                                   Foreground="#334155"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <TextBlock Text="|"
-                                               FontSize="12"
-                                               Foreground="#CBD5E1"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,20,0"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                        <TextBlock Text="Revit"
-                                                   FontSize="11"
-                                                   Foreground="#64748B"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,6,0"/>
-                                        <TextBlock x:Name="PayloadWallHeightText"
-                                                   FontSize="16"
-                                                   FontWeight="Bold"
-                                                   Foreground="#1B6FC8"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Text=" м"
-                                                   FontSize="12"
-                                                   Foreground="#1B6FC8"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <TextBlock x:Name="WallHeightCompareText"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center"/>
-                                </WrapPanel>
-                            </Grid>
-                            <TextBlock x:Name="PayloadWallHeightNoteText"
-                                       FontSize="10"
-                                       Foreground="#64748B"
-                                       TextWrapping="Wrap"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Border>
+                <!-- DataGrid without borders to blend smoothly -->
+                <DataGrid Grid.Row="1"
+                          x:Name="RoomsDataGrid"
+                          RowStyle="{StaticResource CompareRowStyle}"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          SelectionUnit="FullRow"
+                          RowHeight="44"
+                          Margin="0,0,0,8">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#F8FAFC"/>
+                            <Setter Property="Foreground" Value="#64748B"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Padding" Value="16,12"/>
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="Padding" Value="16,0"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="Foreground" Value="#334155"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#E0E7FF"/>
+                                    <Setter Property="Foreground" Value="#1E3A8A"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Помещение" Binding="{Binding RoomName}" Width="*"/>
+                        <DataGridTextColumn Header="Система, м²" Binding="{Binding SystemAreaDisplay}" Width="110"/>
+                        <DataGridTextColumn Header="Revit, м²" Binding="{Binding AreaDisplay}" Width="100"/>
+                        <DataGridTextColumn Header="Δ" Binding="{Binding AreaDeltaDisplay}" Width="80">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Выс. Revit, м" Binding="{Binding HeightDisplay}" Width="110">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="Normal"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPayloadHeight}" Value="True">
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                            <Setter Property="Foreground" Value="#2563EB"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
 
-                    <CheckBox x:Name="DifferencesOnlyCheckBox"
-                              Grid.Row="3"
-                              Content="Только расхождения"
-                              FontSize="13"
-                              Margin="0,0,0,6"
-                              Checked="DifferencesOnlyCheckBox_Changed"
-                              Unchecked="DifferencesOnlyCheckBox_Changed"/>
-
-                    <DataGrid Grid.Row="4"
-                              x:Name="RoomsDataGrid"
-                              RowStyle="{StaticResource AreaCompareRowStyle}"
-                              MinHeight="160">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Помещение"
-                                                Binding="{Binding RoomName}"
-                                                Width="*"/>
-                            <DataGridTextColumn Header="Система, м²"
-                                                Binding="{Binding SystemAreaDisplay}"
-                                                Width="96"/>
-                            <DataGridTextColumn Header="Revit, м²"
-                                                Binding="{Binding AreaDisplay}"
-                                                Width="88"/>
-                            <DataGridTextColumn Header="Δ"
-                                                Binding="{Binding AreaDeltaDisplay}"
-                                                Width="72"/>
-                            <DataGridTextColumn Header="Выс. Revit, м"
-                                                Binding="{Binding HeightDisplay}"
-                                                Width="96">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="FontWeight" Value="Normal"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsPayloadHeight}" Value="True">
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                                <Setter Property="Foreground" Value="#1B6FC8"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-
-                    <Border Grid.Row="5"
-                            Background="#EEF4FC"
-                            CornerRadius="4"
-                            Padding="14,10"
-                            Margin="0,12,0,0">
-                        <Grid>
-                            <TextBlock Text="Итого"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#555555"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TotalAreaText"
-                                       HorizontalAlignment="Right"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       Foreground="#1B6FC8"
-                                       VerticalAlignment="Center"/>
-                        </Grid>
-                    </Border>
-
-                    <TextBlock Grid.Row="6"
-                               x:Name="NoRoomsTextBlock"
-                               Text="В модели нет размещённых помещений для выбранной фазы."
-                               FontSize="13"
-                               Foreground="#999999"
-                               Margin="0,16,0,0"
-                               HorizontalAlignment="Center"
-                               Visibility="Collapsed"/>
-                </Grid>
-            </Border>
-
-            <Grid Grid.Row="4" Margin="0,24,0,0">
-                <TextBlock x:Name="StatusTextBlock"
+                <TextBlock x:Name="NoRoomsTextBlock"
+                           Text="В модели нет размещённых помещений для выбранной фазы."
+                           FontSize="14"
+                           Foreground="#94A3B8"
+                           HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           FontSize="13"
-                           Foreground="#666666"
-                           TextWrapping="Wrap"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                           Grid.Row="1"
+                           Visibility="Collapsed"/>
+            </Grid>
+        </Border>
+
+        <!-- FOOTER -->
+        <Border Grid.Row="2" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="24,16" Margin="0,20,0,0">
+            <Grid>
+                <!-- Wall Height Payload & Status Info -->
+                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusTextBlock"
+                               FontSize="13"
+                               Foreground="#64748B"
+                               FontWeight="Medium"
+                               Margin="0,0,0,4"/>
+                    
+                    <StackPanel x:Name="PayloadWallHeightPanel" Orientation="Horizontal" Visibility="Collapsed">
+                        <TextBlock Text="Отправка высоты:" FontSize="12" Foreground="#94A3B8" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="PayloadWallHeightText" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB"/>
+                        <TextBlock Text=" м" FontSize="12" Foreground="#2563EB"/>
+                        <TextBlock x:Name="WallHeightCompareText" FontSize="12" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Actions -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock x:Name="TotalAreaText"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="#334155"
+                               Margin="0,0,24,0"
+                               VerticalAlignment="Center"/>
+                    
                     <Button x:Name="CloseButton"
                             Content="Закрыть"
-                            Style="{StaticResource SecondaryButton}"
+                            Style="{StaticResource ModernSecondaryButton}"
                             Margin="0,0,12,0"
                             IsCancel="True"
                             Click="CloseButton_Click"/>
                     <Button x:Name="SendButton"
                             Content="Отправить"
-                            Style="{StaticResource PrimaryButton}"
+                            Style="{StaticResource ModernPrimaryButton}"
                             IsDefault="True"
                             IsEnabled="False"
                             Click="SendButton_Click"/>
                 </StackPanel>
             </Grid>
-        </Grid>
-    </Border>
+        </Border>
+        
+        <local:LoadingOverlay x:Name="LoaderOverlay" Grid.RowSpan="3" Panel.ZIndex="1000"/>
+    </Grid>
 </Window>

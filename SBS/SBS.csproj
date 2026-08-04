@@ -67,6 +67,7 @@
     <Compile Include="Services\MaterialValidationService.cs" />
     <Compile Include="Services\ClientMaterialTkService.cs" />
     <Compile Include="Services\RevitMaterialsService.cs" />
+    <Compile Include="Services\LocalSettingsService.cs" />
     <Compile Include="Services\TenMinuteBucketFileSink.cs" />
     <Compile Include="Services\RevitMaterialsDownloadService.cs" />
     <Compile Include="Services\RevitMaterialPresenceService.cs" />
@@ -136,6 +137,9 @@
     </Compile>
     <Compile Include="Views\AppMessageDialog.xaml.cs">
       <DependentUpon>AppMessageDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\LoadingOverlay.xaml.cs">
+      <DependentUpon>LoadingOverlay.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\WindowLayoutHelper.cs" />
   </ItemGroup>
@@ -214,6 +218,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\AppMessageDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\LoadingOverlay.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
