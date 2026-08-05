@@ -95,16 +95,19 @@ namespace SmartRemont.ExportRooms.Services
         }
 
         /// <summary>
-        /// Шаблон или несохранённый RVT может содержать client_request_id в Storage после неудачной init —
-        /// для меню хаба «инициализирован» только файл из SmartRemont\Projects.
+        /// Файл доступен для функций хаба, если метаданные заявки записаны в ExtensibleStorage проекта
+        /// и документ сохранён на диске.
         /// </summary>
         public static bool CanUseHubWorkFeatures(Document doc)
         {
+            if (doc == null)
+                return false;
+
             var metadata = TryRead(doc);
             if (metadata == null || metadata.ClientRequestId <= 0)
                 return false;
 
-            return IsSavedInitializedProjectFile(doc, metadata.ClientRequestId, metadata.RemontId);
+            return !string.IsNullOrWhiteSpace(doc.PathName);
         }
 
         public static bool ValidateMatches(Document doc, int expectedClientRequestId)
@@ -113,69 +116,13 @@ namespace SmartRemont.ExportRooms.Services
             return metadata != null && metadata.ClientRequestId == expectedClientRequestId;
         }
 
-        /// <summary>
-        /// Новые проекты именуются {client_request_id}_{name}.rvt; старые — {remont_id}_{name}.rvt
-        /// (совместимость чтения, remontId опционален).
-        /// </summary>
         static bool IsSavedInitializedProjectFile(Document doc, int clientRequestId, int remontId)
         {
-            var pathName = doc?.PathName;
-            if (string.IsNullOrWhiteSpace(pathName))
+            if (doc == null || string.IsNullOrWhiteSpace(doc.PathName))
                 return false;
 
-            string fullPath;
-            string projectsFolder;
-            try
-            {
-                fullPath = Path.GetFullPath(pathName.Trim());
-                projectsFolder = Path.GetFullPath(ProjectFileNamingService.GetDefaultProjectsFolder());
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (!IsUnderDirectory(fullPath, projectsFolder))
-                return false;
-
-            var fileName = Path.GetFileName(fullPath);
-            if (string.IsNullOrEmpty(fileName))
-                return false;
-
-            if (!fileName.EndsWith(ProjectFileNamingService.ProjectFileExtension, StringComparison.OrdinalIgnoreCase))
-                return false;
-
-            var matchesPrimary = fileName.StartsWith(clientRequestId + "_", StringComparison.OrdinalIgnoreCase);
-            var matchesLegacy = remontId > 0
-                && fileName.StartsWith(remontId + "_", StringComparison.OrdinalIgnoreCase);
-            if (!matchesPrimary && !matchesLegacy)
-                return false;
-
-            var baseName = Path.GetFileNameWithoutExtension(fileName);
-            var parentDirectory = Path.GetDirectoryName(fullPath);
-            if (string.IsNullOrEmpty(parentDirectory))
-                return false;
-
-            var parentFullPath = Path.GetFullPath(parentDirectory);
-            var parentFolderName = Path.GetFileName(parentFullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-
-            // Новая структура: Projects\{baseName}\{baseName}.rvt
-            if (string.Equals(parentFolderName, baseName, StringComparison.OrdinalIgnoreCase))
-                return IsUnderDirectory(fullPath, projectsFolder);
-
-            // Старые проекты: Projects\{baseName}.rvt
-            return string.Equals(parentFullPath, projectsFolder, StringComparison.OrdinalIgnoreCase);
-        }
-
-        static bool IsUnderDirectory(string filePath, string directoryPath)
-        {
-            var comparison = StringComparison.OrdinalIgnoreCase;
-            if (filePath.Equals(directoryPath, comparison))
-                return false;
-
-            var directoryPrefix = directoryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                + Path.DirectorySeparatorChar;
-            return filePath.StartsWith(directoryPrefix, comparison);
+            var metadata = TryRead(doc);
+            return metadata != null && metadata.ClientRequestId == clientRequestId;
         }
 
         static string GetAssemblyVersion()
