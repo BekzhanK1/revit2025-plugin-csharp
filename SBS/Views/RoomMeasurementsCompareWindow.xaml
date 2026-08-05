@@ -70,6 +70,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -100,11 +101,18 @@
                 </WrapPanel>
             </Border>
 
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,16">
+            <!-- STATS BAR -->
+            <Border Grid.Row="2" Background="#F0F9FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="16,10" Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="CompareStatsText" FontSize="13" Foreground="#334155" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,16">
                 <CheckBox x:Name="DifferencesOnlyCheckBox" Content="Только расхождения" Checked="FilterCheckBox_Changed" Unchecked="FilterCheckBox_Changed"/>
             </StackPanel>
 
-            <Border Grid.Row="3" Background="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
+            <Border Grid.Row="4" Background="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -155,14 +163,63 @@
                                                             </Style>
                                                         </DataGridTextColumn.ElementStyle>
                                                     </DataGridTextColumn>
-                                                    <DataGridTextColumn Header="Δ (код − спец.)" Binding="{Binding delta_display}" Width="120"/>
-                                                    <DataGridTextColumn Header="Статус" Binding="{Binding status_display}" Width="140">
-                                                        <DataGridTextColumn.ElementStyle>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                                            </Style>
-                                                        </DataGridTextColumn.ElementStyle>
-                                                    </DataGridTextColumn>
+                                                    <DataGridTemplateColumn Header="Δ (код − спец.)" Width="120">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding delta_display}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Mismatch">
+                                                                                    <Setter Property="Foreground" Value="#DC2626"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="Статус" Width="160">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <Border x:Name="StatusBadge" CornerRadius="4" Padding="6,2" HorizontalAlignment="Center">
+                                                                    <TextBlock x:Name="StatusText" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                                                </Border>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Match">
+                                                                        <Setter TargetName="StatusBadge" Property="Background" Value="#D1FAE5"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderBrush" Value="#A7F3D0"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderThickness" Value="1"/>
+                                                                        <Setter TargetName="StatusText" Property="Text" Value="Совпадает"/>
+                                                                        <Setter TargetName="StatusText" Property="Foreground" Value="#065F46"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Mismatch">
+                                                                        <Setter TargetName="StatusBadge" Property="Background" Value="#FEE2E2"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderBrush" Value="#FECACA"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderThickness" Value="1"/>
+                                                                        <Setter TargetName="StatusText" Property="Text" Value="Расхождение"/>
+                                                                        <Setter TargetName="StatusText" Property="Foreground" Value="#991B1B"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="ScheduleOnly">
+                                                                        <Setter TargetName="StatusBadge" Property="Background" Value="#FEF3C7"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderBrush" Value="#FDE68A"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderThickness" Value="1"/>
+                                                                        <Setter TargetName="StatusText" Property="Text" Value="Только спец."/>
+                                                                        <Setter TargetName="StatusText" Property="Foreground" Value="#92400E"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="CodeOnly">
+                                                                        <Setter TargetName="StatusBadge" Property="Background" Value="#DBEAFE"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderBrush" Value="#BFDBFE"/>
+                                                                        <Setter TargetName="StatusBadge" Property="BorderThickness" Value="1"/>
+                                                                        <Setter TargetName="StatusText" Property="Text" Value="Только код"/>
+                                                                        <Setter TargetName="StatusText" Property="Foreground" Value="#1E40AF"/>
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                         </StackPanel>
@@ -183,13 +240,13 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="4" Margin="0,24,0,0">
+            <Grid Grid.Row="5" Margin="0,24,0,0">
                 <TextBlock x:Name="StatusTextBlock" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,160,0"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="CloseButton" Content="Закрыть" Style="{StaticResource ModernPrimaryButton}" Margin="0,0,0,0" Padding="32,0" IsCancel="True" Click="CloseButton_Click"/>
                 </StackPanel>
             </Grid>
-            <local:LoadingOverlay x:Name="LoaderOverlay" Grid.RowSpan="5" Panel.ZIndex="1000"/>
+            <local:LoadingOverlay x:Name="LoaderOverlay" Grid.RowSpan="6" Panel.ZIndex="1000"/>
         </Grid>
     </Border>
 </Window>

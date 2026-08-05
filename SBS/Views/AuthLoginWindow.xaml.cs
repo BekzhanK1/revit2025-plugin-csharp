@@ -13,6 +13,16 @@ namespace SmartRemont.ExportRooms.Views
             InitializeComponent();
             BrandAssets.TryApplyCompanyLogo(CompanyLogoImage);
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
+
+            Loaded += (s, e) =>
+            {
+                var creds = CredentialManager.LoadCredentials();
+                if (!string.IsNullOrEmpty(creds.email))
+                {
+                    EmailTextBox.Text = creds.email;
+                    PasswordBox.Password = creds.password ?? "";
+                }
+            };
         }
 
         async void LoginButton_Click(object sender, RoutedEventArgs e)
@@ -41,6 +51,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 await AuthService.LoginAsync(EmailTextBox.Text, PasswordBox.Password)
                     .ConfigureAwait(true);
+                CredentialManager.SaveCredentials(EmailTextBox.Text, PasswordBox.Password);
                 DialogResult = true;
                 Close();
             }

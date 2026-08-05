@@ -25,6 +25,7 @@
     <!-- ========================================== -->
     <Geometry x:Key="IconWarning">M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z</Geometry>
     <Geometry x:Key="IconCheckCircle">M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z</Geometry>
+    <Geometry x:Key="IconLock">M12 15a2 2 0 100-4 2 2 0 000 4zm6-7h-1V6a5 5 0 00-10 0v2H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V10a2 2 0 00-2-2zm-8-2a3 3 0 016 0v2H10V6z</Geometry>
 
     <!-- ========================================== -->
     <!-- TYPOGRAPHY & TEXT STYLES                   -->
@@ -404,6 +405,148 @@
     <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ModernSecondaryButton}" />
     <Style x:Key="InputField" TargetType="TextBox" BasedOn="{StaticResource ModernInputField}" />
     <Style x:Key="PasswordField" TargetType="PasswordBox" BasedOn="{StaticResource ModernPasswordField}" />
+    <!-- OFFICE-STYLE UI COMPONENTS -->
+    
+    <!-- Action Badge Styles -->
+    <Style x:Key="ActionBadgeEdited" TargetType="Border">
+        <Setter Property="Background" Value="#FEF3C7"/>
+        <Setter Property="BorderBrush" Value="#FDE68A"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="MinWidth" Value="70"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    
+    <Style x:Key="ActionBadgeAdded" TargetType="Border">
+        <Setter Property="Background" Value="#D1FAE5"/>
+        <Setter Property="BorderBrush" Value="#A7F3D0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="MinWidth" Value="70"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    
+    <Style x:Key="ActionBadgeDeleted" TargetType="Border">
+        <Setter Property="Background" Value="#FEE2E2"/>
+        <Setter Property="BorderBrush" Value="#FECACA"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="MinWidth" Value="70"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    
+    <Style x:Key="ActionBadgeSame" TargetType="Border">
+        <Setter Property="Background" Value="#F1F5F9"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="MinWidth" Value="70"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    
+    <Style x:Key="ActionBadgeNew" TargetType="Border">
+        <Setter Property="Background" Value="#DBEAFE"/>
+        <Setter Property="BorderBrush" Value="#BFDBFE"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="MinWidth" Value="70"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Diff Cell Text Styles -->
+    <Style x:Key="DiffPositiveText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#15803D"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+    
+    <Style x:Key="DiffNegativeText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#DC2626"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+    
+    <Style x:Key="DiffZeroText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#94A3B8"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <!-- Summary Row Style -->
+    <Style x:Key="SummaryRowStyle" TargetType="DataGridRow">
+        <Setter Property="Background" Value="#EFF6FF"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <!-- Editable Cell TextBox -->
+    <Style x:Key="EditableCellTextBox" TargetType="TextBox">
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="HorizontalContentAlignment" Value="Right"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}" 
+                            BorderBrush="{TemplateBinding BorderBrush}" 
+                            BorderThickness="{TemplateBinding BorderThickness}" 
+                            CornerRadius="4">
+                        <ScrollViewer x:Name="PART_ContentHost"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter Property="BorderBrush" Value="#3B82F6"/>
+                            <Setter Property="BorderThickness" Value="2"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Section Header -->
+    <Style x:Key="SectionGroupHeader" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#94A3B8"/>
+        <Setter Property="Typography.Capitals" Value="AllSmallCaps"/>
+        <Setter Property="Margin" Value="0,16,0,8"/>
+    </Style>
+
+    <!-- Status Badge Styles -->
+    <Style x:Key="StatusBadgeConfirmed" TargetType="Border">
+        <Setter Property="Background" Value="#D1FAE5"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="8,3"/>
+    </Style>
+    
+    <Style x:Key="StatusBadgePending" TargetType="Border">
+        <Setter Property="Background" Value="#F1F5F9"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="8,3"/>
+    </Style>
+
+    <!-- Filter ComboBox -->
+    <Style x:Key="FilterComboBox" TargetType="ComboBox">
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="MinWidth" Value="150"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+    </Style>
+
+    <!-- Stat Badge colors for financial summary -->
+    <SolidColorBrush x:Key="FinancialStatPositiveBrush" Color="#15803D"/>
+    <SolidColorBrush x:Key="FinancialStatNegativeBrush" Color="#DC2626"/>
+    <SolidColorBrush x:Key="FinancialStatZeroBrush" Color="#64748B"/>
+    <SolidColorBrush x:Key="FinancialStatBackgroundBrush" Color="#F0F9FF"/>
 
 </ResourceDictionary>
 

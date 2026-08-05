@@ -47,10 +47,16 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("remont_status_name")]
         public string RemontStatusName { get; set; }
 
+        [JsonProperty("project_accepted")]
+        public int? ProjectAccepted { get; set; }
+
         [JsonProperty("remont_type")]
         public string RemontType { get; set; }
 
         [JsonProperty("preset_name")]
         public string PresetName { get; set; }
+
+        [JsonProperty("preset_kit_name")]
+        public string PresetKitName { get; set; }
     }
 }

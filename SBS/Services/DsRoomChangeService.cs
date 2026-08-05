@@ -21,6 +21,7 @@ namespace SmartRemont.ExportRooms.Services
         public double? WallHeightM { get; set; }
         public List<DsRoomChangeRoomDto> Rooms { get; set; } = new();
         public DsRoomChangeHeaderDto Header { get; set; }
+        public DsSumDto Sum { get; set; }
         public string EmptyMessage { get; set; }
     }
 
@@ -209,7 +210,8 @@ namespace SmartRemont.ExportRooms.Services
                 DsInfo = bodyObject["ds_info"]?.ToObject<DsRoomChangeInfoDto>(),
                 Header = ParseHeaderToken(bodyObject["header"]),
                 WallHeight = ReadDouble(bodyObject["wall_height"]),
-                WallHeightNew = ReadDouble(bodyObject["wall_height_new"])
+                WallHeightNew = ReadDouble(bodyObject["wall_height_new"]),
+                Sum = bodyObject["sum"]?.ToObject<DsSumDto>()
             };
 
             var roomsToken = bodyObject["data"];
@@ -328,6 +330,7 @@ namespace SmartRemont.ExportRooms.Services
             snapshot.Header = parsed.Header ?? body?.Header;
             snapshot.WallHeightM = wallHeight;
             snapshot.Rooms = rooms;
+            snapshot.Sum = body?.Sum;
             return snapshot;
         }
 

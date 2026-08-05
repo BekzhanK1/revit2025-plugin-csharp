@@ -44,6 +44,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 var session = await AuthService.LoginAsync(EmailTextBox.Text, PasswordBox.Password)
                     .ConfigureAwait(true);
+                CredentialManager.SaveCredentials(EmailTextBox.Text, PasswordBox.Password);
                 PasswordBox.Clear();
                 ShowWelcome(session);
             }
@@ -78,6 +79,13 @@ namespace SmartRemont.ExportRooms.Views
         {
             WelcomePanel.Visibility = Visibility.Collapsed;
             LoginPanel.Visibility = Visibility.Visible;
+
+            var creds = CredentialManager.LoadCredentials();
+            if (!string.IsNullOrEmpty(creds.email))
+            {
+                EmailTextBox.Text = creds.email;
+                PasswordBox.Password = creds.password ?? "";
+            }
         }
 
         void ShowError(string message)

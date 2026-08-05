@@ -73,9 +73,13 @@ namespace SmartRemont.ExportRooms.Services
                 materialsResponse.Data = new List<RevitMaterialRowDto>();
             }
 
+            var remontId = remont.RemontId ?? materialsResponse.RemontId ?? 0;
+
             var targetPath = ProjectFileNamingService.BuildFullPath(
                 clientRequestId,
-                ResolveResidentName(remont));
+                remontId,
+                remont.ResidentName,
+                remont.FlatNum);
 
             Report(progress, "Сохранение копии проекта...");
             var copyResult = ProjectCopyService.SaveCopyAs(doc, targetPath, overwriteExistingFile);
@@ -94,8 +98,6 @@ namespace SmartRemont.ExportRooms.Services
             Report(progress, "Запись метаданных заявки...");
             try
             {
-                var remontId = remont.RemontId ?? materialsResponse.RemontId ?? 0;
-
                 ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
                 {
                     RemontId = remontId,

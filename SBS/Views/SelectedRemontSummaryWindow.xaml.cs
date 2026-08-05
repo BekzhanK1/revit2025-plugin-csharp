@@ -166,6 +166,9 @@ namespace SmartRemont.ExportRooms.Views
                 ? $"Данные системы: {string.Join(" · ", dsParts)}"
                 : "Данные системы загружены.";
 
+            // Financial summary panel
+            ApplyFinancialSummary(system.Sum);
+
             _systemWallHeightM = system.WallHeightM;
             var systemByKey = DsAreaCompareService.BuildSystemAreaByKey(system.Rooms);
             var revitKeys = new HashSet<string>(
@@ -274,9 +277,23 @@ namespace SmartRemont.ExportRooms.Views
             var systemOnly = compared.Count(r => r.AreaCompareStatus == DsAreaCompareStatus.SystemOnly);
             var revitOnly = compared.Count(r => r.AreaCompareStatus == DsAreaCompareStatus.RevitOnly);
 
-            SetStatus(
-                $"Сравнение: совпадений {match}, расхождений {mismatch}, только система {systemOnly}, только Revit {revitOnly}.",
-                isError: false);
+            if (_isDsAccepted)
+            {
+                SetStatus("ДС утверждена — редактирование невозможно.", isError: true);
+            }
+            else if (mismatch > 0 || systemOnly > 0 || revitOnly > 0)
+            {
+                SetStatus("Проверьте расхождения и нажмите «Отправить».", isError: false);
+            }
+            else
+            {
+                SetStatus("Все площади совпадают с системой.", isError: false);
+            }
+
+            // Update statistics text below the table
+            if (StatsCountText != null)
+                StatsCountText.Text =
+                    $"Помещений: {compared.Count}  |  Совпадает: {match}  |  Изменено: {mismatch}  |  Только система: {systemOnly}  |  Только Revit: {revitOnly}";
         }
 
         void DifferencesOnlyCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -511,6 +528,55 @@ namespace SmartRemont.ExportRooms.Views
                     WallHeightCompareText.Text = string.Empty;
                     break;
             }
+        }
+
+        void ApplyFinancialSummary(DsSumDto sum)
+        {
+            if (FinancialSummaryPanel == null)
+                return;
+
+            if (sum == null || (!sum.DsSum.HasValue && !sum.MaterialDiff.HasValue))
+            {
+                FinancialSummaryPanel.Visibility = System.Windows.Visibility.Collapsed;
+                return;
+            }
+
+            FinancialSummaryPanel.Visibility = System.Windows.Visibility.Visible;
+
+            MaterialDiffText.Text = FormatFinancial(sum.MaterialDiff);
+            MaterialDiffText.Foreground = GetFinancialBrush(sum.MaterialDiff);
+
+            WorkDiffText.Text = FormatFinancial(sum.WorkDiff);
+            WorkDiffText.Foreground = GetFinancialBrush(sum.WorkDiff);
+
+            ServiceDiffText.Text = FormatFinancial(sum.ServiceDiff);
+            ServiceDiffText.Foreground = GetFinancialBrush(sum.ServiceDiff);
+
+            DsSumText.Text = FormatFinancial(sum.DsSum);
+            DsSumText.Foreground = GetFinancialBrush(sum.DsSum);
+        }
+
+        static string FormatFinancial(double? value)
+        {
+            if (!value.HasValue)
+                return "—";
+
+            var formatted = value.Value.ToString("N0", CultureInfo.GetCultureInfo("ru-RU"));
+            if (value.Value > 0d) return $"+{formatted} ₸";
+            if (value.Value < 0d) return $"{formatted} ₸";
+            return "0 ₸";
+        }
+
+        static SolidColorBrush GetFinancialBrush(double? value)
+        {
+            if (!value.HasValue || Math.Abs(value.Value) < 0.01d)
+                return new SolidColorBrush(
+                    (System.Windows.Media.Color)ColorConverter.ConvertFromString("#64748B"));
+            if (value.Value > 0d)
+                return new SolidColorBrush(
+                    (System.Windows.Media.Color)ColorConverter.ConvertFromString("#15803D"));
+            return new SolidColorBrush(
+                (System.Windows.Media.Color)ColorConverter.ConvertFromString("#DC2626"));
         }
 
         void SetBusy(bool isBusy)

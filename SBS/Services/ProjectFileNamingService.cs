@@ -19,38 +19,52 @@ namespace SmartRemont.ExportRooms.Services
                 "Projects");
         }
 
-        public static string BuildBaseName(int clientRequestId, string residentName)
+        public static string BuildBaseName(int clientRequestId, int remontId, string residentName = null, string flatNum = null)
         {
             if (clientRequestId <= 0)
                 throw new ArgumentOutOfRangeException(nameof(clientRequestId), "clientRequestId must be positive.");
 
-            var sanitizedResident = SanitizeResidentName(residentName);
-            if (string.IsNullOrEmpty(sanitizedResident))
-                sanitizedResident = DefaultResidentFallback;
+            var sb = new StringBuilder();
+            sb.Append(clientRequestId);
+            sb.Append('_');
+            sb.Append(remontId);
 
-            var baseName = $"{clientRequestId}_{sanitizedResident}";
-            return TruncateBaseName(baseName, clientRequestId, sanitizedResident);
+            var sanitizedResident = SanitizeResidentName(residentName);
+            if (!string.IsNullOrEmpty(sanitizedResident))
+            {
+                sb.Append('_');
+                sb.Append(sanitizedResident);
+            }
+
+            var sanitizedFlat = SanitizeResidentName(flatNum);
+            if (!string.IsNullOrEmpty(sanitizedFlat))
+            {
+                sb.Append('_');
+                sb.Append(sanitizedFlat);
+            }
+
+            return sb.ToString();
         }
 
-        public static string BuildFileName(int clientRequestId, string residentName) =>
-            BuildBaseName(clientRequestId, residentName) + ProjectFileExtension;
+        public static string BuildFileName(int clientRequestId, int remontId, string residentName = null, string flatNum = null) =>
+            BuildBaseName(clientRequestId, remontId, residentName, flatNum) + ProjectFileExtension;
 
-        public static string BuildProjectDirectory(int clientRequestId, string residentName, string baseFolder = null)
+        public static string BuildProjectDirectory(int clientRequestId, int remontId, string residentName = null, string flatNum = null, string baseFolder = null)
         {
             var folder = string.IsNullOrWhiteSpace(baseFolder)
                 ? GetDefaultProjectsFolder()
                 : baseFolder.Trim();
 
-            return Path.Combine(folder, BuildBaseName(clientRequestId, residentName));
+            return Path.Combine(folder, BuildBaseName(clientRequestId, remontId, residentName, flatNum));
         }
 
         /// <summary>
-        /// Documents\SmartRemont\Projects\{client_request_id}_{name}\{client_request_id}_{name}.rvt
+        /// Documents\SmartRemont\Projects\{client_request_id}_{remont_id}_{resident}_{flat}\{client_request_id}_{remont_id}_{resident}_{flat}.rvt
         /// </summary>
-        public static string BuildFullPath(int clientRequestId, string residentName, string baseFolder = null)
+        public static string BuildFullPath(int clientRequestId, int remontId, string residentName = null, string flatNum = null, string baseFolder = null)
         {
-            var projectDirectory = BuildProjectDirectory(clientRequestId, residentName, baseFolder);
-            return Path.Combine(projectDirectory, BuildFileName(clientRequestId, residentName));
+            var projectDirectory = BuildProjectDirectory(clientRequestId, remontId, residentName, flatNum, baseFolder);
+            return Path.Combine(projectDirectory, BuildFileName(clientRequestId, remontId, residentName, flatNum));
         }
 
         public static void EnsureDirectoryExists(string folderPath)

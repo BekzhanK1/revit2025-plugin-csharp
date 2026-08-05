@@ -85,14 +85,18 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTemplateColumn Header="Статус" Width="180">
+                            <DataGridTemplateColumn Header="Статус" Width="150">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border Padding="10,4" CornerRadius="4" HorizontalAlignment="Left">
+                                        <Border Padding="10,4" CornerRadius="4" HorizontalAlignment="Left"
+                                                ToolTip="{Binding DetailDisplay}">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="#F1F5F9"/>
                                                     <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasSyncError}" Value="True">
+                                                            <Setter Property="Background" Value="#FEE2E2"/>
+                                                        </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsInProject}" Value="True">
                                                             <Setter Property="Background" Value="#DCFCE7"/>
                                                         </DataTrigger>
@@ -106,6 +110,9 @@
                                                         <Setter Property="FontSize" Value="12"/>
                                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                                         <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasSyncError}" Value="True">
+                                                                <Setter Property="Foreground" Value="#991B1B"/>
+                                                            </DataTrigger>
                                                             <DataTrigger Binding="{Binding IsInProject}" Value="True">
                                                                 <Setter Property="Foreground" Value="#166534"/>
                                                             </DataTrigger>
@@ -117,6 +124,19 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Детали" Binding="{Binding DetailDisplay}" Width="2*" MinWidth="220">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                        <Setter Property="Foreground" Value="#991B1B"/>
+                                        <Setter Property="FontSize" Value="12"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSyncError}" Value="False">
+                                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

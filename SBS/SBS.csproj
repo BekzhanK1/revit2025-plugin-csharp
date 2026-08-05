@@ -87,11 +87,15 @@
     <Compile Include="Services\ProjectCopyService.cs" />
     <Compile Include="Services\RevitMaterialsSyncOrchestrator.cs" />
     <Compile Include="Services\ProjectInitService.cs" />
+    <Compile Include="Services\CredentialManager.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\ExportSmartRemontRoomsCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Views\ViewContainer.xaml.cs">
       <DependentUpon>ViewContainer.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ScheduleMappingWindow.xaml.cs">
+      <DependentUpon>ScheduleMappingWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\ExportSmartRemontRoomsWindow.xaml.cs">
       <DependentUpon>ExportSmartRemontRoomsWindow.xaml</DependentUpon>
@@ -154,6 +158,10 @@
 
   <ItemGroup>
     <Page Include="Views\ViewContainer.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ScheduleMappingWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

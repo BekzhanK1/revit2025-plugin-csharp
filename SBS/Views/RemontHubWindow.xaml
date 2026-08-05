@@ -266,7 +266,7 @@
 
                         <!-- Resident -->
                         <StackPanel Grid.Column="2" Margin="16,0,16,0">
-                            <TextBlock Text="ЖИЛОЙ КОМПЛЕКС" Style="{StaticResource HubInfoLabel}"/>
+                            <TextBlock Text="ЖК" Style="{StaticResource HubInfoLabel}"/>
                             <TextBlock x:Name="ResidentNameText" Style="{StaticResource HubInfoValue}"/>
                         </StackPanel>
                         <Border Grid.Column="3" Background="{StaticResource CardBorderBrush}" Margin="0,4,0,4"/>
@@ -278,7 +278,7 @@
                         </StackPanel>
                         <Border Grid.Column="5" Background="{StaticResource CardBorderBrush}" Margin="0,4,0,4"/>
 
-                        <!-- Preset -->
+                        <!-- Preset Kit -->
                         <StackPanel Grid.Column="6" Margin="16,0,0,0">
                             <TextBlock Text="ПАКЕТ" Style="{StaticResource HubInfoLabel}"/>
                             <TextBlock x:Name="PresetNameText" Style="{StaticResource HubInfoValue}"/>
@@ -293,55 +293,78 @@
                                Style="{StaticResource SectionLabel}"
                                Margin="0,0,0,16"/>
 
-                    <UniformGrid Columns="2" Rows="4">
-                        <Button x:Name="InitProjectButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="Инициализировать проект"
-                                Tag="primary"
-                                Click="InitProjectButton_Click"/>
-                        <Button x:Name="RevitMaterialsButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="Синхронизация материалов из Revit"
-                                Tag="primary"
-                                Click="RevitMaterialsButton_Click"/>
-                        
-                        <!-- Legacy/Muted functions to show -->
-                        <Button x:Name="DsAreaChangeButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="ДС на изменение квадратуры"
-                                Tag="default"
-                                Click="DsAreaChangeButton_Click"/>
-                        <Button x:Name="MeasuresButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="Замеры комнат (из спецификаций)"
-                                Tag="default"
-                                Click="MeasuresButton_Click"/>
-                        <Button x:Name="RoomMaterialsButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="ДС на изменение ТК"
-                                Tag="default"
-                                Click="RoomMaterialsButton_Click"/>
+                    <Grid>
+                        <UniformGrid Columns="2" Rows="4">
+                            <Button x:Name="InitProjectButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="Инициализировать проект"
+                                    Tag="primary"
+                                    Click="InitProjectButton_Click"/>
+                            <Button x:Name="RevitMaterialsButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="Синхронизация материалов из Revit"
+                                    Tag="primary"
+                                    Click="RevitMaterialsButton_Click"/>
+                            
+                            <!-- Legacy/Muted functions to show -->
+                            <Button x:Name="DsAreaChangeButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="ДС на изменение квадратуры"
+                                    Tag="default"
+                                    Click="DsAreaChangeButton_Click"/>
+                            <Button x:Name="MeasuresButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="Замеры комнат (из спецификаций)"
+                                    Tag="default"
+                                    Click="MeasuresButton_Click"/>
+                            <Button x:Name="RoomMaterialsButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="ДС на изменение ТК"
+                                    Tag="default"
+                                    Click="RoomMaterialsButton_Click"/>
 
-                        <!-- Hidden functions (for later) -->
-                        <Button x:Name="MeasuresFromCodeButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="Замеры по коду"
-                                Tag="default"
+                            <!-- Hidden functions (for later) -->
+                            <Button x:Name="MeasuresFromCodeButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="Замеры по коду"
+                                    Tag="default"
+                                    Visibility="Collapsed"
+                                    Click="MeasuresFromCodeButton_Click"/>
+                            <Button x:Name="MeasuresCompareButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="Сравнение замеров"
+                                    Tag="default"
+                                    Visibility="Collapsed"
+                                    Click="MeasuresCompareButton_Click"/>
+                            <Button x:Name="TypeParametersButton"
+                                    Style="{StaticResource FeatureCardButton}"
+                                    Content="Изменение параметров типов"
+                                    Tag="default"
+                                    Visibility="Collapsed"
+                                    Click="TypeParametersButton_Click"/>
+                        </UniformGrid>
+
+                        <Border x:Name="ProjectApprovedOverlay"
+                                Background="#CCF8FAFC"
                                 Visibility="Collapsed"
-                                Click="MeasuresFromCodeButton_Click"/>
-                        <Button x:Name="MeasuresCompareButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="Сравнение замеров"
-                                Tag="default"
-                                Visibility="Collapsed"
-                                Click="MeasuresCompareButton_Click"/>
-                        <Button x:Name="TypeParametersButton"
-                                Style="{StaticResource FeatureCardButton}"
-                                Content="Изменение параметров типов"
-                                Tag="default"
-                                Visibility="Collapsed"
-                                Click="TypeParametersButton_Click"/>
-                    </UniformGrid>
+                                CornerRadius="12">
+                            <Border Background="#FEE2E2" 
+                                    BorderBrush="#FECACA" 
+                                    BorderThickness="1" 
+                                    Padding="16,10" 
+                                    CornerRadius="6"
+                                    HorizontalAlignment="Center" 
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconLock}" Fill="#991B1B" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Проект утвержден — внесение изменений заблокировано" 
+                                               Foreground="#991B1B" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="14"/>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </Grid>
                 </StackPanel>
 
                 <!-- FOOTER ACTIONS -->

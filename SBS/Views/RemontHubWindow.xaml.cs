@@ -121,7 +121,17 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
             
-            var snapshot = SmartRemont.ExportRooms.Services.RoomMeasurementsService.Collect(_doc);
+            RoomMeasurementsSnapshot snapshot;
+            try
+            {
+                snapshot = RoomMeasurementsService.Collect(_doc);
+            }
+            catch (Exception ex)
+            {
+                ApplyBadge(MeasuresButton, "Ошибка замеров", "#FEE2E2", "#991B1B", ex.Message);
+                return;
+            }
+
             if (snapshot.Rooms.Count == 0)
             {
                 ApplyBadge(MeasuresButton, "Нет замеров", "#F1F5F9", "#475569", "В ведомостях нет комнат");
@@ -322,22 +332,23 @@ namespace SmartRemont.ExportRooms.Views
                 RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
             }
 
-            var name = BuildSubtitle(remont);
-            if (string.IsNullOrEmpty(name))
-            {
-                RemontNameText.Text = string.Empty;
-                RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
-            }
-            else
-            {
-                RemontNameText.Text = name;
-                RemontNameText.Visibility = System.Windows.Visibility.Visible;
-            }
+            RemontNameText.Text = string.Empty;
+            RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
 
             ClientNameText.Text = DisplayOrDash(remont.ClientName);
             ResidentNameText.Text = DisplayOrDash(remont.ResidentName);
             FlatNumText.Text = DisplayOrDash(remont.FlatNum);
-            PresetNameText.Text = DisplayOrDash(remont.PresetName);
+            PresetNameText.Text = DisplayOrDash(string.IsNullOrEmpty(remont.PresetKitName) ? remont.PresetName : remont.PresetKitName);
+
+            bool isProjectApproved = remont.ProjectAccepted == 1;
+            if (isProjectApproved)
+            {
+                ProjectApprovedOverlay.Visibility = System.Windows.Visibility.Visible;
+            }
+            else
+            {
+                ProjectApprovedOverlay.Visibility = System.Windows.Visibility.Collapsed;
+            }
 
             var metadata = ProjectRemontMetadataService.TryRead(_doc);
             UpdateProjectInitializedBadge(
@@ -473,7 +484,12 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var targetPath = ProjectFileNamingService.BuildFullPath(clientRequestId, ResolveResidentName(remont));
+            var remontId = remont?.RemontId ?? 0;
+            var targetPath = ProjectFileNamingService.BuildFullPath(
+                clientRequestId,
+                remontId,
+                remont?.ResidentName,
+                remont?.FlatNum);
             var fileExists = File.Exists(targetPath);
 
             SetStatus("Загрузка списка материалов...", isSuccess: true);

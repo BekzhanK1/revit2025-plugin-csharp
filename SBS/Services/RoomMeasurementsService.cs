@@ -90,7 +90,7 @@ namespace SmartRemont.ExportRooms.Services
                 {
                     param_code = entry.ParamCode,
                     param_name = entry.ParamName,
-                    schedule_name_expected = string.Join(" | ", entry.ScheduleNamesExact),
+                    schedule_name_expected = FormatList(entry.ScheduleNamesExact, " | "),
                     schedule_name_found = schedule?.Name ?? "—",
                     Found = schedule != null && extracted.HasData,
                     Message = BuildSourceMessage(schedule, entry, valueColUsed, roomColUsed, extracted)
@@ -99,11 +99,67 @@ namespace SmartRemont.ExportRooms.Services
 
             ExtractWallAreaMinus(schedules, byKey, snapshot.Sources);
 
-            var roomNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var r in byKey.Values)
+            if (byKey.TryGetValue("PERIMETER_FLOOR", out var perimeterFloor) && 
+                byKey.TryGetValue("PERIMETER_ROOF", out var perimeterRoof))
             {
-                foreach (var key in r.ByRoomOrEmpty.Keys) roomNames.Add(key);
-                foreach (var key in r.ByRoomIntOrEmpty.Keys) roomNames.Add(key);
+                if (perimeterFloor.ByRoom == null) perimeterFloor.ByRoom = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                
+                var bathroomKeys = perimeterRoof.ByRoomOrEmpty.Keys
+                    .Where(k => RoomNameMatcher.MatchesAnyBaseName(k, new[] { "Ванная", "Санузел", "С/у" }))
+                    .ToList();
+                    
+                foreach (var bathKey in bathroomKeys)
+                {
+                    if (!perimeterFloor.ByRoom.ContainsKey(bathKey))
+                    {
+                        var roofVal = perimeterRoof.ByRoom[bathKey];
+                        perimeterFloor.ByRoom[bathKey] = roofVal > 0.8 ? roofVal - 0.8 : 0;
+                    }
+                }
+                
+                byKey["PERIMETER_FLOOR"] = perimeterFloor;
+                
+                var floorSource = snapshot.Sources.FirstOrDefault(s => s.param_code == "PERIMETER_FLOOR");
+                if (floorSource != null && bathroomKeys.Count > 0)
+                {
+                    if (floorSource.Message.Contains("— строк с данными нет"))
+                    {
+                        floorSource.Message = floorSource.Message.Replace("— строк с данными нет", "— строк нет, но для санузлов рассчитано математически (Периметр потолка - 0.8)");
+                        floorSource.Found = true;
+                    }
+                    else
+                    {
+                        floorSource.Message += " (для санузлов рассчитано: Потолок - 0.8)";
+                    }
+                }
+            }
+
+            var roomNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            
+            if (doc != null)
+            {
+                try 
+                {
+                    var areaRooms = RoomAreaService.CollectRooms(doc);
+                    foreach (var ar in areaRooms)
+                    {
+                        if (!string.IsNullOrWhiteSpace(ar.RoomName))
+                        {
+                            roomNames.Add(ar.RoomName.Trim());
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // Fallback to schedule rooms if phase filtering returns nothing
+            if (roomNames.Count == 0)
+            {
+                foreach (var r in byKey.Values)
+                {
+                    foreach (var key in r.ByRoomOrEmpty.Keys) roomNames.Add(RoomNameMatcher.GetBaseName(key));
+                    foreach (var key in r.ByRoomIntOrEmpty.Keys) roomNames.Add(RoomNameMatcher.GetBaseName(key));
+                }
             }
 
             snapshot.Rooms = roomNames
@@ -190,6 +246,9 @@ namespace SmartRemont.ExportRooms.Services
             ExtractWallAreaPart(
                 schedules, WallAreaMinusSources.Balcony, "балкон",
                 display, merged, sources);
+            ExtractWallAreaPart(
+                schedules, WallAreaMinusSources.Bathroom, "санузлы",
+                display, merged, sources);
 
             byKey["WALL_AREA_MINUS"] = merged;
         }
@@ -239,7 +298,7 @@ namespace SmartRemont.ExportRooms.Services
             {
                 param_code = displayEntry.ParamCode,
                 param_name = $"{displayEntry.ParamName} ({partLabel})",
-                schedule_name_expected = string.Join(" | ", part.ScheduleNamesExact),
+                schedule_name_expected = FormatList(part.ScheduleNamesExact, " | "),
                 schedule_name_found = schedule?.Name ?? "—",
                 Found = schedule != null && extracted.HasData,
                 Message = BuildSourceMessage(schedule, part, valueColUsed, roomColUsed, extracted)
@@ -263,10 +322,10 @@ namespace SmartRemont.ExportRooms.Services
             ExtractResult extracted)
         {
             if (schedule == null)
-                return $"Не найдена ведомость «{string.Join("» или «", entry.ScheduleNamesExact)}» (точное имя без < >)";
+                return $"Не найдена ведомость «{FormatList(entry.ScheduleNamesExact, "» или «")}» (точное имя без < >)";
 
             if (string.IsNullOrWhiteSpace(valueCol))
-                return $"Ведомость «{schedule.Name}»: нет колонки [{string.Join(" | ", entry.ValueColumnsExact)}]";
+                return $"Ведомость «{schedule.Name}»: нет колонки [{FormatList(entry.ValueColumnsExact, " | ")}]";
 
             var cols = $"кол. «{valueCol}»";
             if (!string.IsNullOrWhiteSpace(roomCol))
@@ -289,7 +348,7 @@ namespace SmartRemont.ExportRooms.Services
             return $"«{schedule.Name}»: {cols}";
         }
 
-        static bool ParamAppliesToRoom(Entry entry, string roomName)
+        public static bool ParamAppliesToRoom(Entry entry, string roomName)
         {
             if (entry.RoomBaseNamesFilter != null && entry.RoomBaseNamesFilter.Count > 0)
                 return RoomNameMatcher.MatchesAnyBaseName(roomName, entry.RoomBaseNamesFilter);
@@ -312,6 +371,18 @@ namespace SmartRemont.ExportRooms.Services
                 return i;
             if (r.ByRoomOrEmpty.TryGetValue(room, out var d))
                 return d;
+
+            // Fallback: match by BaseName if exact room string differs (e.g. schedule has "Ванная 5" and room is "Ванная")
+            foreach (var kvp in r.ByRoomIntOrEmpty)
+            {
+                if (RoomNameMatcher.MatchesBaseName(kvp.Key, room))
+                    return kvp.Value;
+            }
+            foreach (var kvp in r.ByRoomOrEmpty)
+            {
+                if (RoomNameMatcher.MatchesBaseName(kvp.Key, room))
+                    return kvp.Value;
+            }
 
             if (!string.IsNullOrWhiteSpace(entry.FixedRoomName)
                 && RoomNameMatcher.MatchesBaseName(room, entry.FixedRoomName)
@@ -638,7 +709,7 @@ namespace SmartRemont.ExportRooms.Services
             map[room] += value;
         }
 
-        static bool TryReadTable(
+        public static bool TryReadTable(
             ViewSchedule schedule,
             out Dictionary<string, int> headers,
             out int rowCount)
@@ -666,6 +737,11 @@ namespace SmartRemont.ExportRooms.Services
             return headers.Count > 0;
         }
 
+        static string FormatList(IReadOnlyList<string> values, string separator) =>
+            values == null || values.Count == 0
+                ? "—"
+                : string.Join(separator, values.Where(v => !string.IsNullOrWhiteSpace(v)));
+
         /// <summary>Только точное совпадение заголовка (OrdinalIgnoreCase), без Contains.</summary>
         static int? ResolveColumnExact(
             Dictionary<string, int> headers,
@@ -673,8 +749,13 @@ namespace SmartRemont.ExportRooms.Services
             out string matchedName)
         {
             matchedName = null;
+            if (headers == null || names == null || names.Count == 0)
+                return null;
+
             foreach (var name in names)
             {
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
                 if (headers.TryGetValue(name, out var idx))
                 {
                     matchedName = name;

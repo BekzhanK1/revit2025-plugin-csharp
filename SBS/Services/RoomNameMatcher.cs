@@ -24,17 +24,9 @@ namespace SmartRemont.ExportRooms.Services
                 return string.Empty;
 
             var trimmed = roomName.Trim();
-            var numberSignIndex = trimmed.IndexOf('№');
-            if (numberSignIndex > 0)
-                return trimmed.Substring(0, numberSignIndex).TrimEnd();
-
             var paren = TrailingParenNumberRegex.Match(trimmed);
             if (paren.Success)
                 return paren.Groups[1].Value.TrimEnd();
-
-            var m = TrailingNumberRegex.Match(trimmed);
-            if (m.Success)
-                return m.Groups[1].Value.TrimEnd();
 
             return trimmed;
         }

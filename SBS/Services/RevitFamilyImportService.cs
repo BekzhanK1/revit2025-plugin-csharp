@@ -33,9 +33,7 @@ namespace SmartRemont.ExportRooms.Services
             if (itemList.Count == 0)
                 return results;
 
-            using var tx = new Transaction(doc, "Smart Remont: импорт материалов Revit");
-            tx.Start();
-
+            // LoadFamily нельзя вызывать внутри открытой Transaction — иначе часто возвращает false.
             foreach (var (materialId, filePath, revitFileType) in itemList)
             {
                 var type = (revitFileType ?? string.Empty).Trim().ToLowerInvariant();
@@ -59,6 +57,20 @@ namespace SmartRemont.ExportRooms.Services
                         MaterialId = materialId,
                         Success = false,
                         ErrorMessage = "Файл семейства не найден"
+                    });
+                    continue;
+                }
+
+                // Уже есть тип/семейство с этим SR_ID — повторная загрузка не нужна.
+                var already = RevitMaterialPresenceService.CheckMaterial(doc, materialId);
+                if (already.IsInProject)
+                {
+                    results.Add(new FamilyImportResult
+                    {
+                        MaterialId = materialId,
+                        Success = true,
+                        AlreadyInProject = true,
+                        FamilyName = already.Label
                     });
                     continue;
                 }
@@ -107,11 +119,26 @@ namespace SmartRemont.ExportRooms.Services
                         continue;
                     }
 
+                    // LoadFamily вернул false, но SR_ID мог уже оказаться в проекте.
+                    var afterLoad = RevitMaterialPresenceService.CheckMaterial(doc, materialId);
+                    if (afterLoad.IsInProject)
+                    {
+                        RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
+                        results.Add(new FamilyImportResult
+                        {
+                            MaterialId = materialId,
+                            Success = true,
+                            AlreadyInProject = true,
+                            FamilyName = afterLoad.Label
+                        });
+                        continue;
+                    }
+
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
                         Success = false,
-                        ErrorMessage = "Не удалось загрузить семейство"
+                        ErrorMessage = "Не удалось загрузить семейство в проект (LoadFamily=false)"
                     });
                 }
                 catch (Autodesk.Revit.Exceptions.ApplicationException ex)
@@ -142,7 +169,6 @@ namespace SmartRemont.ExportRooms.Services
                 }
             }
 
-            tx.Commit();
             return results;
         }
 

@@ -97,7 +97,7 @@ namespace SmartRemont.ExportRooms.Services
         /// <summary>Ключ — базовое имя комнаты (RoomNameMatcher), значение — системный room_id.</summary>
         public static Dictionary<string, int> BuildRoomIdsByKey(IEnumerable<MeasureRoomInfoDto> rooms) =>
             (rooms ?? Enumerable.Empty<MeasureRoomInfoDto>())
-                .Where(r => r != null && !string.IsNullOrWhiteSpace(r.RoomName) && r.RoomId > 0)
+                .Where(r => r != null && !string.IsNullOrWhiteSpace(r.RoomName) && r.RoomId > 0 && r.PlanirovkaRoomId > 0)
                 .GroupBy(r => RoomNameMatcher.GetBaseName(r.RoomName), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First().RoomId, StringComparer.OrdinalIgnoreCase);
 

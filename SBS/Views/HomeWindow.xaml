@@ -3,10 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont"
-        Width="{x:Static views:WindowLayoutHelper.HomeDefaultWidth}"
+        Width="820"
         MinWidth="760"
+        SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="CanResize"
+        ResizeMode="CanMinimize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
         Background="{DynamicResource AppBackgroundBrush}">
@@ -62,7 +63,7 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource ModernCard}" Margin="28" Padding="32">
+    <Border Style="{StaticResource ModernCard}" Margin="24" Padding="28">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -89,45 +90,88 @@
                         Click="LogoutButton_Click"/>
             </Grid>
 
-            <!-- Bound remont banner -->
+            <!-- Bound remont banner card -->
             <Border Grid.Row="1"
                     x:Name="BoundRemontBanner"
-                    Background="#ECFDF5"
-                    BorderBrush="#10B981"
+                    Background="#F0FDF4"
+                    BorderBrush="#BBF7D0"
                     BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="20,16"
-                    Margin="0,0,0,20"
+                    CornerRadius="12"
+                    Padding="24,20"
+                    Margin="0,0,0,24"
                     Visibility="Collapsed">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <Path Data="{StaticResource IconCheckCircle}" 
-                                  Fill="#10B981" 
-                                  Width="18" Height="18" 
-                                  Stretch="Uniform"
-                                  VerticalAlignment="Center"
-                                  Margin="0,0,8,0"/>
-                            <TextBlock x:Name="BoundRemontBannerText"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       Foreground="#065F46"
-                                       VerticalAlignment="Center"/>
+                <StackPanel>
+                    <!-- Status Header -->
+                    <Grid Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,12,0">
+                                <Path Data="{StaticResource IconCheckCircle}" 
+                                      Fill="#166534" 
+                                      Width="16" Height="16" 
+                                      Stretch="Uniform"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="ПРОЕКТ ПРИВЯЗАН" FontSize="11" FontWeight="Bold" Foreground="#166534" Margin="0,0,0,2"/>
+                                <TextBlock x:Name="BoundRemontBannerText"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="#065F46"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                    <Button Grid.Column="1"
-                            x:Name="ContinueToHubButton"
-                            Content="Продолжить"
-                            Style="{StaticResource ModernPrimaryButton}"
-                            MinWidth="140"
-                            Margin="16,0,0,0"
-                            VerticalAlignment="Center"
-                            Click="ContinueToHubButton_Click"/>
-                </Grid>
+                    </Grid>
+
+                    <!-- Details Grid -->
+                    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Text="КЛИЕНТ" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="BoundClientNameText" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis" Text="—"/>
+                            </StackPanel>
+
+                            <Border Grid.Column="1" Background="#E2E8F0" Margin="0,2"/>
+
+                            <StackPanel Grid.Column="2" Margin="12,0">
+                                <TextBlock Text="ЖК / КВАРТИРА" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="BoundResidentNameText" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis" Text="—"/>
+                            </StackPanel>
+
+                            <Border Grid.Column="3" Background="#E2E8F0" Margin="0,2"/>
+
+                            <StackPanel Grid.Column="4" Margin="12,0,0,0">
+                                <TextBlock Text="ПАКЕТ" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="BoundPresetNameText" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis" Text="—"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Actions -->
+                    <Grid>
+                        <Button x:Name="ToggleSearchButton"
+                                Content="Поиск другой заявки"
+                                Style="{StaticResource ModernSecondaryButton}"
+                                HorizontalAlignment="Left"
+                                Height="40"
+                                Padding="16,0"
+                                Click="ToggleSearchButton_Click"/>
+                        
+                        <Button x:Name="ContinueToHubButton"
+                                Content="Открыть хаб проекта →"
+                                Style="{StaticResource ModernPrimaryButton}"
+                                HorizontalAlignment="Right"
+                                Height="40"
+                                Padding="24,0"
+                                Click="ContinueToHubButton_Click"/>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <!-- Search -->

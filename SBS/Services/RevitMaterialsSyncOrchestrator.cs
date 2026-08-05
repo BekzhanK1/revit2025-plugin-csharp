@@ -15,6 +15,15 @@ namespace SmartRemont.ExportRooms.Services
         public string Message { get; init; }
     }
 
+    public sealed class RevitMaterialSyncItemResult
+    {
+        public int MaterialId { get; init; }
+        public bool Success { get; init; }
+        public string ErrorMessage { get; init; }
+        /// <summary>download | import | surface</summary>
+        public string Phase { get; init; }
+    }
+
     public sealed class RevitMaterialsSyncResult
     {
         public bool Success { get; init; }
@@ -23,6 +32,8 @@ namespace SmartRemont.ExportRooms.Services
         public int TotalSyncable { get; init; }
         public string ErrorMessage { get; init; }
         public string SurfacesErrorMessage { get; init; }
+        public IReadOnlyList<RevitMaterialSyncItemResult> Items { get; init; }
+            = Array.Empty<RevitMaterialSyncItemResult>();
     }
 
     public static class RevitMaterialsSyncOrchestrator
@@ -84,19 +95,32 @@ namespace SmartRemont.ExportRooms.Services
                 };
             }
 
+            var itemResults = new List<RevitMaterialSyncItemResult>();
             var downloadTotal = rfaRows.Count + (surfaceRows.Count > 0 ? 1 : 0);
             var downloadDone = 0;
 
             Report(progress, "download", downloadDone, downloadTotal, $"Скачивание: {downloadDone} из {downloadTotal}");
 
-            var downloadProgress = new Progress<(int materialId, int done, int total, bool downloading)>(_ =>
+            var downloadProgress = new Progress<(int materialId, int done, int total, bool downloading)>(p =>
             {
-                Report(progress, "download", downloadDone, downloadTotal, $"Скачивание: {downloadDone} из {downloadTotal}");
+                Report(progress, "download", p.done, downloadTotal,
+                    $"Скачивание: {p.done} из {downloadTotal}");
             });
 
             var downloadResults = await RevitMaterialsDownloadService
                 .SyncAsync(rfaRows, downloadProgress)
                 .ConfigureAwait(true);
+
+            foreach (var dr in downloadResults.Where(r => !r.Success))
+            {
+                itemResults.Add(new RevitMaterialSyncItemResult
+                {
+                    MaterialId = dr.MaterialId,
+                    Success = false,
+                    Phase = "download",
+                    ErrorMessage = HumanizeError(dr.ErrorMessage) ?? "Не удалось скачать RFA"
+                });
+            }
 
             downloadDone = rfaRows.Count;
 
@@ -112,9 +136,24 @@ namespace SmartRemont.ExportRooms.Services
                 Report(progress, "download", downloadDone, downloadTotal, $"Скачивание: {downloadDone} из {downloadTotal}");
 
                 if (surfacesDownload.Success)
+                {
                     surfacesRvtPath = surfacesDownload.FilePath;
+                }
                 else
-                    surfacesErrorMessage = surfacesDownload.ErrorMessage;
+                {
+                    surfacesErrorMessage = HumanizeError(surfacesDownload.ErrorMessage)
+                                          ?? "Не удалось скачать surfaces.rvt";
+                    foreach (var row in surfaceRows)
+                    {
+                        itemResults.Add(new RevitMaterialSyncItemResult
+                        {
+                            MaterialId = row.MaterialId.Value,
+                            Success = false,
+                            Phase = "surface",
+                            ErrorMessage = surfacesErrorMessage
+                        });
+                    }
+                }
             }
 
             var importItems = downloadResults
@@ -122,32 +161,78 @@ namespace SmartRemont.ExportRooms.Services
                 .Select(r => (r.MaterialId, r.FilePath, r.RevitFileType))
                 .ToList();
 
-            var importCount = importItems.Count
+            var importTotal = importItems.Count
                               + (surfaceRows.Count > 0 && surfacesRvtPath != null ? surfaceRows.Count : 0);
 
-            Report(progress, "import", importCount, importCount, "Загрузка в проект...");
+            Report(progress, "import", 0, Math.Max(importTotal, 1), "Загрузка в проект...");
 
             var materialsLoaded = 0;
 
             if (importItems.Count > 0)
             {
-                RevitFamilyImportService.LoadFamiliesIntoDocument(doc, importItems);
-                materialsLoaded += importItems.Count;
+                var familyResults = RevitFamilyImportService.LoadFamiliesIntoDocument(doc, importItems);
+                foreach (var fr in familyResults)
+                {
+                    if (fr.Success)
+                    {
+                        materialsLoaded++;
+                        itemResults.Add(new RevitMaterialSyncItemResult
+                        {
+                            MaterialId = fr.MaterialId,
+                            Success = true,
+                            Phase = "import"
+                        });
+                    }
+                    else
+                    {
+                        itemResults.Add(new RevitMaterialSyncItemResult
+                        {
+                            MaterialId = fr.MaterialId,
+                            Success = false,
+                            Phase = "import",
+                            ErrorMessage = HumanizeError(fr.ErrorMessage) ?? "Не удалось загрузить семейство"
+                        });
+                    }
+                }
             }
 
             if (surfaceRows.Count > 0 && !string.IsNullOrWhiteSpace(surfacesRvtPath))
             {
-                RevitSurfaceImportService.CopyMaterialsIntoDocument(
+                var surfaceResults = RevitSurfaceImportService.CopyMaterialsIntoDocument(
                     doc,
                     surfacesRvtPath,
                     surfaceRows.Select(r => r.MaterialId.Value));
 
-                materialsLoaded += surfaceRows.Count;
+                foreach (var sr in surfaceResults)
+                {
+                    if (sr.Success)
+                    {
+                        materialsLoaded++;
+                        itemResults.Add(new RevitMaterialSyncItemResult
+                        {
+                            MaterialId = sr.MaterialId,
+                            Success = true,
+                            Phase = "surface"
+                        });
+                    }
+                    else
+                    {
+                        itemResults.Add(new RevitMaterialSyncItemResult
+                        {
+                            MaterialId = sr.MaterialId,
+                            Success = false,
+                            Phase = "surface",
+                            ErrorMessage = HumanizeError(sr.ErrorMessage)
+                                           ?? "Не удалось импортировать surface"
+                        });
+                    }
+                }
             }
 
-            var errorCount = downloadResults.Count(r => !r.Success);
-            if (surfaceRows.Count > 0 && string.IsNullOrWhiteSpace(surfacesRvtPath))
-                errorCount += surfaceRows.Count;
+            Report(progress, "import", importTotal, Math.Max(importTotal, 1), "Загрузка в проект...");
+
+            var errorItems = itemResults.Where(i => !i.Success).ToList();
+            var errorCount = errorItems.Count;
 
             ExportRoomsApplication._logger?.Information(
                 "Materials sync completed: client_request_id={ClientRequestId}, loaded={Loaded}, errors={Errors}, syncable={Syncable}",
@@ -163,34 +248,66 @@ namespace SmartRemont.ExportRooms.Services
                 ErrorCount = errorCount,
                 TotalSyncable = rfaRows.Count + surfaceRows.Count,
                 SurfacesErrorMessage = surfacesErrorMessage,
-                ErrorMessage = BuildErrorMessage(errorCount, downloadResults, surfacesErrorMessage)
+                Items = itemResults,
+                ErrorMessage = BuildErrorMessage(errorItems, surfacesErrorMessage)
             };
         }
 
         static string BuildErrorMessage(
-            int errorCount,
-            IReadOnlyCollection<DownloadResult> downloadResults,
+            IReadOnlyList<RevitMaterialSyncItemResult> errorItems,
             string surfacesErrorMessage)
         {
-            if (errorCount == 0)
+            if (errorItems == null || errorItems.Count == 0)
                 return null;
 
             var parts = new List<string>();
 
-            var rfaErrors = downloadResults.Where(r => !r.Success).ToList();
-            if (rfaErrors.Count > 0)
-            {
-                parts.Add(
-                    $"Не удалось скачать {rfaErrors.Count} файл(ов) RFA (material_id: "
-                    + string.Join(", ", rfaErrors.Select(r => r.MaterialId)) + ").");
-            }
-
             if (!string.IsNullOrWhiteSpace(surfacesErrorMessage))
                 parts.Add(surfacesErrorMessage);
 
+            var allErrors = errorItems
+                .GroupBy(i => i.MaterialId)
+                .Select(g => g.First())
+                .Select(i => $"• #{i.MaterialId}: {i.ErrorMessage}")
+                .ToList();
+
+            if (allErrors.Count > 0)
+                parts.Add(string.Join("\n", allErrors));
+
             return parts.Count > 0
-                ? string.Join(" ", parts)
-                : $"Инициализация завершена с ошибками: {errorCount}";
+                ? string.Join("\n\n", parts)
+                : $"Ошибок: {errorItems.Count}";
+        }
+
+        /// <summary>Короткие понятные формулировки для UI.</summary>
+        internal static string HumanizeError(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+
+            var msg = raw.Trim();
+
+            if (msg.Contains("Параметр SR_ID не найден", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("SR_ID не найден в FamilyManager", StringComparison.OrdinalIgnoreCase))
+                return "В RFA нет параметра SR_ID";
+
+            if (msg.Contains("пуст или не число", StringComparison.OrdinalIgnoreCase))
+                return "SR_ID в RFA пуст или не число";
+
+            if (msg.Contains("не совпадает с material_id", StringComparison.OrdinalIgnoreCase))
+                return msg.Replace("не совпадает с material_id", "≠ material_id", StringComparison.OrdinalIgnoreCase);
+
+            if (msg.Contains("не найден в surfaces.rvt", StringComparison.OrdinalIgnoreCase))
+                return msg + " — добавьте тип с этим SR_ID в библиотеку";
+
+            if (msg.Contains("API не вернул surfaces_file_url", StringComparison.OrdinalIgnoreCase))
+                return "Не задана библиотека surfaces.rvt на сервере";
+
+            if (msg.Contains("surfaces.rvt недоступна", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("403", StringComparison.Ordinal))
+                return msg;
+
+            return msg;
         }
 
         static bool IsSurfaceRow(RevitMaterialRowDto row) =>

@@ -101,22 +101,68 @@ namespace SmartRemont.ExportRooms.Views
             {
                 if (row.Source?.MaterialId == null)
                 {
-                    row.ApplyPresence(false, null);
+                    row.ApplyPresence(false);
                     continue;
                 }
 
                 if (presence.TryGetValue(row.Source.MaterialId.Value, out var info))
-                    row.ApplyPresence(info.IsInProject, info.Label);
+                    row.ApplyPresence(info.IsInProject);
                 else
-                    row.ApplyPresence(false, null);
+                    row.ApplyPresence(false);
             }
         }
 
-        void UpdateSummaryStatus()
+        void ApplySyncItemResults(IReadOnlyList<RevitMaterialSyncItemResult> items)
+        {
+            var byId = (items ?? Array.Empty<RevitMaterialSyncItemResult>())
+                .GroupBy(i => i.MaterialId)
+                .ToDictionary(g => g.Key, g => g.Last());
+
+            foreach (var row in _rows)
+            {
+                if (row.Source?.MaterialId == null)
+                    continue;
+
+                if (byId.TryGetValue(row.Source.MaterialId.Value, out var item))
+                    row.ApplySyncResult(item.Success, item.ErrorMessage);
+                else if (!row.HasSyncError)
+                    row.ClearSyncError();
+            }
+        }
+
+        void UpdateSummaryStatus(RevitMaterialsSyncResult syncResult = null)
         {
             var inProject = _rows.Count(r => r.IsInProject);
             var missing = _rows.Count - inProject;
-            StatusTextBlock.Text = $"В проекте: {inProject} · Нет в проекте: {missing}";
+            var text = $"В проекте: {inProject} · Нет в проекте: {missing}";
+
+            if (syncResult == null)
+            {
+                StatusTextBlock.Text = text;
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(syncResult.ErrorMessage)
+                && syncResult.TotalSyncable == 0
+                && syncResult.MaterialsLoaded == 0
+                && syncResult.ErrorCount == 0)
+            {
+                StatusTextBlock.Text = syncResult.ErrorMessage;
+                return;
+            }
+
+            if (syncResult.ErrorCount > 0)
+            {
+                text += $" · Ошибок: {syncResult.ErrorCount}";
+                if (!string.IsNullOrWhiteSpace(syncResult.ErrorMessage))
+                    text += $" · {syncResult.ErrorMessage}";
+            }
+            else
+            {
+                text += " · Синхронизация завершена";
+            }
+
+            StatusTextBlock.Text = text;
         }
 
         async Task SyncMaterialsAsync()
@@ -137,6 +183,9 @@ namespace SmartRemont.ExportRooms.Views
 
             try
             {
+                foreach (var row in _rows)
+                    row.ClearSyncError();
+
                 var progress = new Progress<RevitMaterialsSyncProgress>(p =>
                 {
                     ShowSyncProgress(p.Done, p.Total, p.Message);
@@ -155,26 +204,9 @@ namespace SmartRemont.ExportRooms.Views
                     progress).ConfigureAwait(true);
 
                 SyncProgressBar.IsIndeterminate = false;
+                ApplySyncItemResults(result.Items);
                 RefreshProjectStatuses();
-                UpdateSummaryStatus();
-
-                if (!string.IsNullOrWhiteSpace(result.ErrorMessage)
-                    && result.TotalSyncable == 0
-                    && result.MaterialsLoaded == 0
-                    && result.ErrorCount == 0)
-                {
-                    StatusTextBlock.Text = result.ErrorMessage;
-                }
-                else if (result.ErrorCount > 0 && !string.IsNullOrWhiteSpace(result.ErrorMessage))
-                {
-                    StatusTextBlock.Text += $" · {result.ErrorMessage}";
-                }
-                else
-                {
-                    StatusTextBlock.Text += result.ErrorCount > 0
-                        ? $" · Ошибок: {result.ErrorCount}"
-                        : " · Синхронизация завершена";
-                }
+                UpdateSummaryStatus(result);
             }
             catch (Exception ex)
             {
@@ -286,7 +318,10 @@ namespace SmartRemont.ExportRooms.Views
     sealed class RevitMaterialRowVm : INotifyPropertyChanged
     {
         bool _isInProject;
+        bool _hasSyncError;
         string _projectStatusDisplay = "—";
+        string _detailDisplay = string.Empty;
+        string _syncError;
 
         public RevitMaterialRowDto Source { get; init; }
         public string MaterialIdDisplay { get; init; }
@@ -306,6 +341,19 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        public bool HasSyncError
+        {
+            get => _hasSyncError;
+            private set
+            {
+                if (_hasSyncError == value)
+                    return;
+
+                _hasSyncError = value;
+                OnPropertyChanged();
+            }
+        }
+
         public string ProjectStatusDisplay
         {
             get => _projectStatusDisplay;
@@ -319,12 +367,90 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        public void ApplyPresence(bool isInProject, string label)
+        public string DetailDisplay
+        {
+            get => _detailDisplay;
+            private set
+            {
+                if (_detailDisplay == value)
+                    return;
+
+                _detailDisplay = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void ApplyPresence(bool isInProject)
         {
             IsInProject = isInProject;
-            ProjectStatusDisplay = isInProject
-                ? (string.IsNullOrWhiteSpace(label) ? "В проекте" : $"В проекте")
-                : "Нет в проекте";
+            RefreshStatusLabels();
+        }
+
+        public void ApplySyncResult(bool success, string errorMessage)
+        {
+            _syncError = success ? null : (errorMessage?.Trim() ?? "Ошибка синхронизации");
+            HasSyncError = !success;
+            RefreshStatusLabels();
+        }
+
+        public void ClearSyncError()
+        {
+            if (!HasSyncError && string.IsNullOrEmpty(_syncError))
+                return;
+
+            _syncError = null;
+            HasSyncError = false;
+            RefreshStatusLabels();
+        }
+
+        void RefreshStatusLabels()
+        {
+            // Если материал уже в проекте по SR_ID — это успех; ошибку повторной загрузки не показываем.
+            if (IsInProject)
+            {
+                if (HasSyncError)
+                {
+                    _syncError = null;
+                    HasSyncError = false;
+                }
+
+                ProjectStatusDisplay = "В проекте";
+                DetailDisplay = string.Empty;
+                return;
+            }
+
+            if (HasSyncError)
+            {
+                ProjectStatusDisplay = "Ошибка";
+                DetailDisplay = _syncError ?? "Ошибка синхронизации";
+                return;
+            }
+
+            ProjectStatusDisplay = "Нет в проекте";
+            DetailDisplay = BuildNotInProjectHint(Source);
+        }
+
+        static string BuildNotInProjectHint(RevitMaterialRowDto source)
+        {
+            if (source == null)
+                return string.Empty;
+
+            var type = source.RevitFileType?.Trim() ?? string.Empty;
+            if (string.Equals(type, "surface", StringComparison.OrdinalIgnoreCase))
+                return "Surface: нужен тип с этим SR_ID в surfaces.rvt";
+
+            if (string.Equals(type, "rfa", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrWhiteSpace(source.RevitFileUrl)
+                    ? "RFA: нет файла на сервере"
+                    : "RFA: ещё не синхронизирован";
+            }
+
+            if (string.Equals(type, "none", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(type))
+                return "Нет Revit-файла (тип none)";
+
+            return string.Empty;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

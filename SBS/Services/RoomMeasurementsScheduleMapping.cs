@@ -1,4 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SmartRemont.ExportRooms.Services
 {
@@ -18,125 +22,207 @@ namespace SmartRemont.ExportRooms.Services
 
         public sealed class Entry
         {
-            public string ParamCode { get; init; }
-            public string ParamName { get; init; }
+            public string ParamCode { get; set; }
+            public string ParamName { get; set; }
             /// <summary>Первое имя — для подсказки в UI; все варианты пробуются при поиске.</summary>
-            public IReadOnlyList<string> ScheduleNamesExact { get; init; }
-            public ParseMode Mode { get; init; }
-            public IReadOnlyList<string> ValueColumnsExact { get; init; }
-            public IReadOnlyList<string> RoomColumnsExact { get; init; }
-            public string FixedRoomName { get; init; }
-            public bool ValueIsInteger { get; init; }
+            public List<string> ScheduleNamesExact { get; set; }
+            
+            [JsonConverter(typeof(JsonStringEnumConverter))]
+            public ParseMode Mode { get; set; }
+            public List<string> ValueColumnsExact { get; set; }
+            public List<string> RoomColumnsExact { get; set; }
+            public string FixedRoomName { get; set; }
+            public bool ValueIsInteger { get; set; }
             /// <summary>Если задано — параметр только для помещений с этим базовым именем (Кухня №2 → Кухня).</summary>
-            public IReadOnlyList<string> RoomBaseNamesFilter { get; init; }
+            public List<string> RoomBaseNamesFilter { get; set; }
             /// <summary>Исключить помещения с этим базовым именем (например балкон из обоев).</summary>
-            public IReadOnlyList<string> RoomBaseNamesExclude { get; init; }
+            public List<string> RoomBaseNamesExclude { get; set; }
             /// <summary>Составной параметр — читается отдельно (WALL_AREA_MINUS).</summary>
-            public bool IsMergedParameter { get; init; }
+            public bool IsMergedParameter { get; set; }
         }
 
         /// <summary>WALL_AREA_MINUS: обои — все комнаты кроме балкона; балкон — отдельная ведомость.</summary>
         public static class WallAreaMinusSources
         {
-            public static Entry Interior { get; } = new Entry
+            public static Entry Interior => new Entry
             {
-                ScheduleNamesExact = new[] { "Спецификация поклейка обоев с покраской" },
+                ScheduleNamesExact = new List<string> { "Спецификация поклейка обоев с покраской" },
                 Mode = ParseMode.GroupedByRoomHeader,
-                ValueColumnsExact = new[] { "Площадь, м²" },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" },
-                RoomBaseNamesExclude = new[] { "Балкон" }
+                ValueColumnsExact = new List<string> { "Площадь, м²" },
+                RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                RoomBaseNamesExclude = new List<string> { "Балкон" }
             };
 
-            public static Entry Balcony { get; } = new Entry
+            public static Entry Balcony => new Entry
             {
-                ScheduleNamesExact = new[] { "Спецификация краски для стен балкона" },
-                Mode = ParseMode.FlatByRoomColumn,
-                ValueColumnsExact = new[] { "Площадь, м²", "Площадь" },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" },
-                RoomBaseNamesFilter = new[] { "Балкон" }
+                ScheduleNamesExact = new List<string> { "Спецификация краски для стен балкона" },
+                Mode = ParseMode.GroupedByRoomHeader,
+                ValueColumnsExact = new List<string> { "Площадь, м²", "Площадь" },
+                RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                RoomBaseNamesFilter = new List<string> { "Балкон" }
+            };
+
+            public static Entry Bathroom => new Entry
+            {
+                ScheduleNamesExact = new List<string> { "Условное обозначение плитки в ванной", "Условное обозначение плитки в с/у" },
+                Mode = ParseMode.GroupedByRoomHeader,
+                ValueColumnsExact = new List<string> { "Площадь, м²", "Площадь" },
+                RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                RoomBaseNamesFilter = new List<string> { "Ванная", "Санузел", "С/у" }
             };
         }
 
-        public static IReadOnlyList<Entry> All { get; } = new List<Entry>
+        private static List<Entry> _cachedEntries;
+        private static readonly string ConfigPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "SmartRemont", "RevitPlugin", "schedule_mappings.json");
+
+        public static IReadOnlyList<Entry> All
         {
-            new Entry
+            get
             {
-                ParamCode = "PERIMETER_FLOOR",
-                ParamName = "Периметр по полу (за минусом дверей и проемов)",
-                ScheduleNamesExact = new[] { "Спецификация плинтуса." },
-                Mode = ParseMode.GroupedByRoomHeader,
-                ValueColumnsExact = new[] { "Длина, м." },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" }
-            },
-            new Entry
-            {
-                ParamCode = "PERIMETER_ROOF",
-                ParamName = "Периметр по потолку (полный)",
-                ScheduleNamesExact = new[] { "Спецификация потолков." },
-                Mode = ParseMode.FlatByRoomColumn,
-                ValueColumnsExact = new[] { "Периметр." },
-                RoomColumnsExact = new[] { "Помещения", "Помещение" }
-            },
-            new Entry
-            {
-                ParamCode = "WALL_AREA_MINUS",
-                ParamName = "Площадь стен за минусом площади дверей, проемов и окон",
-                ScheduleNamesExact = new[]
+                if (_cachedEntries == null)
                 {
-                    "Спецификация поклейка обоев с покраской",
-                    "Спецификация краски для стен балкона"
-                },
-                IsMergedParameter = true
-            },
-            new Entry
-            {
-                ParamCode = "PLITKA_AREA",
-                ParamName = "Плитка в прихожей или кухне",
-                ScheduleNamesExact = new[] { "Спецификация напольных плиток" },
-                Mode = ParseMode.GroupedByRoomHeader,
-                ValueColumnsExact = new[] { "Площадь, м²" },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" },
-                RoomBaseNamesFilter = new[] { "Прихожая", "Кухня" }
-            },
-            new Entry
-            {
-                ParamCode = "DOOR_CNT",
-                ParamName = "Количество межкомнатных дверей",
-                ScheduleNamesExact = new[] { "Спецификация дверей" },
-                Mode = ParseMode.DoorsByRoom,
-                ValueColumnsExact = new[] { "Кол-во, шт" },
-                RoomColumnsExact = new[] { "Помещение" },
-                ValueIsInteger = true
-            },
-            new Entry
-            {
-                ParamCode = "APRON_AREA",
-                ParamName = "Площадь фартука на кухне",
-                ScheduleNamesExact = new[] { "Спецификация фартука кухни" },
-                Mode = ParseMode.SingleValueToFixedRoom,
-                FixedRoomName = "Кухня",
-                ValueColumnsExact = new[] { "Площадь", "Площадь, м²" }
-            },
-            new Entry
-            {
-                ParamCode = "MOLDING_PERIMETER",
-                ParamName = "Периметр молдингов",
-                ScheduleNamesExact = new[] { "Спецификация молдингов", "Спецификация молдингов." },
-                Mode = ParseMode.GroupedByRoomHeader,
-                ValueColumnsExact = new[] { "Длина, м.", "Периметр." },
-                RoomColumnsExact = new[] { "Помещение", "Помещения" }
-            },
-            new Entry
-            {
-                ParamCode = "DOUBLE_DOOR",
-                ParamName = "Двустворчатая дверь",
-                ScheduleNamesExact = new[] { "Спецификация дверей" },
-                Mode = ParseMode.DoorsByRoom,
-                ValueColumnsExact = new[] { "Кол-во, шт" },
-                RoomColumnsExact = new[] { "Помещение" },
-                ValueIsInteger = true,
-                RoomBaseNamesFilter = new[] { "Гостиная" }
+                    _cachedEntries = LoadOrCreateConfig();
+                }
+                return _cachedEntries;
             }
-        };
+        }
+
+        private static List<Entry> LoadOrCreateConfig()
+        {
+            try
+            {
+                if (File.Exists(ConfigPath))
+                {
+                    var json = File.ReadAllText(ConfigPath);
+                    var options = new JsonSerializerOptions { ReadCommentHandling = JsonCommentHandling.Skip };
+                    var loaded = JsonSerializer.Deserialize<List<Entry>>(json, options);
+                    if (loaded != null && loaded.Count > 0)
+                    {
+                        foreach (var e in loaded)
+                        {
+                            e.ScheduleNamesExact ??= new List<string>();
+                            e.ValueColumnsExact ??= new List<string>();
+                            e.RoomColumnsExact ??= new List<string>();
+                        }
+                        return loaded;
+                    }
+                }
+            }
+            catch
+            {
+                // Если не смогли прочитать — фоллбэк на дефолтные и перезапись.
+            }
+
+            var defaultEntries = CreateDefaultEntries();
+            try
+            {
+                var dir = Path.GetDirectoryName(ConfigPath);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(defaultEntries, options);
+                File.WriteAllText(ConfigPath, json);
+            }
+            catch
+            {
+                // Игнорируем ошибку записи, чтобы плагин продолжил работу
+            }
+
+            return defaultEntries;
+        }
+
+        private static List<Entry> CreateDefaultEntries()
+        {
+            return new List<Entry>
+            {
+                new Entry
+                {
+                    ParamCode = "PERIMETER_FLOOR",
+                    ParamName = "Периметр по полу (за минусом дверей и проемов)",
+                    ScheduleNamesExact = new List<string> { "Спецификация плинтуса", "Спецификация плинтуса." },
+                    Mode = ParseMode.GroupedByRoomHeader,
+                    ValueColumnsExact = new List<string> { "Длина, м.", "Длина, м" },
+                    RoomColumnsExact = new List<string> { "Помещение", "Помещения" }
+                },
+                new Entry
+                {
+                    ParamCode = "PERIMETER_ROOF",
+                    ParamName = "Периметр по потолку (полный)",
+                    ScheduleNamesExact = new List<string> { "Спецификация потолков", "Спецификация потолков." },
+                    Mode = ParseMode.GroupedByRoomHeader,
+                    ValueColumnsExact = new List<string> { "Периметр.", "Периметр, м" },
+                    RoomColumnsExact = new List<string> { "Помещения", "Помещение" }
+                },
+                new Entry
+                {
+                    ParamCode = "WALL_AREA_MINUS",
+                    ParamName = "Площадь стен за минусом площади дверей, проемов и окон",
+                    ScheduleNamesExact = new List<string>
+                    {
+                        "Спецификация поклейка обоев с покраской",
+                        "Спецификация краски для стен балкона"
+                    },
+                    IsMergedParameter = true
+                },
+                new Entry
+                {
+                    ParamCode = "PLITKA_AREA",
+                    ParamName = "Плитка в прихожей или кухне",
+                    ScheduleNamesExact = new List<string> { "Спецификация напольных плиток" },
+                    Mode = ParseMode.GroupedByRoomHeader,
+                    ValueColumnsExact = new List<string> { "Площадь, м²" },
+                    RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                    RoomBaseNamesFilter = new List<string> { "Прихожая", "Кухня" }
+                },
+                new Entry
+                {
+                    // TODO: Revit-дизайнерам нужно добавить колонку 'Помещение' в спецификацию дверей,
+                    // чтобы плагин смог распределить двери по комнатам.
+                    ParamCode = "DOOR_CNT",
+                    ParamName = "Количество межкомнатных дверей",
+                    ScheduleNamesExact = new List<string> { "Спецификация дверей" },
+                    Mode = ParseMode.DoorsByRoom,
+                    ValueColumnsExact = new List<string> { "Кол-во, шт" },
+                    RoomColumnsExact = new List<string> { "Помещение" },
+                    ValueIsInteger = true
+                },
+                new Entry
+                {
+                    ParamCode = "APRON_AREA",
+                    ParamName = "Площадь фартука на кухне",
+                    ScheduleNamesExact = new List<string> { "Спецификация фартука кухни", "Условное обозначение фартука" },
+                    Mode = ParseMode.SingleValueToFixedRoom,
+                    FixedRoomName = "Кухня",
+                    ValueColumnsExact = new List<string> { "Площадь", "Площадь, м²" }
+                },
+                new Entry
+                {
+                    // TODO: Для молдингов нужно будет проверить/добавить спецификацию, 
+                    // убедиться что есть колонка 'Помещение' и правильная колонка длины.
+                    ParamCode = "MOLDING_PERIMETER",
+                    ParamName = "Периметр молдингов",
+                    ScheduleNamesExact = new List<string> { "Спецификация молдинга", "Спецификация молдингов", "Спецификация молдингов." },
+                    Mode = ParseMode.GroupedByRoomHeader,
+                    ValueColumnsExact = new List<string> { "Длина, м.", "Периметр.", "Длина, м", "Периметр, м" },
+                    RoomColumnsExact = new List<string> { "Помещение", "Помещения" }
+                },
+                new Entry
+                {
+                    ParamCode = "DOUBLE_DOOR",
+                    ParamName = "Двустворчатая дверь",
+                    ScheduleNamesExact = new List<string> { "Спецификация дверей" },
+                    Mode = ParseMode.DoorsByRoom,
+                    ValueColumnsExact = new List<string> { "Кол-во, шт" },
+                    RoomColumnsExact = new List<string> { "Помещение" },
+                    ValueIsInteger = true,
+                    RoomBaseNamesFilter = new List<string> { "Гостиная" }
+                }
+            };
+        }
     }
 }

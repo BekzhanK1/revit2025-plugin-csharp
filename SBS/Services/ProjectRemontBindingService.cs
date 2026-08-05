@@ -90,6 +90,8 @@ namespace SmartRemont.ExportRooms.Services
             target.ResidentName = source.ResidentName;
             target.FlatNum = source.FlatNum;
             target.PresetName = source.PresetName;
+            target.PresetKitName = source.PresetKitName;
+            target.ProjectAccepted = source.ProjectAccepted;
             if (source.ClientRequestId > 0)
                 target.ClientRequestId = source.ClientRequestId;
         }

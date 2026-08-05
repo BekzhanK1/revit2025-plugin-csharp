@@ -93,6 +93,10 @@ namespace SmartRemont.ExportRooms.Views
                   + $"только спецификация: {_snapshot.ScheduleOnlyCount}, только код: {_snapshot.CodeOnlyCount}."
                 : "Нет заполненных значений ни в спецификациях, ни в расчёте по модели.";
                 
+            if (CompareStatsText != null)
+                CompareStatsText.Text =
+                    $"Совпадает: {_snapshot.MatchCount}  |  Расхождение: {_snapshot.MismatchCount}  |  Только спец.: {_snapshot.ScheduleOnlyCount}  |  Только код: {_snapshot.CodeOnlyCount}";
+                
             await LoaderOverlay.HideAsync();
         }
 

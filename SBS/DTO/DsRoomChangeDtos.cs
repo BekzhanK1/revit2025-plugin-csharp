@@ -44,6 +44,9 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("data")]
         public List<DsRoomChangeRoomDto> Rooms { get; set; } = new();
 
+        [JsonProperty("sum")]
+        public DsSumDto Sum { get; set; }
+
         [JsonProperty("wall_height")]
         public double? WallHeight { get; set; }
 
@@ -55,6 +58,21 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("header")]
         public DsRoomChangeHeaderDto Header { get; set; }
+    }
+
+    public class DsSumDto
+    {
+        [JsonProperty("ds_sum")]
+        public double? DsSum { get; set; }
+
+        [JsonProperty("material_diff")]
+        public double? MaterialDiff { get; set; }
+
+        [JsonProperty("work_diff")]
+        public double? WorkDiff { get; set; }
+
+        [JsonProperty("service_diff")]
+        public double? ServiceDiff { get; set; }
     }
 
     public class DsRoomChangeRoomDto

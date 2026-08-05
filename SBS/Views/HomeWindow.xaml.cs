@@ -17,7 +17,6 @@ namespace SmartRemont.ExportRooms.Views
         {
             _doc = doc;
             InitializeComponent();
-            WindowLayoutHelper.UseFullWorkAreaHeight(this);
             Loaded += HomeWindow_Loaded;
         }
 
@@ -83,6 +82,7 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             BoundRemontBannerText.Text = BuildBoundBannerText(remont);
+            UpdateBoundDetailsCard(remont);
             BoundRemontBanner.Visibility = Visibility.Visible;
             return true;
         }
@@ -97,23 +97,43 @@ namespace SmartRemont.ExportRooms.Views
                 .ConfigureAwait(true);
 
             BoundRemontBannerText.Text = BuildBoundBannerText(remont);
+            UpdateBoundDetailsCard(remont);
+        }
+
+        void UpdateBoundDetailsCard(RemontOption remont)
+        {
+            if (remont == null) return;
+            BoundClientNameText.Text = string.IsNullOrWhiteSpace(remont.ClientName) ? "—" : remont.ClientName.Trim();
+            
+            var flatStr = string.IsNullOrWhiteSpace(remont.FlatNum) ? "" : $", кв. {remont.FlatNum.Trim()}";
+            var residentStr = string.IsNullOrWhiteSpace(remont.ResidentName) ? "—" : $"{remont.ResidentName.Trim()}{flatStr}";
+            BoundResidentNameText.Text = residentStr;
+
+            var presetStr = !string.IsNullOrWhiteSpace(remont.PresetKitName) 
+                ? remont.PresetKitName.Trim() 
+                : (!string.IsNullOrWhiteSpace(remont.PresetName) ? remont.PresetName.Trim() : "—");
+            BoundPresetNameText.Text = presetStr;
         }
 
         static string BuildBoundBannerText(RemontOption remont)
         {
             if (remont == null || remont.ClientRequestId <= 0)
-                return "Проект привязан к заявке";
+                return "Заявка не привязана";
 
-            var idPart = remont.RemontId is int boundRemontId && boundRemontId > 0
-                ? $"заявке #{remont.ClientRequestId} · ремонту #{boundRemontId}"
-                : $"заявке #{remont.ClientRequestId}";
-            var placeholder = $"Ремонт #{remont.RemontId}";
+            return remont.RemontId is int boundRemontId && boundRemontId > 0
+                ? $"Заявка #{remont.ClientRequestId}  ·  Ремонт #{boundRemontId}"
+                : $"Заявка #{remont.ClientRequestId}";
+        }
 
-            if (!string.IsNullOrWhiteSpace(remont.Name)
-                && !string.Equals(remont.Name.Trim(), placeholder, StringComparison.Ordinal))
-                return $"Проект привязан к {idPart} · {remont.Name.Trim()}";
-
-            return $"Проект привязан к {idPart}";
+        void ToggleSearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            SearchSection.Visibility = SearchSection.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            if (SearchSection.Visibility == Visibility.Visible)
+            {
+                IdTextBox.Focus();
+            }
         }
 
         void ContinueToHubButton_Click(object sender, RoutedEventArgs e)
