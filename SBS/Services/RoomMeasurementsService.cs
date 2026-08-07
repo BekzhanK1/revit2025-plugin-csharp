@@ -658,17 +658,25 @@ namespace SmartRemont.ExportRooms.Services
         static bool IsDoubleLeafDoor(string type, string widthCellText)
         {
             var widthMm = ParseDoorWidthMillimeters(widthCellText);
-            if (widthMm.HasValue)
-                return widthMm.Value > DoubleDoorWidthThresholdMm;
+            if (widthMm.HasValue && widthMm.Value > DoubleDoorWidthThresholdMm)
+                return true;
 
-            if (string.IsNullOrWhiteSpace(type))
-                return false;
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                var t = type.Trim();
+                if (t.IndexOf("двуств", StringComparison.OrdinalIgnoreCase) >= 0
+                    || t.IndexOf("двухств", StringComparison.OrdinalIgnoreCase) >= 0
+                    || t.IndexOf("2-ств", StringComparison.OrdinalIgnoreCase) >= 0
+                    || t.IndexOf("2 ств", StringComparison.OrdinalIgnoreCase) >= 0
+                    || t.IndexOf("двупольн", StringComparison.OrdinalIgnoreCase) >= 0
+                    || t.IndexOf("дв.", StringComparison.OrdinalIgnoreCase) >= 0
+                    || t.IndexOf("дв ", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
 
-            var t = type.Trim();
-            return t.IndexOf("дв.", StringComparison.OrdinalIgnoreCase) >= 0
-                   || t.IndexOf("дв ", StringComparison.OrdinalIgnoreCase) >= 0
-                   || t.IndexOf("двуств", StringComparison.OrdinalIgnoreCase) >= 0
-                   || t.IndexOf("2-ств", StringComparison.OrdinalIgnoreCase) >= 0;
+            return false;
         }
 
         /// <summary>В ведомости ширина часто в мм (800), заголовок может быть «Ширина полотна, м».</summary>
@@ -700,7 +708,7 @@ namespace SmartRemont.ExportRooms.Services
                 if (string.IsNullOrWhiteSpace(text)) continue;
                 if (IsGrandTotalLabel(text)) continue;
                 if (ParseNullableDouble(text) != null) continue;
-                if (text.Equals("ID", StringComparison.OrdinalIgnoreCase)) continue;
+                if (text.StartsWith("ID", StringComparison.OrdinalIgnoreCase)) continue;
                 return text;
             }
 

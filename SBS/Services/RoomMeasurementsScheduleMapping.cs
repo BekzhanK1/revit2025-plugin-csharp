@@ -105,10 +105,6 @@ namespace SmartRemont.ExportRooms.Services
                             e.ScheduleNamesExact ??= new List<string>();
                             e.ValueColumnsExact ??= new List<string>();
                             e.RoomColumnsExact ??= new List<string>();
-                            if (e.ParamCode == "DOUBLE_DOOR")
-                            {
-                                e.RoomBaseNamesFilter = null;
-                            }
                         }
                         return loaded;
                     }

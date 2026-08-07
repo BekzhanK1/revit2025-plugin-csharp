@@ -77,13 +77,14 @@ namespace SmartRemont.ExportRooms.Services
             var materialList = (materials ?? Enumerable.Empty<RevitMaterialRowDto>()).ToList();
 
             var rfaRows = materialList
-                .Where(r => r.MaterialId.HasValue
+                .Where(r => r != null
+                            && r.MaterialId.HasValue
                             && !IsSurfaceRow(r)
                             && !string.IsNullOrWhiteSpace(r.RevitFileUrl))
                 .ToList();
 
             var surfaceRows = materialList
-                .Where(r => r.MaterialId.HasValue && IsSurfaceRow(r))
+                .Where(r => r != null && r.MaterialId.HasValue && IsSurfaceRow(r))
                 .ToList();
 
             if (rfaRows.Count == 0 && surfaceRows.Count == 0)

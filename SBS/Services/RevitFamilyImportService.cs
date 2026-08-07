@@ -122,13 +122,14 @@ namespace SmartRemont.ExportRooms.Services
                         continue;
                     }
 
-                    // Валидируем SR_ID только при неудаче — для диагностического сообщения.
-                    var srIdError = ValidateSrIdInRfaFile(doc.Application, filePath, materialId);
+                    ExportRoomsApplication._logger?.Warning(
+                        "Material {MaterialId}: LoadFamily=false, file={Path}",
+                        materialId, filePath);
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
                         Success = false,
-                        ErrorMessage = srIdError ?? "Не удалось загрузить семейство в проект (LoadFamily=false)"
+                        ErrorMessage = $"Не удалось загрузить семейство (LoadFamily=false): {System.IO.Path.GetFileName(filePath)}"
                     });
                 }
                 catch (Autodesk.Revit.Exceptions.ApplicationException ex)

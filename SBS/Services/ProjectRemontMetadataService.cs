@@ -32,13 +32,22 @@ namespace SmartRemont.ExportRooms.Services
             if (!entity.IsValid())
                 return null;
 
-            var metadata = new ProjectRemontMetadata
+            ProjectRemontMetadata metadata;
+            try
             {
-                RemontId = entity.Get<int>(ProjectRemontSchema.FieldRemontId),
-                ClientRequestId = entity.Get<int>(ProjectRemontSchema.FieldClientRequestId),
-                InitializedAt = entity.Get<string>(ProjectRemontSchema.FieldInitializedAt),
-                PluginVersion = entity.Get<string>(ProjectRemontSchema.FieldPluginVersion)
-            };
+                metadata = new ProjectRemontMetadata
+                {
+                    RemontId = entity.Get<int>(ProjectRemontSchema.FieldRemontId),
+                    ClientRequestId = entity.Get<int>(ProjectRemontSchema.FieldClientRequestId),
+                    InitializedAt = entity.Get<string>(ProjectRemontSchema.FieldInitializedAt),
+                    PluginVersion = entity.Get<string>(ProjectRemontSchema.FieldPluginVersion)
+                };
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Failed to read project remont metadata from ExtensibleStorage");
+                return null;
+            }
 
             ExportRoomsApplication._logger?.Information(
                 "Project remont metadata read: remont_id={RemontId}, client_request_id={ClientRequestId}, initialized_at={InitializedAt}, plugin_version={PluginVersion}",
@@ -116,14 +125,7 @@ namespace SmartRemont.ExportRooms.Services
             return metadata != null && metadata.ClientRequestId == expectedClientRequestId;
         }
 
-        static bool IsSavedInitializedProjectFile(Document doc, int clientRequestId, int remontId)
-        {
-            if (doc == null || string.IsNullOrWhiteSpace(doc.PathName))
-                return false;
 
-            var metadata = TryRead(doc);
-            return metadata != null && metadata.ClientRequestId == clientRequestId;
-        }
 
         static string GetAssemblyVersion()
         {
