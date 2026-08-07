@@ -64,13 +64,16 @@ namespace SmartRemont.ExportRooms.Views
         static List<ProjectInitPreviewRowVm> BuildRows(RevitMaterialReadResponse response)
         {
             return (response?.Data ?? new List<RevitMaterialRowDto>())
-                .Select(row => new ProjectInitPreviewRowVm
+                .Select(row =>
                 {
-                    MaterialIdDisplay = row.MaterialId?.ToString(CultureInfo.InvariantCulture) ?? "—",
-                    MaterialName = DisplayOrDash(row.MaterialName),
-                    TypeDisplay = BuildTypeDisplay(row),
-                    FileTypeDisplay = BuildFileTypeDisplay(row),
-                    AssetDisplay = DisplayOrDash(row.RevitAssetName)
+                    var hasModel = IsSurfaceRow(row) || !string.IsNullOrWhiteSpace(row.RevitFileUrl);
+                    return new ProjectInitPreviewRowVm
+                    {
+                        MaterialIdDisplay = row.MaterialId?.ToString(CultureInfo.InvariantCulture) ?? "—",
+                        MaterialName = DisplayOrDash(row.MaterialName),
+                        FileTypeDisplay = BuildFileTypeDisplay(row, hasModel),
+                        HasModel = hasModel
+                    };
                 })
                 .ToList();
         }
@@ -107,26 +110,15 @@ namespace SmartRemont.ExportRooms.Views
         static bool IsSurfaceRow(RevitMaterialRowDto row) =>
             string.Equals(row?.RevitFileType?.Trim(), "surface", StringComparison.OrdinalIgnoreCase);
 
-        static string BuildTypeDisplay(RevitMaterialRowDto row)
-        {
-            if (!string.IsNullOrWhiteSpace(row?.MaterialTypeCode))
-                return row.MaterialTypeCode.Trim();
-
-            if (!string.IsNullOrWhiteSpace(row?.RevitFileType))
-                return row.RevitFileType.Trim();
-
-            return "—";
-        }
-
-        static string BuildFileTypeDisplay(RevitMaterialRowDto row)
+        static string BuildFileTypeDisplay(RevitMaterialRowDto row, bool hasModel)
         {
             if (IsSurfaceRow(row))
-                return "surface";
+                return "Поверхность (surface)";
 
-            if (!string.IsNullOrWhiteSpace(row?.RevitFileType))
-                return row.RevitFileType.Trim();
+            if (hasModel)
+                return "Семейство (RFA)";
 
-            return string.IsNullOrWhiteSpace(row?.RevitFileUrl) ? "—" : "rfa";
+            return "Без модели";
         }
 
         static string DisplayOrDash(string value) =>
@@ -158,8 +150,7 @@ namespace SmartRemont.ExportRooms.Views
     {
         public string MaterialIdDisplay { get; init; }
         public string MaterialName { get; init; }
-        public string TypeDisplay { get; init; }
         public string FileTypeDisplay { get; init; }
-        public string AssetDisplay { get; init; }
+        public bool HasModel { get; init; }
     }
 }

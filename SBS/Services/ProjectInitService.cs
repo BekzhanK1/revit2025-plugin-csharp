@@ -55,7 +55,8 @@ namespace SmartRemont.ExportRooms.Services
                 };
             }
 
-            Report(progress, materialsResponse == null ? "Чтение материалов..." : "Подготовка материалов...");
+            var reusedPreviewResponse = materialsResponse != null;
+            Report(progress, reusedPreviewResponse ? "Подготовка материалов..." : "Чтение материалов...");
             if (materialsResponse == null)
             {
                 try
@@ -72,6 +73,13 @@ namespace SmartRemont.ExportRooms.Services
             {
                 materialsResponse.Data = new List<RevitMaterialRowDto>();
             }
+
+            ExportRoomsApplication._logger?.Information(
+                "Project init: materials ready client_request_id={ClientRequestId}, rows={RowCount}, surfaces_url={HasSurfacesUrl}, reuse_preview_response={Reused}",
+                clientRequestId,
+                materialsResponse.Data?.Count ?? 0,
+                !string.IsNullOrWhiteSpace(materialsResponse.SurfacesFileUrl),
+                reusedPreviewResponse);
 
             var remontId = remont.RemontId ?? materialsResponse.RemontId ?? 0;
 

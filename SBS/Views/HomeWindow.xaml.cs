@@ -125,17 +125,6 @@ namespace SmartRemont.ExportRooms.Views
                 : $"Заявка #{remont.ClientRequestId}";
         }
 
-        void ToggleSearchButton_Click(object sender, RoutedEventArgs e)
-        {
-            SearchSection.Visibility = SearchSection.Visibility == Visibility.Visible
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            if (SearchSection.Visibility == Visibility.Visible)
-            {
-                IdTextBox.Focus();
-            }
-        }
-
         void ContinueToHubButton_Click(object sender, RoutedEventArgs e)
         {
             if (ExportRoomsApplication.SelectedRemont?.ClientRequestId is not int clientRequestId || clientRequestId <= 0)

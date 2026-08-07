@@ -30,6 +30,11 @@ namespace SmartRemont.ExportRooms.Services
             var itemList = (items ?? Enumerable.Empty<(int, string, string)>()).ToList();
             var results = new List<FamilyImportResult>();
 
+            ExportRoomsApplication._logger?.Information(
+                "Family import start: count={Count}, doc={DocTitle}",
+                itemList.Count,
+                doc.Title);
+
             if (itemList.Count == 0)
                 return results;
 
@@ -40,6 +45,10 @@ namespace SmartRemont.ExportRooms.Services
 
                 if (type != "rfa")
                 {
+                    ExportRoomsApplication._logger?.Warning(
+                        "Family import skip unsupported type: material_id={MaterialId}, type={Type}",
+                        materialId,
+                        revitFileType ?? "—");
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
@@ -52,6 +61,10 @@ namespace SmartRemont.ExportRooms.Services
 
                 if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
                 {
+                    ExportRoomsApplication._logger?.Warning(
+                        "Family import file missing: material_id={MaterialId}, path={Path}",
+                        materialId,
+                        filePath ?? "—");
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
@@ -65,6 +78,10 @@ namespace SmartRemont.ExportRooms.Services
                 var already = RevitMaterialPresenceService.CheckMaterial(doc, materialId);
                 if (already.IsInProject)
                 {
+                    ExportRoomsApplication._logger?.Information(
+                        "Family import already in project: material_id={MaterialId}, label={Label}",
+                        materialId,
+                        already.Label ?? "—");
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
@@ -80,15 +97,48 @@ namespace SmartRemont.ExportRooms.Services
                     var loadOptions = new AcceptExistingFamilyLoadOptions();
                     var loaded = doc.LoadFamily(filePath, loadOptions, out Family family);
 
+                    ExportRoomsApplication._logger?.Debug(
+                        "Family import LoadFamily(string) attempt: material_id={MaterialId}, loaded={Loaded}, family_null={FamilyNull}, doc.IsModifiable={IsModifiable}",
+                        materialId,
+                        loaded,
+                        family == null,
+                        doc.IsModifiable);
+
                     if (family != null || loaded)
                     {
                         RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
+                        ExportRoomsApplication._logger?.Information(
+                            "Family import LoadFamily ok: material_id={MaterialId}, loaded={Loaded}, family={Family}, already={Already}",
+                            materialId,
+                            loaded,
+                            family?.Name ?? System.IO.Path.GetFileNameWithoutExtension(filePath),
+                            loadOptions.FamilyAlreadyInProject);
                         results.Add(new FamilyImportResult
                         {
                             MaterialId = materialId,
                             Success = true,
                             AlreadyInProject = loadOptions.FamilyAlreadyInProject,
                             FamilyName = family?.Name ?? System.IO.Path.GetFileNameWithoutExtension(filePath)
+                        });
+                        continue;
+                    }
+
+                    // Перегрузка LoadFamily(string,...) на практике часто молча возвращает false
+                    // (задокументированная особенность Revit API). Более надёжный путь — открыть
+                    // сам файл как документ семейства и вызвать LoadFamily с НЕГО в целевой проект.
+                    var viaFamilyDoc = TryLoadFamilyViaFamilyDocument(doc, filePath, materialId, out var viaFamilyDocError);
+                    if (viaFamilyDoc != null)
+                    {
+                        RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
+                        ExportRoomsApplication._logger?.Information(
+                            "Family import ok via family-document fallback: material_id={MaterialId}, family={Family}",
+                            materialId,
+                            viaFamilyDoc.Name);
+                        results.Add(new FamilyImportResult
+                        {
+                            MaterialId = materialId,
+                            Success = true,
+                            FamilyName = viaFamilyDoc.Name
                         });
                         continue;
                     }
@@ -123,8 +173,8 @@ namespace SmartRemont.ExportRooms.Services
                     }
 
                     ExportRoomsApplication._logger?.Warning(
-                        "Material {MaterialId}: LoadFamily=false, file={Path}",
-                        materialId, filePath);
+                        "Material {MaterialId}: LoadFamily=false (both string и family-document перегрузки), file={Path}, family_doc_error={FamilyDocError}",
+                        materialId, filePath, viaFamilyDocError ?? "—");
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
@@ -160,7 +210,93 @@ namespace SmartRemont.ExportRooms.Services
                 }
             }
 
+            var ok = results.Count(r => r.Success);
+            var fail = results.Count(r => !r.Success);
+            ExportRoomsApplication._logger?.Information(
+                "Family import finished: ok={Ok}, failed={Failed}, total={Total}",
+                ok,
+                fail,
+                results.Count);
+
             return results;
+        }
+
+        /// <summary>
+        /// Обходной путь для случаев, когда Document.LoadFamily(string, ...) молча возвращает
+        /// false без исключения (задокументированная особенность Revit API, воспроизводится
+        /// стабильно на некоторых RFA независимо от версии/шаблона целевого проекта). Открываем
+        /// сам RFA как документ семейства и загружаем его в целевой проект вызовом LoadFamily
+        /// СО СТОРОНЫ документа семейства — более надёжная перегрузка API.
+        /// </summary>
+        static Family TryLoadFamilyViaFamilyDocument(
+            Document doc,
+            string filePath,
+            int materialId,
+            out string errorMessage)
+        {
+            errorMessage = null;
+            Document familyDoc = null;
+            try
+            {
+                var modelPath = ModelPathUtils.ConvertUserVisiblePathToModelPath(filePath);
+                familyDoc = doc.Application.OpenDocumentFile(modelPath, new OpenOptions());
+
+                if (familyDoc == null || !familyDoc.IsFamilyDocument)
+                {
+                    errorMessage = "Файл не является документом семейства";
+                    return null;
+                }
+
+                var familyName = familyDoc.OwnerFamily?.Name ?? familyDoc.Title;
+                var loadOptions = new AcceptExistingFamilyLoadOptions();
+                var loadedFamily = familyDoc.LoadFamily(doc, loadOptions);
+
+                ExportRoomsApplication._logger?.Information(
+                    "Family import via family-document attempt: material_id={MaterialId}, family={FamilyName}, loaded_family_null={LoadedNull}",
+                    materialId,
+                    familyName ?? "—",
+                    loadedFamily == null);
+
+                if (loadedFamily != null)
+                    return loadedFamily;
+
+                // Некоторые сборки Revit не возвращают Family напрямую даже при успешной загрузке —
+                // ищем его в целевом документе по имени как страховку.
+                var result = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Family))
+                    .Cast<Family>()
+                    .FirstOrDefault(f => string.Equals(f.Name, familyName, StringComparison.OrdinalIgnoreCase));
+
+                if (result == null)
+                {
+                    errorMessage = "LoadFamily через family-document тоже вернул null";
+                    ExportRoomsApplication._logger?.Warning(
+                        "Family import via family-document: result null, family {FamilyName} not found in target doc either",
+                        familyName ?? "—");
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                ExportRoomsApplication._logger?.Warning(
+                    ex,
+                    "Family import via family-document failed for material {MaterialId}",
+                    materialId);
+                return null;
+            }
+            finally
+            {
+                try
+                {
+                    familyDoc?.Close(false);
+                }
+                catch (Exception ex)
+                {
+                    ExportRoomsApplication._logger?.Debug(ex, "Failed to close temp family document for material {MaterialId}", materialId);
+                }
+            }
         }
 
         static string ValidateSrIdInRfaFile(

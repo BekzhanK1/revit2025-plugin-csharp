@@ -55,6 +55,7 @@ namespace SmartRemont.ExportRooms.Views
                 _surfacesFileUrl = response.SurfacesFileUrl?.Trim();
                 _surfacesFileHash = response.SurfacesFileHash?.Trim();
                 _rows = (response.Data ?? new List<RevitMaterialRowDto>())
+                    .Where(HasUrlOrSurface)
                     .Select(ToRowVm)
                     .ToList();
 
@@ -273,6 +274,11 @@ namespace SmartRemont.ExportRooms.Views
 
         static bool IsSurfaceRow(RevitMaterialRowDto row) =>
             string.Equals(row?.RevitFileType?.Trim(), "surface", StringComparison.OrdinalIgnoreCase);
+
+        static bool HasUrlOrSurface(RevitMaterialRowDto row) =>
+            row != null
+            && row.MaterialId.HasValue
+            && (IsSurfaceRow(row) || !string.IsNullOrWhiteSpace(row.RevitFileUrl));
 
         bool CanSyncRow(RevitMaterialRowVm row)
         {

@@ -155,14 +155,6 @@
 
                     <!-- Actions -->
                     <Grid>
-                        <Button x:Name="ToggleSearchButton"
-                                Content="Поиск другой заявки"
-                                Style="{StaticResource ModernSecondaryButton}"
-                                HorizontalAlignment="Left"
-                                Height="40"
-                                Padding="16,0"
-                                Click="ToggleSearchButton_Click"/>
-                        
                         <Button x:Name="ContinueToHubButton"
                                 Content="Открыть хаб проекта →"
                                 Style="{StaticResource ModernPrimaryButton}"

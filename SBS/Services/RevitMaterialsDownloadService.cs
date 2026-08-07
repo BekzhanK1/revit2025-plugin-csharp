@@ -308,6 +308,10 @@ namespace SmartRemont.ExportRooms.Services
                 !string.IsNullOrWhiteSpace(cached.FilePath) &&
                 File.Exists(cached.FilePath))
             {
+                ExportRoomsApplication._logger?.Debug(
+                    "RFA download cache hit: material_id={MaterialId}, path={Path}",
+                    materialId,
+                    cached.FilePath);
                 return new DownloadResult
                 {
                     MaterialId = materialId,
@@ -326,6 +330,12 @@ namespace SmartRemont.ExportRooms.Services
             {
                 progress?.Report((materialId, done, total, downloading: true));
                 var downloadUrl = UnwrapMinioConsoleShareUrl(Configs.ResolveDownloadUrl(row.RevitFileUrl));
+                ExportRoomsApplication._logger?.Information(
+                    "RFA download start: material_id={MaterialId}, type={Type}, host={Host}, target={Target}",
+                    materialId,
+                    revitFileType,
+                    TryGetHost(downloadUrl),
+                    targetPath);
                 var bytes = await Http.GetByteArrayAsync(downloadUrl).ConfigureAwait(false);
                 await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
                 if (File.Exists(targetPath))
@@ -343,6 +353,12 @@ namespace SmartRemont.ExportRooms.Services
                     DownloadedAt = DateTime.UtcNow
                 };
 
+                ExportRoomsApplication._logger?.Information(
+                    "RFA download ok: material_id={MaterialId}, bytes={Bytes}, path={Path}",
+                    materialId,
+                    bytes.Length,
+                    targetPath);
+
                 return new DownloadResult
                 {
                     MaterialId = materialId,
@@ -352,8 +368,13 @@ namespace SmartRemont.ExportRooms.Services
                     FilePath = targetPath
                 };
             }
-            catch
+            catch (Exception ex)
             {
+                ExportRoomsApplication._logger?.Warning(
+                    ex,
+                    "RFA download failed: material_id={MaterialId}, type={Type}",
+                    materialId,
+                    revitFileType);
                 TryDelete(tempPath);
                 throw;
             }
@@ -387,6 +408,13 @@ namespace SmartRemont.ExportRooms.Services
             foreach (var c in Path.GetInvalidFileNameChars())
                 name = name.Replace(c, '_');
             return name;
+        }
+
+        static string TryGetHost(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return "—";
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "—";
         }
 
         static Dictionary<int, CacheManifestEntry> LoadManifest()

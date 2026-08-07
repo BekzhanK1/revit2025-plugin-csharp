@@ -162,6 +162,20 @@
 
                     <DataGrid x:Name="MaterialsDataGrid"
                               Style="{StaticResource PreviewDataGrid}">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasModel}" Value="True">
+                                        <Setter Property="Background" Value="#F0FDF4"/>
+                                        <Setter Property="Foreground" Value="#065F46"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding HasModel}" Value="False">
+                                        <Setter Property="Background" Value="#FEF2F2"/>
+                                        <Setter Property="Foreground" Value="#991B1B"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID"
                                                 Binding="{Binding MaterialIdDisplay}"
@@ -174,19 +188,9 @@
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Тип"
-                                                Binding="{Binding TypeDisplay}"
-                                                Width="120"/>
                             <DataGridTextColumn Header="Файл"
                                                 Binding="{Binding FileTypeDisplay}"
-                                                Width="90"/>
-                            <DataGridTextColumn Header="Asset"
-                                                Binding="{Binding AssetDisplay}"
-                                                Width="140">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                                                Width="170"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

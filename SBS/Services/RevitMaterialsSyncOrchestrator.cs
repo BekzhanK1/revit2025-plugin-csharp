@@ -76,19 +76,48 @@ namespace SmartRemont.ExportRooms.Services
 
             var materialList = (materials ?? Enumerable.Empty<RevitMaterialRowDto>()).ToList();
 
-            var rfaRows = materialList
-                .Where(r => r != null
-                            && r.MaterialId.HasValue
-                            && !IsSurfaceRow(r)
-                            && !string.IsNullOrWhiteSpace(r.RevitFileUrl))
+            var nullRows = materialList.Count(r => r == null);
+            var missingId = materialList.Count(r => r != null && !r.MaterialId.HasValue);
+            var surfaceAll = materialList.Count(r => r != null && r.MaterialId.HasValue && IsSurfaceRow(r));
+            var nonSurface = materialList.Where(r => r != null && r.MaterialId.HasValue && !IsSurfaceRow(r)).ToList();
+            var nonSurfaceMissingUrl = nonSurface.Count(r => string.IsNullOrWhiteSpace(r.RevitFileUrl));
+
+            var rfaRows = nonSurface
+                .Where(r => !string.IsNullOrWhiteSpace(r.RevitFileUrl))
                 .ToList();
 
             var surfaceRows = materialList
                 .Where(r => r != null && r.MaterialId.HasValue && IsSurfaceRow(r))
                 .ToList();
 
+            ExportRoomsApplication._logger?.Information(
+                "Materials sync filter: client_request_id={ClientRequestId}, total={Total}, null={NullRows}, missing_id={MissingId}, rfa_syncable={Rfa}, surface={Surface}, non_surface_no_url={NoUrl}, surfaces_file_url={HasSurfacesUrl}",
+                clientRequestId,
+                materialList.Count,
+                nullRows,
+                missingId,
+                rfaRows.Count,
+                surfaceRows.Count,
+                nonSurfaceMissingUrl,
+                !string.IsNullOrWhiteSpace(surfacesFileUrl));
+
+            if (nonSurfaceMissingUrl > 0)
+            {
+                var ids = nonSurface
+                    .Where(r => string.IsNullOrWhiteSpace(r.RevitFileUrl))
+                    .Select(r => r.MaterialId!.Value)
+                    .Take(30);
+                ExportRoomsApplication._logger?.Warning(
+                    "Materials sync: skipped non-surface rows without revit_file_url (showing up to 30): {MaterialIds}",
+                    string.Join(", ", ids));
+            }
+
             if (rfaRows.Count == 0 && surfaceRows.Count == 0)
             {
+                ExportRoomsApplication._logger?.Warning(
+                    "Materials sync: nothing to sync for client_request_id={ClientRequestId} (total rows={Total}). Init will report MaterialsLoaded=0.",
+                    clientRequestId,
+                    materialList.Count);
                 return new RevitMaterialsSyncResult
                 {
                     Success = true,
@@ -108,12 +137,29 @@ namespace SmartRemont.ExportRooms.Services
                     $"Скачивание: {p.done} из {downloadTotal}");
             });
 
+            ExportRoomsApplication._logger?.Information(
+                "Materials sync download start: rfa_count={RfaCount}",
+                rfaRows.Count);
+
             var downloadResults = await RevitMaterialsDownloadService
                 .SyncAsync(rfaRows, downloadProgress)
                 .ConfigureAwait(true);
 
+            var downloadOk = downloadResults.Count(r => r.Success);
+            var downloadFail = downloadResults.Count(r => !r.Success);
+            var downloadSkipped = downloadResults.Count(r => r.Success && r.Skipped);
+            ExportRoomsApplication._logger?.Information(
+                "Materials sync download done: ok={Ok}, failed={Failed}, cache_hit={Skipped}",
+                downloadOk,
+                downloadFail,
+                downloadSkipped);
+
             foreach (var dr in downloadResults.Where(r => !r.Success))
             {
+                ExportRoomsApplication._logger?.Warning(
+                    "Materials sync download error: material_id={MaterialId}, error={Error}",
+                    dr.MaterialId,
+                    dr.ErrorMessage ?? "—");
                 itemResults.Add(new RevitMaterialSyncItemResult
                 {
                     MaterialId = dr.MaterialId,
@@ -129,6 +175,12 @@ namespace SmartRemont.ExportRooms.Services
             string surfacesErrorMessage = null;
             if (surfaceRows.Count > 0)
             {
+                ExportRoomsApplication._logger?.Information(
+                    "Materials sync surfaces download start: surface_rows={SurfaceCount}, has_url={HasUrl}, hash={Hash}",
+                    surfaceRows.Count,
+                    !string.IsNullOrWhiteSpace(surfacesFileUrl),
+                    string.IsNullOrWhiteSpace(surfacesFileHash) ? "—" : surfacesFileHash.Trim());
+
                 var surfacesDownload = await RevitMaterialsDownloadService
                     .EnsureSurfacesLibraryAsync(clientRequestId, surfacesFileUrl, surfacesFileHash)
                     .ConfigureAwait(true);
@@ -139,11 +191,18 @@ namespace SmartRemont.ExportRooms.Services
                 if (surfacesDownload.Success)
                 {
                     surfacesRvtPath = surfacesDownload.FilePath;
+                    ExportRoomsApplication._logger?.Information(
+                        "Materials sync surfaces download ok: path={Path}, skipped={Skipped}",
+                        surfacesRvtPath,
+                        surfacesDownload.Skipped);
                 }
                 else
                 {
                     surfacesErrorMessage = HumanizeError(surfacesDownload.ErrorMessage)
                                           ?? "Не удалось скачать surfaces.rvt";
+                    ExportRoomsApplication._logger?.Warning(
+                        "Materials sync surfaces download failed: {Error}",
+                        surfacesErrorMessage);
                     foreach (var row in surfaceRows)
                     {
                         itemResults.Add(new RevitMaterialSyncItemResult
@@ -165,6 +224,12 @@ namespace SmartRemont.ExportRooms.Services
             var importTotal = importItems.Count
                               + (surfaceRows.Count > 0 && surfacesRvtPath != null ? surfaceRows.Count : 0);
 
+            ExportRoomsApplication._logger?.Information(
+                "Materials sync import start: rfa_import_items={ImportItems}, surface_import={SurfaceImport}, doc_title={DocTitle}",
+                importItems.Count,
+                surfaceRows.Count > 0 && surfacesRvtPath != null ? surfaceRows.Count : 0,
+                doc.Title);
+
             Report(progress, "import", 0, Math.Max(importTotal, 1), "Загрузка в проект...");
 
             var materialsLoaded = 0;
@@ -177,6 +242,11 @@ namespace SmartRemont.ExportRooms.Services
                     if (fr.Success)
                     {
                         materialsLoaded++;
+                        ExportRoomsApplication._logger?.Debug(
+                            "Materials sync import ok: material_id={MaterialId}, family={Family}, already={Already}",
+                            fr.MaterialId,
+                            fr.FamilyName ?? "—",
+                            fr.AlreadyInProject);
                         itemResults.Add(new RevitMaterialSyncItemResult
                         {
                             MaterialId = fr.MaterialId,
@@ -186,6 +256,10 @@ namespace SmartRemont.ExportRooms.Services
                     }
                     else
                     {
+                        ExportRoomsApplication._logger?.Warning(
+                            "Materials sync import failed: material_id={MaterialId}, error={Error}",
+                            fr.MaterialId,
+                            fr.ErrorMessage ?? "—");
                         itemResults.Add(new RevitMaterialSyncItemResult
                         {
                             MaterialId = fr.MaterialId,
@@ -209,6 +283,9 @@ namespace SmartRemont.ExportRooms.Services
                     if (sr.Success)
                     {
                         materialsLoaded++;
+                        ExportRoomsApplication._logger?.Debug(
+                            "Materials sync surface import ok: material_id={MaterialId}",
+                            sr.MaterialId);
                         itemResults.Add(new RevitMaterialSyncItemResult
                         {
                             MaterialId = sr.MaterialId,
@@ -218,6 +295,10 @@ namespace SmartRemont.ExportRooms.Services
                     }
                     else
                     {
+                        ExportRoomsApplication._logger?.Warning(
+                            "Materials sync surface import failed: material_id={MaterialId}, error={Error}",
+                            sr.MaterialId,
+                            sr.ErrorMessage ?? "—");
                         itemResults.Add(new RevitMaterialSyncItemResult
                         {
                             MaterialId = sr.MaterialId,
@@ -235,12 +316,26 @@ namespace SmartRemont.ExportRooms.Services
             var errorItems = itemResults.Where(i => !i.Success).ToList();
             var errorCount = errorItems.Count;
 
+            if (errorCount > 0)
+            {
+                foreach (var err in errorItems.Take(50))
+                {
+                    ExportRoomsApplication._logger?.Warning(
+                        "Materials sync error item: material_id={MaterialId}, phase={Phase}, error={Error}",
+                        err.MaterialId,
+                        err.Phase ?? "—",
+                        err.ErrorMessage ?? "—");
+                }
+            }
+
             ExportRoomsApplication._logger?.Information(
-                "Materials sync completed: client_request_id={ClientRequestId}, loaded={Loaded}, errors={Errors}, syncable={Syncable}",
+                "Materials sync completed: client_request_id={ClientRequestId}, loaded={Loaded}, errors={Errors}, syncable={Syncable}, rfa={Rfa}, surface={Surface}",
                 clientRequestId,
                 materialsLoaded,
                 errorCount,
-                rfaRows.Count + surfaceRows.Count);
+                rfaRows.Count + surfaceRows.Count,
+                rfaRows.Count,
+                surfaceRows.Count);
 
             return new RevitMaterialsSyncResult
             {
