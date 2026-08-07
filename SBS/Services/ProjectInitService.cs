@@ -95,21 +95,6 @@ namespace SmartRemont.ExportRooms.Services
                 };
             }
 
-            Report(progress, "Запись метаданных заявки...");
-            try
-            {
-                ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
-                {
-                    RemontId = remontId,
-                    ClientRequestId = clientRequestId
-                });
-            }
-            catch (Exception ex)
-            {
-                ExportRoomsApplication._logger?.Error(ex, "Project init: metadata write failed");
-                return Fail("Не удалось записать метаданные заявки: " + ex.Message, copyResult.TargetPath);
-            }
-
             Report(progress, "Синхронизация материалов...");
             RevitMaterialsSyncResult syncResult;
             try
@@ -125,6 +110,38 @@ namespace SmartRemont.ExportRooms.Services
             {
                 ExportRoomsApplication._logger?.Error(ex, "Project init: materials sync failed");
                 return Fail("Синхронизация материалов не удалась: " + ex.Message, copyResult.TargetPath);
+            }
+
+            if (syncResult.ErrorCount > 0)
+            {
+                ExportRoomsApplication._logger?.Warning(
+                    "Project init: materials sync completed with errors ({ErrorCount}). Skipping metadata binding.",
+                    syncResult.ErrorCount);
+
+                return new ProjectInitResult
+                {
+                    Success = false,
+                    NewFilePath = copyResult.TargetPath,
+                    MaterialsLoaded = syncResult.MaterialsLoaded,
+                    Errors = syncResult.ErrorCount,
+                    IsWorksharedWarning = copyResult.IsWorksharedWarning,
+                    ErrorMessage = syncResult.ErrorMessage ?? $"Синхронизация материалов завершилась с ошибками: {syncResult.ErrorCount}. Проект не привязан."
+                };
+            }
+
+            Report(progress, "Запись метаданных заявки...");
+            try
+            {
+                ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
+                {
+                    RemontId = remontId,
+                    ClientRequestId = clientRequestId
+                });
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex, "Project init: metadata write failed");
+                return Fail("Не удалось записать метаданные заявки: " + ex.Message, copyResult.TargetPath);
             }
 
             Report(progress, "Сохранение проекта...");
@@ -157,14 +174,12 @@ namespace SmartRemont.ExportRooms.Services
 
             return new ProjectInitResult
             {
-                Success = syncResult.ErrorCount == 0,
+                Success = true,
                 NewFilePath = copyResult.TargetPath,
                 MaterialsLoaded = syncResult.MaterialsLoaded,
-                Errors = syncResult.ErrorCount,
+                Errors = 0,
                 IsWorksharedWarning = copyResult.IsWorksharedWarning,
-                ErrorMessage = syncResult.ErrorCount > 0
-                    ? syncResult.ErrorMessage ?? $"Инициализация завершена с ошибками: {syncResult.ErrorCount}"
-                    : copyResult.IsWorksharedWarning ? ProjectCopyService.WorksharedUnsupportedMessage : null
+                ErrorMessage = copyResult.IsWorksharedWarning ? ProjectCopyService.WorksharedUnsupportedMessage : null
             };
         }
 

@@ -105,6 +105,10 @@ namespace SmartRemont.ExportRooms.Services
                             e.ScheduleNamesExact ??= new List<string>();
                             e.ValueColumnsExact ??= new List<string>();
                             e.RoomColumnsExact ??= new List<string>();
+                            if (e.ParamCode == "DOUBLE_DOOR")
+                            {
+                                e.RoomBaseNamesFilter = null;
+                            }
                         }
                         return loaded;
                     }
@@ -181,14 +185,22 @@ namespace SmartRemont.ExportRooms.Services
                 },
                 new Entry
                 {
-                    // TODO: Revit-дизайнерам нужно добавить колонку 'Помещение' в спецификацию дверей,
-                    // чтобы плагин смог распределить двери по комнатам.
                     ParamCode = "DOOR_CNT",
-                    ParamName = "Количество межкомнатных дверей",
-                    ScheduleNamesExact = new List<string> { "Спецификация дверей" },
+                    ParamName = "Количество межкомнатных дверей (одностворчатые)",
+                    ScheduleNamesExact = new List<string> { "Спецификация дверей", "Спецификация дверей." },
                     Mode = ParseMode.DoorsByRoom,
-                    ValueColumnsExact = new List<string> { "Кол-во, шт" },
-                    RoomColumnsExact = new List<string> { "Помещение" },
+                    ValueColumnsExact = new List<string> { "Кол-во, шт", "Кол-во", "Количество" },
+                    RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                    ValueIsInteger = true
+                },
+                new Entry
+                {
+                    ParamCode = "DOUBLE_DOOR",
+                    ParamName = "Двустворчатая дверь (ширина > 1000 мм)",
+                    ScheduleNamesExact = new List<string> { "Спецификация дверей", "Спецификация дверей." },
+                    Mode = ParseMode.DoorsByRoom,
+                    ValueColumnsExact = new List<string> { "Кол-во, шт", "Кол-во", "Количество" },
+                    RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
                     ValueIsInteger = true
                 },
                 new Entry
@@ -202,25 +214,12 @@ namespace SmartRemont.ExportRooms.Services
                 },
                 new Entry
                 {
-                    // TODO: Для молдингов нужно будет проверить/добавить спецификацию, 
-                    // убедиться что есть колонка 'Помещение' и правильная колонка длины.
                     ParamCode = "MOLDING_PERIMETER",
                     ParamName = "Периметр молдингов",
                     ScheduleNamesExact = new List<string> { "Спецификация молдинга", "Спецификация молдингов", "Спецификация молдингов." },
                     Mode = ParseMode.GroupedByRoomHeader,
-                    ValueColumnsExact = new List<string> { "Длина, м.", "Периметр.", "Длина, м", "Периметр, м" },
+                    ValueColumnsExact = new List<string> { "Длина, м.", "Длина, м", "Периметр.", "Периметр, м", "Длина" },
                     RoomColumnsExact = new List<string> { "Помещение", "Помещения" }
-                },
-                new Entry
-                {
-                    ParamCode = "DOUBLE_DOOR",
-                    ParamName = "Двустворчатая дверь",
-                    ScheduleNamesExact = new List<string> { "Спецификация дверей" },
-                    Mode = ParseMode.DoorsByRoom,
-                    ValueColumnsExact = new List<string> { "Кол-во, шт" },
-                    RoomColumnsExact = new List<string> { "Помещение" },
-                    ValueIsInteger = true,
-                    RoomBaseNamesFilter = new List<string> { "Гостиная" }
                 }
             };
         }

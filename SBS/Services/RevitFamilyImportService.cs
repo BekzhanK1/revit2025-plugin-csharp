@@ -78,13 +78,10 @@ namespace SmartRemont.ExportRooms.Services
                 var srIdError = ValidateSrIdInRfaFile(doc.Application, filePath, materialId);
                 if (srIdError != null)
                 {
-                    results.Add(new FamilyImportResult
-                    {
-                        MaterialId = materialId,
-                        Success = false,
-                        ErrorMessage = srIdError
-                    });
-                    continue;
+                    ExportRoomsApplication._logger?.Warning(
+                        "Material {MaterialId} RFA validation warning: {Error}. Proceeding with family import.",
+                        materialId,
+                        srIdError);
                 }
 
                 try
@@ -92,7 +89,7 @@ namespace SmartRemont.ExportRooms.Services
                     var loadOptions = new AcceptExistingFamilyLoadOptions();
                     var loaded = doc.LoadFamily(filePath, loadOptions, out Family family);
 
-                    if (loaded && family != null)
+                    if (family != null || loaded)
                     {
                         RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
                         results.Add(new FamilyImportResult
@@ -100,7 +97,7 @@ namespace SmartRemont.ExportRooms.Services
                             MaterialId = materialId,
                             Success = true,
                             AlreadyInProject = loadOptions.FamilyAlreadyInProject,
-                            FamilyName = family.Name
+                            FamilyName = family?.Name ?? TryGetFamilyNameFromRfa(doc.Application, filePath)
                         });
                         continue;
                     }
@@ -483,7 +480,18 @@ namespace SmartRemont.ExportRooms.Services
 
         static string TryGetFamilyNameFromRfa(Autodesk.Revit.ApplicationServices.Application app, string filePath)
         {
-            if (app == null || string.IsNullOrWhiteSpace(filePath))
+            if (string.IsNullOrWhiteSpace(filePath))
+                return null;
+
+            try
+            {
+                var nameFromFileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                if (!string.IsNullOrWhiteSpace(nameFromFileName))
+                    return nameFromFileName;
+            }
+            catch { }
+
+            if (app == null)
                 return null;
 
             Document familyDoc = null;
@@ -491,7 +499,7 @@ namespace SmartRemont.ExportRooms.Services
             {
                 var modelPath = ModelPathUtils.ConvertUserVisiblePathToModelPath(filePath);
                 familyDoc = app.OpenDocumentFile(modelPath, new OpenOptions());
-                return familyDoc.OwnerFamily?.Name;
+                return !string.IsNullOrWhiteSpace(familyDoc.Title) ? familyDoc.Title : familyDoc.OwnerFamily?.Name;
             }
             catch (Exception ex)
             {

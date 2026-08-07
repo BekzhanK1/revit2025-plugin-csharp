@@ -69,7 +69,9 @@ namespace SmartRemont.ExportRooms.Services
                                 entry.RoomColumnsExact, entry.ValueColumnsExact,
                                 entry.RoomBaseNamesFilter,
                                 entry.RoomBaseNamesExclude,
-                                doubleLeafOnly: entry.ParamCode == "DOUBLE_DOOR",
+                                doorFilterMode: entry.ParamCode == "DOUBLE_DOOR"
+                                    ? DoorFilterMode.DoubleOnly
+                                    : DoorFilterMode.SingleOnly,
                                 out roomColUsed, out valueColUsed);
                             break;
                         case ParseMode.SingleValueToFixedRoom:
@@ -581,6 +583,13 @@ namespace SmartRemont.ExportRooms.Services
             return result;
         }
 
+        public enum DoorFilterMode
+        {
+            SingleOnly,
+            DoubleOnly,
+            All
+        }
+
         static ExtractResult ExtractDoorsByRoom(
             ViewSchedule schedule,
             Dictionary<string, int> headers,
@@ -589,7 +598,7 @@ namespace SmartRemont.ExportRooms.Services
             IReadOnlyList<string> valueHeaders,
             IReadOnlyList<string> roomBaseNamesFilter,
             IReadOnlyList<string> roomBaseNamesExclude,
-            bool doubleLeafOnly,
+            DoorFilterMode doorFilterMode,
             out string roomColUsed,
             out string valueColUsed)
         {
@@ -601,9 +610,9 @@ namespace SmartRemont.ExportRooms.Services
 
             var colRoom = ResolveColumnExact(headers, roomHeaders, out roomColUsed);
             var colQty = ResolveColumnExact(headers, valueHeaders, out valueColUsed);
-            var colType = ResolveColumnExact(headers, new[] { "Тип" }, out _);
+            var colType = ResolveColumnExact(headers, new[] { "Наименование", "Тип", "Марка" }, out _);
             var colWidth = ResolveColumnExact(headers,
-                new[] { "Ширина полотна, м", "Ширина полотна", "Ширина" }, out _);
+                new[] { "Ширина полотна, мм", "Ширина полотна, м", "Ширина полотна", "Ширина" }, out _);
             if (colRoom == null)
                 return result;
 
@@ -621,7 +630,11 @@ namespace SmartRemont.ExportRooms.Services
 
                 var type = colType != null ? GetCell(schedule, r, colType.Value) : string.Empty;
                 var widthText = colWidth != null ? GetCell(schedule, r, colWidth.Value) : string.Empty;
-                if (doubleLeafOnly && !IsDoubleLeafDoor(type, widthText))
+                var isDouble = IsDoubleLeafDoor(type, widthText);
+
+                if (doorFilterMode == DoorFilterMode.DoubleOnly && !isDouble)
+                    continue;
+                if (doorFilterMode == DoorFilterMode.SingleOnly && isDouble)
                     continue;
 
                 var qty = 1;
