@@ -150,11 +150,19 @@ namespace SmartRemont.ExportRooms.Views
                     RoomName = kvp.Key,
                     Parameters = RoomMeasurementsScheduleMapping.All
                         .Where(entry => RoomMeasurementsService.ParamAppliesToRoom(entry, kvp.Key))
-                        .Select(entry => new RoomMeasurementParamItem
+                        .Select(entry =>
                         {
-                            param_code = entry.ParamCode,
-                            param_name = entry.ParamName,
-                            param_value = null
+                            // Комнаты только из системы: если ведомость есть — 0, иначе null.
+                            var source = _snapshot.Sources?.FirstOrDefault(s =>
+                                string.Equals(s.param_code, entry.ParamCode, StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrWhiteSpace(s.schedule_name_found)
+                                && s.schedule_name_found != "—");
+                            return new RoomMeasurementParamItem
+                            {
+                                param_code = entry.ParamCode,
+                                param_name = entry.ParamName,
+                                param_value = source != null ? 0d : null
+                            };
                         })
                         .ToList()
                 });

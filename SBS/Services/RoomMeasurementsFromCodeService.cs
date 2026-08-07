@@ -637,10 +637,12 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrWhiteSpace(type))
                 return false;
 
-            return type.IndexOf("дв.", StringComparison.OrdinalIgnoreCase) >= 0
-                   || type.IndexOf("дв ", StringComparison.OrdinalIgnoreCase) >= 0
-                   || type.IndexOf("двуств", StringComparison.OrdinalIgnoreCase) >= 0
-                   || type.IndexOf("2-ств", StringComparison.OrdinalIgnoreCase) >= 0;
+            // Не «дв.» — в спеках/типах часто «Дв. полотно» (дверное), не двустворчатая.
+            return type.IndexOf("двуств", StringComparison.OrdinalIgnoreCase) >= 0
+                   || type.IndexOf("двухств", StringComparison.OrdinalIgnoreCase) >= 0
+                   || type.IndexOf("2-ств", StringComparison.OrdinalIgnoreCase) >= 0
+                   || type.IndexOf("2 ств", StringComparison.OrdinalIgnoreCase) >= 0
+                   || type.IndexOf("двупольн", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         static double? GetDoorWidthMillimeters(FamilyInstance door)

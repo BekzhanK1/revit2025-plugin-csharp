@@ -39,7 +39,7 @@ namespace SmartRemont.ExportRooms.Services
         {
             ParamCode = "DOUBLE_DOOR",
             ParamName = "Двустворчатая дверь",
-            SourceDescription = "только Гостиная: ширина > 1000 мм или «Дв.» в типе; без проёмов"
+            SourceDescription = "только Гостиная: ширина > 1000 мм или «двуств»/«2-ств» в типе; без проёмов"
         };
 
         public static Entry PlitkaArea { get; } = new Entry

@@ -295,6 +295,8 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             MergeInto(merged, extracted);
+            if (schedule != null && string.IsNullOrWhiteSpace(merged.ScheduleName))
+                merged.ScheduleName = schedule.Name;
 
             sources.Add(new RoomMeasurementSourceInfo
             {
@@ -337,7 +339,7 @@ namespace SmartRemont.ExportRooms.Services
             else if (entry.Mode == ParseMode.SingleValueToFixedRoom)
                 cols += $", помещение «{entry.FixedRoomName}» (без колонки комнаты в ведомости)";
             else if (entry.ParamCode == "DOUBLE_DOOR")
-                cols += ", двуств.: ширина полотна > 1000 мм (или «Дв.» в типе)";
+                cols += ", двуств.: ширина полотна > 1000 мм (или «двуств»/«2-ств» в наименовании)";
 
             if (entry.RoomBaseNamesFilter != null && entry.RoomBaseNamesFilter.Count > 0)
                 cols += $", только помещения: {string.Join(", ", entry.RoomBaseNamesFilter)} (базовое имя)";
@@ -390,6 +392,10 @@ namespace SmartRemont.ExportRooms.Services
                 && RoomNameMatcher.MatchesBaseName(room, entry.FixedRoomName)
                 && r.ByRoomOrEmpty.TryGetValue(entry.FixedRoomName.Trim(), out d))
                 return d;
+
+            // Спецификация найдена, но этого помещения в ней нет → 0 (сброс в системе), а не «нет в Revit».
+            if (!string.IsNullOrWhiteSpace(r.ScheduleName) || r.HasData)
+                return 0d;
 
             return null;
         }
@@ -664,13 +670,12 @@ namespace SmartRemont.ExportRooms.Services
             if (!string.IsNullOrWhiteSpace(type))
             {
                 var t = type.Trim();
+                // Не использовать «дв.» / «дв » — в спеках это «Дв. полотно» (дверное), не двустворчатая.
                 if (t.IndexOf("двуств", StringComparison.OrdinalIgnoreCase) >= 0
                     || t.IndexOf("двухств", StringComparison.OrdinalIgnoreCase) >= 0
                     || t.IndexOf("2-ств", StringComparison.OrdinalIgnoreCase) >= 0
                     || t.IndexOf("2 ств", StringComparison.OrdinalIgnoreCase) >= 0
-                    || t.IndexOf("двупольн", StringComparison.OrdinalIgnoreCase) >= 0
-                    || t.IndexOf("дв.", StringComparison.OrdinalIgnoreCase) >= 0
-                    || t.IndexOf("дв ", StringComparison.OrdinalIgnoreCase) >= 0)
+                    || t.IndexOf("двупольн", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     return true;
                 }
