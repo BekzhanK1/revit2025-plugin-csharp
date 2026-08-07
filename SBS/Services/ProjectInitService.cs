@@ -115,18 +115,9 @@ namespace SmartRemont.ExportRooms.Services
             if (syncResult.ErrorCount > 0)
             {
                 ExportRoomsApplication._logger?.Warning(
-                    "Project init: materials sync completed with errors ({ErrorCount}). Skipping metadata binding.",
-                    syncResult.ErrorCount);
-
-                return new ProjectInitResult
-                {
-                    Success = false,
-                    NewFilePath = copyResult.TargetPath,
-                    MaterialsLoaded = syncResult.MaterialsLoaded,
-                    Errors = syncResult.ErrorCount,
-                    IsWorksharedWarning = copyResult.IsWorksharedWarning,
-                    ErrorMessage = syncResult.ErrorMessage ?? $"Синхронизация материалов завершилась с ошибками: {syncResult.ErrorCount}. Проект не привязан."
-                };
+                    "Project init: materials sync completed with {ErrorCount} error(s), {Loaded} loaded. Proceeding with metadata binding.",
+                    syncResult.ErrorCount,
+                    syncResult.MaterialsLoaded);
             }
 
             Report(progress, "Запись метаданных заявки...");
@@ -177,9 +168,11 @@ namespace SmartRemont.ExportRooms.Services
                 Success = true,
                 NewFilePath = copyResult.TargetPath,
                 MaterialsLoaded = syncResult.MaterialsLoaded,
-                Errors = 0,
+                Errors = syncResult.ErrorCount,
                 IsWorksharedWarning = copyResult.IsWorksharedWarning,
-                ErrorMessage = copyResult.IsWorksharedWarning ? ProjectCopyService.WorksharedUnsupportedMessage : null
+                ErrorMessage = syncResult.ErrorCount > 0
+                    ? syncResult.ErrorMessage ?? $"Загружено {syncResult.MaterialsLoaded}, ошибок: {syncResult.ErrorCount}"
+                    : copyResult.IsWorksharedWarning ? ProjectCopyService.WorksharedUnsupportedMessage : null
             };
         }
 
