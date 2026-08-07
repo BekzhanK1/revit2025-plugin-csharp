@@ -75,15 +75,6 @@ namespace SmartRemont.ExportRooms.Services
                     continue;
                 }
 
-                var srIdError = ValidateSrIdInRfaFile(doc.Application, filePath, materialId);
-                if (srIdError != null)
-                {
-                    ExportRoomsApplication._logger?.Warning(
-                        "Material {MaterialId} RFA validation warning: {Error}. Proceeding with family import.",
-                        materialId,
-                        srIdError);
-                }
-
                 try
                 {
                     var loadOptions = new AcceptExistingFamilyLoadOptions();
@@ -97,12 +88,12 @@ namespace SmartRemont.ExportRooms.Services
                             MaterialId = materialId,
                             Success = true,
                             AlreadyInProject = loadOptions.FamilyAlreadyInProject,
-                            FamilyName = family?.Name ?? TryGetFamilyNameFromRfa(doc.Application, filePath)
+                            FamilyName = family?.Name ?? System.IO.Path.GetFileNameWithoutExtension(filePath)
                         });
                         continue;
                     }
 
-                    var existingFamily = TryFindExistingFamily(doc, filePath);
+                    var existingFamily = TryFindExistingFamilyByFileName(doc, filePath);
                     if (existingFamily != null)
                     {
                         RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
@@ -131,11 +122,13 @@ namespace SmartRemont.ExportRooms.Services
                         continue;
                     }
 
+                    // Валидируем SR_ID только при неудаче — для диагностического сообщения.
+                    var srIdError = ValidateSrIdInRfaFile(doc.Application, filePath, materialId);
                     results.Add(new FamilyImportResult
                     {
                         MaterialId = materialId,
                         Success = false,
-                        ErrorMessage = "Не удалось загрузить семейство в проект (LoadFamily=false)"
+                        ErrorMessage = srIdError ?? "Не удалось загрузить семейство в проект (LoadFamily=false)"
                     });
                 }
                 catch (Autodesk.Revit.Exceptions.ApplicationException ex)
@@ -469,6 +462,34 @@ namespace SmartRemont.ExportRooms.Services
         static Family TryFindExistingFamily(Document doc, string filePath)
         {
             var familyName = TryGetFamilyNameFromRfa(doc.Application, filePath);
+            if (string.IsNullOrWhiteSpace(familyName))
+                return null;
+
+            return new FilteredElementCollector(doc)
+                .OfClass(typeof(Family))
+                .Cast<Family>()
+                .FirstOrDefault(f => string.Equals(f.Name, familyName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Ищет семейство в проекте по имени файла RFA без открытия документа —
+        /// OpenDocumentFile отравляет внутренний кеш Revit и ломает последующий LoadFamily.
+        /// </summary>
+        static Family TryFindExistingFamilyByFileName(Document doc, string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return null;
+
+            string familyName;
+            try
+            {
+                familyName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+            }
+            catch
+            {
+                return null;
+            }
+
             if (string.IsNullOrWhiteSpace(familyName))
                 return null;
 
