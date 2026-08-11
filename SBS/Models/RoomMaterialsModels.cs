@@ -63,4 +63,29 @@ namespace SmartRemont.ExportRooms.Models
         public string Message { get; set; }
         public string DetailLines { get; set; }
     }
+
+    /// <summary>Снимок элементов с SR_ID по комнатам — источник для ДС изменения ТК.</summary>
+    public class RoomSrIdSnapshot
+    {
+        public List<RoomSrIdRoomRow> Rooms { get; set; } = new();
+        public int ElementsWithSrId { get; set; }
+        public int UnassignedElements { get; set; }
+        public int SkippedExcludedCategory { get; set; }
+    }
+
+    public class RoomSrIdRoomRow
+    {
+        public string RoomName { get; set; }
+        public List<RoomSrIdItem> Items { get; set; } = new();
+    }
+
+    public class RoomSrIdItem
+    {
+        public int SrId { get; set; }
+        public string Name { get; set; }
+        public string Category { get; set; }
+        public long? CategoryId { get; set; }
+        public string SourceLevel { get; set; }
+        public int Quantity { get; set; } = 1;
+    }
 }

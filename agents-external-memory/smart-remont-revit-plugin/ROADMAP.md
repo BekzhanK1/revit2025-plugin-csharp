@@ -59,7 +59,8 @@
 
 ## 5. ДС по изменению ТК
 
-`RemontHubWindow` → заглушка `AppMessageDialog.ShowInDevelopment`.
+**v1 (готово):** хаб → `DsTkChangeWindow` — сверка `SR_ID` по комнатам с ТК (`material_id`).  
+Без apply/создания ДС. См. `external-agent-memory/ds-tk-change-srid-v1/`.
 
 ---
 

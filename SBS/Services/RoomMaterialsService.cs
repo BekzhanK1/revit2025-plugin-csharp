@@ -41,6 +41,134 @@ namespace SmartRemont.ExportRooms.Services
             (long)BuiltInCategory.OST_RvtLinks
         };
 
+        /// <summary>
+        /// Собирает элементы с параметром SR_ID (= material_id) и раскладывает по комнатам.
+        /// Нужен для сверки ДС «изменение ТК» с текстовым конструктором.
+        /// </summary>
+        public static RoomSrIdSnapshot CollectSrId(Document doc)
+        {
+            var snapshot = new RoomSrIdSnapshot();
+            if (doc == null)
+                return snapshot;
+
+            var phase = RoomAreaService.GetPreferredPhase(doc);
+            if (phase == null)
+                return snapshot;
+
+            var rooms = CollectPhaseRooms(doc, phase);
+            if (rooms.Count == 0)
+                return snapshot;
+
+            var itemsByRoomId = rooms.ToDictionary(r => r.Id.Value, _ => new List<RoomSrIdItem>());
+            var roomIds = itemsByRoomId.Keys.ToHashSet();
+            var assignedElementIds = new HashSet<long>();
+            var elementsWithSrId = 0;
+            var skippedCategory = 0;
+
+            foreach (var element in new FilteredElementCollector(doc)
+                .WhereElementIsNotElementType()
+                .ToElements())
+            {
+                if (IsExcludedCategory(element.Category))
+                {
+                    skippedCategory++;
+                    continue;
+                }
+
+                if (!RevitMaterialPresenceService.TryGetSrId(element, doc, out var srId, out var sourceLevel)
+                    || srId <= 0)
+                    continue;
+
+                elementsWithSrId++;
+
+                var targetRooms = ResolveRoomsForElement(element, doc, phase, rooms, roomIds);
+                if (targetRooms.Count == 0)
+                    continue;
+
+                var item = new RoomSrIdItem
+                {
+                    SrId = srId,
+                    Name = GetElementDisplayName(element, doc),
+                    Category = element.Category?.Name ?? "—",
+                    CategoryId = element.Category?.Id.Value,
+                    SourceLevel = sourceLevel,
+                    Quantity = 1
+                };
+
+                foreach (var room in targetRooms)
+                {
+                    if (!itemsByRoomId.TryGetValue(room.Id.Value, out var list))
+                        continue;
+
+                    list.Add(item);
+                    assignedElementIds.Add(element.Id.Value);
+                }
+            }
+
+            foreach (var room in rooms)
+            {
+                if (!itemsByRoomId.TryGetValue(room.Id.Value, out var items) || items.Count == 0)
+                    continue;
+
+                snapshot.Rooms.Add(new RoomSrIdRoomRow
+                {
+                    RoomName = RoomAreaService.GetRoomDisplayName(room),
+                    Items = ConsolidateSrIdItems(items)
+                });
+            }
+
+            snapshot.ElementsWithSrId = elementsWithSrId;
+            snapshot.UnassignedElements = elementsWithSrId - assignedElementIds.Count;
+            snapshot.SkippedExcludedCategory = skippedCategory;
+            snapshot.Rooms = snapshot.Rooms
+                .OrderBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return snapshot;
+        }
+
+        static List<RoomSrIdItem> ConsolidateSrIdItems(IList<RoomSrIdItem> items)
+        {
+            if (items == null || items.Count == 0)
+                return new List<RoomSrIdItem>();
+
+            return items
+                .GroupBy(i => string.Join("\u001F",
+                    i.SrId.ToString(),
+                    i.Name ?? string.Empty,
+                    i.Category ?? string.Empty,
+                    i.SourceLevel ?? string.Empty))
+                .Select(g =>
+                {
+                    var first = g.First();
+                    return new RoomSrIdItem
+                    {
+                        SrId = first.SrId,
+                        Name = first.Name,
+                        Category = first.Category,
+                        CategoryId = first.CategoryId,
+                        SourceLevel = first.SourceLevel,
+                        Quantity = g.Sum(x => x.Quantity)
+                    };
+                })
+                .OrderBy(i => i.Category, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(i => i.SrId)
+                .ToList();
+        }
+
+        static List<Room> CollectPhaseRooms(Document doc, Phase phase) =>
+            new FilteredElementCollector(doc)
+                .OfCategory(BuiltInCategory.OST_Rooms)
+                .WhereElementIsNotElementType()
+                .OfType<Room>()
+                .Where(r => r != null &&
+                            r.get_Parameter(BuiltInParameter.ROOM_PHASE)?.AsElementId() == phase.Id &&
+                            r.Area > 0)
+                .OrderBy(r => RoomAreaService.GetRoomSortKey(r))
+                .ThenBy(r => RoomAreaService.GetRoomDisplayName(r), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
         public static RoomMaterialsSnapshot Collect(Document doc)
         {
             var snapshot = new RoomMaterialsSnapshot();
@@ -51,16 +179,7 @@ namespace SmartRemont.ExportRooms.Services
             if (phase == null)
                 return snapshot;
 
-            var rooms = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_Rooms)
-                .WhereElementIsNotElementType()
-                .OfType<Room>()
-                .Where(r => r != null &&
-                            r.get_Parameter(BuiltInParameter.ROOM_PHASE)?.AsElementId() == phase.Id &&
-                            r.Area > 0)
-                .OrderBy(r => RoomAreaService.GetRoomSortKey(r))
-                .ThenBy(r => RoomAreaService.GetRoomDisplayName(r), StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var rooms = CollectPhaseRooms(doc, phase);
 
             if (rooms.Count == 0)
                 return snapshot;

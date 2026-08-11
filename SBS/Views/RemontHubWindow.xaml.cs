@@ -4,6 +4,7 @@ using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -20,7 +21,7 @@ namespace SmartRemont.ExportRooms.Views
         const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
         const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
-        const string RoomMaterialsSubtitle = "Сверка материалов с технологической картой";
+        const string RoomMaterialsSubtitle = "Сверка с договором (ТК) и привязка ДС TK_CHANGE";
         const string RevitMaterialsSubtitle = "Загрузка RFA и surface-типов из Smart Remont";
         const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
 
@@ -63,34 +64,176 @@ namespace SmartRemont.ExportRooms.Views
             if (clientRequestId <= 0) return;
 
             SetStatus("Обновление статусов...", true);
-            
-            var dsTask = DsRoomChangeService.TryReadAsync(clientRequestId);
-            var measuresTask = MeasuresService.TryReadAsync(clientRequestId);
-            var materialsTask = RevitMaterialsService.TryReadAsync(clientRequestId);
 
-            await Task.WhenAll(dsTask, measuresTask, materialsTask).ConfigureAwait(true);
+            try
+            {
+                // Сначала только /revit/plugin/* — office DS list не должен блокировать хаб.
+                var dsTask = DsRoomChangeService.TryReadAsync(clientRequestId);
+                var measuresTask = MeasuresService.TryReadAsync(clientRequestId);
+                var materialsTask = RevitMaterialsService.TryReadAsync(clientRequestId);
 
-            var ds = await dsTask;
-            var measures = await measuresTask;
-            var materials = await materialsTask;
+                await Task.WhenAll(dsTask, measuresTask, materialsTask).ConfigureAwait(true);
 
-            // Apply Tk (Not Implemented)
-            ApplyBadge(RoomMaterialsButton, "🚧 Скоро", "#F8FAFC", "#94A3B8");
-            RoomMaterialsButton.IsEnabled = false;
+                var ds = await dsTask;
+                var measures = await measuresTask;
+                var materials = await materialsTask;
 
-            // Apply Materials
-            ApplyMaterialsState(materials.Data, materials.Status, materials.Error, clientRequestId);
+                ApplyMaterialsState(materials.Data, materials.Status, materials.Error, clientRequestId);
+                ApplyMeasuresState(measures.Data, measures.Status, measures.Error);
 
-            // Apply Measures
-            ApplyMeasuresState(measures.Data, measures.Status, measures.Error);
+                var resolvedRemontId = remont?.RemontId ?? ds.RemontId;
+                ApplyDsState(ds.Data, ds.Status, resolvedRemontId);
 
-            // Apply DS
-            var resolvedRemontId = remont?.RemontId ?? ds.RemontId;
-            ApplyDsState(ds.Data, ds.Status, resolvedRemontId);
-            
+                var problems = new System.Collections.Generic.List<string>();
+                if (!materials.Status)
+                    problems.Add("Материалы: " + (materials.Error ?? "ошибка"));
+                else if (materials.Data?.Data == null || materials.Data.Data.Count == 0)
+                    problems.Add(
+                        "Материалы: API вернул 0 строк.\n"
+                        + $"Сейчас apiOriginUrl = {Configs.ApiOriginUrl}\n"
+                        + "На testapi у этой заявки часто нет каталога — нужен prod (myspace-api.smartremont.kz).");
+
+                if (!ds.Status)
+                    problems.Add("ДС площади: " + (ds.Error ?? "ошибка"));
+
+                if (!measures.Status
+                    && measures.Error?.IndexOf("планировк", StringComparison.OrdinalIgnoreCase) < 0
+                    && measures.Error?.IndexOf("plan", StringComparison.OrdinalIgnoreCase) < 0)
+                    problems.Add("Замеры: " + (measures.Error ?? "ошибка"));
+
+                // Отдельно и с коротким timeout — бейдж ТК ДС.
+                try
+                {
+                    var tkDs = await DsTkChangeService.TryListAsync(clientRequestId).ConfigureAwait(true);
+                    ApplyTkDsState(tkDs.State, tkDs.Ok, tkDs.Error);
+                    if (!tkDs.Ok && !string.IsNullOrWhiteSpace(tkDs.Error))
+                        problems.Add("ДС ТК (список): " + tkDs.Error);
+                }
+                catch (Exception tkEx)
+                {
+                    ExportRoomsApplication._logger?.Warning(tkEx, "Hub TK DS badge failed");
+                    ApplyBadge(RoomMaterialsButton, "Сверка", "#F1F5F9", "#475569", "Список ДС недоступен: " + tkEx.Message);
+                    RoomMaterialsButton.IsEnabled = true;
+                    problems.Add("ДС ТК (список): " + tkEx.Message);
+                }
+
+                if (problems.Count > 0)
+                {
+                    MessageBox.Show(
+                        this,
+                        string.Join("\n\n", problems) + $"\n\nAPI: {Configs.ApiOriginUrl}",
+                        "Smart Remont — проблемы загрузки",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    SetStatus("Есть ошибки загрузки — см. окно", false);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Hub FetchAsyncStates failed");
+                SetStatus("Ошибка обновления статусов: " + ex.Message, true);
+                MessageBox.Show(
+                    this,
+                    ex.Message + $"\n\nAPI: {Configs.ApiOriginUrl}",
+                    "Ошибка обновления статусов",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return;
+            }
+
             SetStatus(string.Empty, true);
         }
 
+        void ApplyTkDsState(DsTkChangeBindState state, bool ok, string error)
+        {
+            RoomMaterialsButton.IsEnabled = true;
+
+            if (!ok)
+            {
+                // Список office DS часто недоступен без MySpace-грантов — сверку не блокируем.
+                ApplyBadge(
+                    RoomMaterialsButton,
+                    "Сверка",
+                    "#F1F5F9",
+                    "#475569",
+                    string.IsNullOrWhiteSpace(error)
+                        ? "Сверка доступна; список ДС не загрузился"
+                        : "Сверка доступна. ДС: " + error);
+                return;
+            }
+
+            var items = state?.Items ?? new System.Collections.Generic.List<DsTkChangeItem>();
+            if (items.Count == 0)
+            {
+                ApplyBadge(
+                    RoomMaterialsButton,
+                    "Не создана",
+                    "#F1F5F9",
+                    "#475569",
+                    "Откройте сверку и создайте пустую ДС или выберите существующую");
+                return;
+            }
+
+            var editableCount = items.Count(i => i.CanEdit);
+            if (editableCount > 1)
+            {
+                ApplyBadge(
+                    RoomMaterialsButton,
+                    $"• {editableCount} черновика",
+                    "#FEF9C3",
+                    "#A16207",
+                    "Несколько черновиков TK_CHANGE — выберите в окне сверки");
+                return;
+            }
+
+            var badgeItem = DsTkChangeBindState.PreferHubBadge(items);
+            if (badgeItem == null)
+            {
+                ApplyBadge(RoomMaterialsButton, "Не создана", "#F1F5F9", "#475569");
+                return;
+            }
+
+            if (badgeItem.IsAccept == 1)
+            {
+                ApplyBadge(
+                    RoomMaterialsButton,
+                    $"✔ Утверждена №{badgeItem.DsId}",
+                    "#DCFCE7",
+                    "#166534",
+                    "ДС утверждена — сверка доступна");
+                return;
+            }
+
+            if (badgeItem.IsAccept == 2)
+            {
+                ApplyBadge(
+                    RoomMaterialsButton,
+                    $"× Отказана №{badgeItem.DsId}",
+                    "#FEF2F2",
+                    "#DC2626",
+                    "ДС отказана");
+                return;
+            }
+
+            if (badgeItem.CardId != null)
+            {
+                ApplyBadge(
+                    RoomMaterialsButton,
+                    $"• На согласовании №{badgeItem.DsId}",
+                    "#DBEAFE",
+                    "#1D4ED8",
+                    "ДС на согласовании — сверка доступна, правки только в MySpace после решения");
+                return;
+            }
+
+            ApplyBadge(
+                RoomMaterialsButton,
+                $"• Черновик №{badgeItem.DsId}",
+                "#FEF9C3",
+                "#A16207",
+                "Черновик привязан — сверка и (скоро) правки объёмов");
+        }
         void ApplyMaterialsState(RevitMaterialReadResponse data, bool status, string error, int clientRequestId)
         {
             if (!status)
@@ -269,15 +412,42 @@ namespace SmartRemont.ExportRooms.Views
             if (remont == null || remont.ClientRequestId <= 0)
                 return;
 
-            var placeholder = remont.RemontId is int remontId && remontId > 0
-                ? $"Ремонт #{remontId}"
-                : $"Заявка #{remont.ClientRequestId}";
-            if (!string.IsNullOrWhiteSpace(remont.Name)
-                && !string.Equals(remont.Name.Trim(), placeholder, StringComparison.Ordinal))
+            var needsEnrich =
+                string.IsNullOrWhiteSpace(remont.ClientName)
+                || string.IsNullOrWhiteSpace(remont.ResidentName)
+                || string.IsNullOrWhiteSpace(remont.FlatNum)
+                || IsPlaceholderRemontName(remont);
+
+            if (!needsEnrich)
                 return;
 
-            await ProjectRemontBindingService.TryEnrichFromQuickSearchAsync(remont).ConfigureAwait(true);
+            var (ok, error) = await ProjectRemontBindingService
+                .TryEnrichFromQuickSearchAsync(remont)
+                .ConfigureAwait(true);
             BindRemontInfo(remont);
+
+            if (!ok)
+            {
+                MessageBox.Show(
+                    this,
+                    error ?? "Не удалось загрузить карточку заявки.",
+                    "Ошибка загрузки заявки",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+
+        static bool IsPlaceholderRemontName(RemontOption remont)
+        {
+            if (string.IsNullOrWhiteSpace(remont?.Name))
+                return true;
+
+            var name = remont.Name.Trim();
+            if (remont.RemontId is int remontId && remontId > 0
+                && string.Equals(name, $"Ремонт #{remontId}", StringComparison.Ordinal))
+                return true;
+
+            return string.Equals(name, $"Заявка #{remont.ClientRequestId}", StringComparison.Ordinal);
         }
         void SetupFeatureButtons()
         {
@@ -676,7 +846,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void RoomMaterialsButton_Click(object sender, RoutedEventArgs e)
         {
-            var window = new RoomMaterialsWindow(_doc);
+            var window = new DsTkChangeWindow(_doc);
             window.Owner = this;
             window.ShowDialog();
         }

@@ -44,6 +44,8 @@
 | `RoomMeasurementsScheduleMapping.cs` | Статический маппинг ведомостей |
 | `TypeParameterChangeService.cs` | Категории/семейства/типы и запись type-параметров |
 | `RoomNameMatcher.cs` | Базовые имена помещений |
+| `RoomMaterialsService.cs` | Материалы по комнатам + `CollectSrId` для ДС ТК |
+| `DsTkCompareService.cs` | Сверка SR_ID ↔ ТК по комнатам |
 | `RevitEventsService.cs` | create/status revit_events |
 | `RevitEventStatusFormatter.cs` | Текст статуса в UI |
 
@@ -74,6 +76,8 @@
 | `HomeWindow` | Поиск ремонта |
 | `RemontHubWindow` | Хаб действий |
 | `SelectedRemontSummaryWindow` | ДС площади |
+| `DsTkChangeWindow` | ДС изменение ТК (сверка SR_ID↔ТК) |
+| `RoomMaterialsWindow` | Сверка ADSK↔ТК (не из хаба) |
 | `RoomMeasurementsWindow` | Замеры |
 | `TypeParameterChangeWindow` | Изменение параметров выбранного типа |
 | `ExportSmartRemontRoomsWindow` | JSON экспорт (не в потоке команды) |

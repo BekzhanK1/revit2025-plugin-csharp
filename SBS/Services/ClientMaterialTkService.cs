@@ -50,7 +50,109 @@ namespace SmartRemont.ExportRooms.Services
                 throw new InvalidOperationException(message);
             }
 
-            return ParseResponse(responseBody);
+            var snapshot = ParseResponse(responseBody);
+            if (snapshot.HasData)
+                await EnrichIsMaterialCntInputAsync(snapshot.Rows, session.AccessToken).ConfigureAwait(false);
+            return snapshot;
+        }
+
+        /// <summary>
+        /// TK read часто не отдаёт флаг явно — добираем с work_set_tab через /common/work_sets/read/.
+        /// </summary>
+        static async Task EnrichIsMaterialCntInputAsync(List<ClientMaterialRowDto> rows, string accessToken)
+        {
+            if (rows == null || rows.Count == 0 || string.IsNullOrWhiteSpace(accessToken))
+                return;
+
+            Dictionary<int, bool> map = null;
+            var needsLookup = rows.Any(r => r.IsMaterialCntInput == null && r.WorkSetId is > 0);
+            if (needsLookup)
+            {
+                try
+                {
+                    map = await GetWorkSetCntInputMapAsync(accessToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    ExportRoomsApplication._logger?.Warning(
+                        ex,
+                        "Failed to load work_sets for is_material_cnt_input");
+                }
+            }
+
+            foreach (var row in rows)
+            {
+                if (row.IsMaterialCntInput != null)
+                    continue;
+
+                if (row.WorkSetId is > 0
+                    && map != null
+                    && map.TryGetValue(row.WorkSetId.Value, out var flag))
+                {
+                    row.IsMaterialCntInput = flag;
+                }
+                else
+                {
+                    // Без флага — как «нельзя вводить» в MySpace.
+                    row.IsMaterialCntInput = false;
+                }
+            }
+        }
+
+        static Dictionary<int, bool> _workSetCntInputCache;
+        static readonly object WorkSetCacheLock = new();
+
+        static async Task<Dictionary<int, bool>> GetWorkSetCntInputMapAsync(string accessToken)
+        {
+            lock (WorkSetCacheLock)
+            {
+                if (_workSetCntInputCache != null)
+                    return _workSetCntInputCache;
+            }
+
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, Configs.WorkSetsReadUrl);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = TryReadErrorMessage(body)
+                    ?? $"Ошибка справочника work_set ({(int)response.StatusCode})";
+                throw new InvalidOperationException(message);
+            }
+
+            var map = ParseWorkSetCntInputMap(body);
+            lock (WorkSetCacheLock)
+            {
+                _workSetCntInputCache ??= map;
+                return _workSetCntInputCache;
+            }
+        }
+
+        static Dictionary<int, bool> ParseWorkSetCntInputMap(string responseBody)
+        {
+            var map = new Dictionary<int, bool>();
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return map;
+
+            var root = JObject.Parse(responseBody);
+            var data = root["data"];
+            if (data is JObject dataObj && dataObj["data"] != null)
+                data = dataObj["data"];
+
+            if (data is not JArray array)
+                return map;
+
+            foreach (var token in array.OfType<JObject>())
+            {
+                var id = ReadInt(token["work_set_id"]);
+                if (id is not > 0)
+                    continue;
+                map[id.Value] = ReadBool(token["is_material_cnt_input"]) == true;
+            }
+
+            return map;
         }
 
         static ClientMaterialTkSnapshot ParseResponse(string responseBody)
@@ -127,8 +229,46 @@ namespace SmartRemont.ExportRooms.Services
                 MaterialName = ReadString(obj["material_name"]),
                 MaterialSetId = ReadInt(obj["material_set_id"]),
                 SetName = ReadString(obj["set_name"]),
+                MaterialCnt = ReadDouble(obj["material_cnt"]),
+                IsMaterialCntInput = ReadBool(obj["is_material_cnt_input"]),
                 IsOptional = ReadInt(obj["is_optional"]) ?? 0
             };
+        }
+
+        static bool? ReadBool(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+
+            if (token.Type == JTokenType.Boolean)
+                return token.Value<bool>();
+
+            if (token.Type == JTokenType.Integer)
+                return token.Value<int>() != 0;
+
+            if (token.Type == JTokenType.Float)
+                return Math.Abs(token.Value<double>()) > double.Epsilon;
+
+            if (token.Type == JTokenType.String)
+            {
+                var raw = token.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(raw))
+                    return null;
+                if (bool.TryParse(raw, out var b))
+                    return b;
+                if (int.TryParse(raw, out var i))
+                    return i != 0;
+                if (string.Equals(raw, "t", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(raw, "yes", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(raw, "да", StringComparison.OrdinalIgnoreCase))
+                    return true;
+                if (string.Equals(raw, "f", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(raw, "no", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(raw, "нет", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+
+            return null;
         }
 
         static string ReadString(JToken token)
@@ -149,8 +289,30 @@ namespace SmartRemont.ExportRooms.Services
             if (token.Type == JTokenType.Integer)
                 return token.Value<int>();
 
+            if (token.Type == JTokenType.Float)
+                return (int)token.Value<double>();
+
             if (token.Type == JTokenType.String
                 && int.TryParse(token.Value<string>()?.Trim(), out var value))
+                return value;
+
+            return null;
+        }
+
+        static double? ReadDouble(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+
+            if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer)
+                return token.Value<double>();
+
+            if (token.Type == JTokenType.String
+                && double.TryParse(
+                    token.Value<string>()?.Trim()?.Replace(',', '.'),
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var value))
                 return value;
 
             return null;

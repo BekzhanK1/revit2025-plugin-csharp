@@ -33,10 +33,10 @@ namespace SmartRemont.ExportRooms.Services
             return new BindResult { Bound = true, Metadata = metadata, Remont = remont };
         }
 
-        public static async Task TryEnrichFromQuickSearchAsync(RemontOption remont)
+        public static async Task<(bool Ok, string Error)> TryEnrichFromQuickSearchAsync(RemontOption remont)
         {
             if (remont == null || remont.ClientRequestId <= 0)
-                return;
+                return (false, "Не указан ID заявки");
 
             var clientRequestId = remont.ClientRequestId;
 
@@ -46,16 +46,31 @@ namespace SmartRemont.ExportRooms.Services
                     .ConfigureAwait(false);
                 var match = FindBestMatch(results, remont);
                 if (match == null)
-                    return;
+                {
+                    var msg =
+                        $"Quick search не нашёл заявку #{clientRequestId} на {Configs.ApiOriginUrl}."
+                        + " Проверьте apiOriginUrl (testapi vs prod) и права OA__RemontFormQuickSearch.";
+                    ExportRoomsApplication._logger?.Warning(
+                        "Enrich quick_search: no match for client_request_id={ClientRequestId}, api={Api}",
+                        clientRequestId,
+                        Configs.ApiOriginUrl);
+                    return (false, msg);
+                }
 
                 ApplyEnrichment(remont, match);
                 ExportRoomsApplication._logger?.Information(
-                    "Enriched bound remont from quick_search: client_request_id={ClientRequestId}", clientRequestId);
+                    "Enriched bound remont from quick_search: client_request_id={ClientRequestId}, api={Api}",
+                    clientRequestId,
+                    Configs.ApiOriginUrl);
+                return (true, null);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex,
-                    "Could not enrich bound remont from quick_search: client_request_id={ClientRequestId}", clientRequestId);
+                    "Could not enrich bound remont from quick_search: client_request_id={ClientRequestId}, api={Api}",
+                    clientRequestId,
+                    Configs.ApiOriginUrl);
+                return (false, ex.Message + $"\nAPI: {Configs.ApiOriginUrl}");
             }
         }
 
@@ -92,6 +107,8 @@ namespace SmartRemont.ExportRooms.Services
             target.PresetName = source.PresetName;
             target.PresetKitName = source.PresetKitName;
             target.ProjectAccepted = source.ProjectAccepted;
+            if (source.RemontId is > 0)
+                target.RemontId = source.RemontId;
             if (source.ClientRequestId > 0)
                 target.ClientRequestId = source.ClientRequestId;
         }

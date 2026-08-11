@@ -91,6 +91,25 @@ namespace SmartRemont.ExportRooms
 
         public static string MeasuresApplyUrl => $"{ApiOriginUrl}/revit/plugin/measures/apply/";
 
+        // Office DS API (TK_CHANGE create/bind) — те же эндпоинты, что MySpace remontDS.
+        public static string ClientRequestDsListUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/read/";
+
+        public static string ClientRequestDsAddUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/add/";
+
+        public static string ClientRequestDsUrl(int clientRequestId, int dsId) =>
+            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/{dsId}/";
+
+        public static string ClientRequestDsTkChangeSetItemCntUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/tk_change_set_item_cnt/";
+
+        public static string DsTypesReadUrl =>
+            $"{ApiOriginUrl}/client_request/common/ds_types/read/";
+
+        public static string WorkSetsReadUrl =>
+            $"{ApiOriginUrl}/common/work_sets/read/";
+
         static string ReadAppSetting(string key)
         {
             var loc = Assembly.GetExecutingAssembly().Location;

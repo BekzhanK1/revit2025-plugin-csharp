@@ -74,6 +74,10 @@
     <Compile Include="Services\RevitFamilyImportService.cs" />
     <Compile Include="Services\RevitSurfaceImportService.cs" />
     <Compile Include="Services\TkMaterialCompareService.cs" />
+    <Compile Include="Services\DsTkCompareService.cs" />
+    <Compile Include="Services\DsTkChangeService.cs" />
+    <Compile Include="Services\TkQtyScheduleMapping.cs" />
+    <Compile Include="Services\TkQtyScheduleService.cs" />
     <Compile Include="Services\RoomPaintScheduleService.cs" />
     <Compile Include="Services\TypeParameterChangeService.cs" />
     <Compile Include="Services\RoomNameMatcher.cs" />
@@ -129,6 +133,15 @@
     </Compile>
     <Compile Include="Views\RoomMaterialsWindow.xaml.cs">
       <DependentUpon>RoomMaterialsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\DsTkChangeWindow.xaml.cs">
+      <DependentUpon>DsTkChangeWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\DsTkPickWindow.xaml.cs">
+      <DependentUpon>DsTkPickWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\DsTkQtyApplyPreviewWindow.xaml.cs">
+      <DependentUpon>DsTkQtyApplyPreviewWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\RevitMaterialsWindow.xaml.cs">
       <DependentUpon>RevitMaterialsWindow.xaml</DependentUpon>
@@ -210,6 +223,18 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\RoomMaterialsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\DsTkChangeWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\DsTkPickWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\DsTkQtyApplyPreviewWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

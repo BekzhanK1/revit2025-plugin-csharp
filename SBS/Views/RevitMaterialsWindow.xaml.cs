@@ -68,7 +68,19 @@ namespace SmartRemont.ExportRooms.Views
                 if (_rows.Count == 0)
                 {
                     ShowEmpty();
-                    StatusTextBlock.Text = string.Empty;
+                    var rawCount = response.Data?.Count ?? 0;
+                    StatusTextBlock.Text =
+                        rawCount == 0
+                            ? $"API вернул 0 материалов.\n{Configs.ApiOriginUrl}"
+                            : $"Есть {rawCount} строк, но без URL/surface для синка.\n{Configs.ApiOriginUrl}";
+                    MessageBox.Show(
+                        this,
+                        StatusTextBlock.Text
+                        + "\n\nЕсли заявка боевая — в app.config / SmartRemont.ExportRooms.dll.config "
+                        + "поставьте apiOriginUrl на prod (например https://myspace-api.smartremont.kz) и перезапустите Revit.",
+                        "Нет материалов для синхронизации",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return;
                 }
 
@@ -80,8 +92,15 @@ namespace SmartRemont.ExportRooms.Views
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "Revit materials read failed");
-                ShowError(ex.Message);
+                var msg = ex.Message + $"\n\nAPI: {Configs.ApiOriginUrl}";
+                ShowError(msg);
                 StatusTextBlock.Text = string.Empty;
+                MessageBox.Show(
+                    this,
+                    msg,
+                    "Ошибка загрузки материалов",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             finally
             {

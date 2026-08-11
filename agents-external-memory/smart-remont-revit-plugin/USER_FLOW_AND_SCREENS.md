@@ -92,7 +92,7 @@ Dockable pane (`ViewContainer` + `AuthView`) зарегистрирован пр
 | 1 | Синхронизация материалов из Revit | `RevitMaterialsWindow` | Загрузка RFA и surface-типов из Smart Remont | импорт материалов |
 | 2 | ДС на изменение квадратуры | `SelectedRemontSummaryWindow` | Отправка площадей помещений в Smart Remont | `DS_AREA_CHANGE` |
 | 3 | Замеры комнат (из спецификаций) | `RoomMeasurementsWindow` | Отправка замеров из ведомостей Revit | `MEASURES` |
-| 4 | ДС на изменение ТК | `RoomMaterialsWindow` | ДС на изменение технологической карты | — |
+| 4 | ДС на изменение ТК | `DsTkChangeWindow` | Сверка SR_ID по комнатам с ТК | — |
 
 ### Project Init (инициализация RVT)
 

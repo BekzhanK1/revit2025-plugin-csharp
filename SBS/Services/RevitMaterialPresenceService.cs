@@ -56,6 +56,37 @@ namespace SmartRemont.ExportRooms.Services
                 ? info
                 : new MaterialPresenceInfo { IsInProject = false };
 
+        /// <summary>
+        /// Читает SR_ID с экземпляра, иначе с типа. Возвращает false, если параметра нет / не число.
+        /// </summary>
+        public static bool TryGetSrId(Element element, Document doc, out int srId, out string sourceLevel)
+        {
+            srId = 0;
+            sourceLevel = null;
+
+            if (element == null)
+                return false;
+
+            if (TryReadSrIdFromElement(element, out srId, out _))
+            {
+                sourceLevel = "экземпляр";
+                return true;
+            }
+
+            if (doc == null)
+                return false;
+
+            var type = doc.GetElement(element.GetTypeId()) as ElementType;
+            if (type == null)
+                return false;
+
+            if (!TryReadSrIdFromElement(type, out srId, out _))
+                return false;
+
+            sourceLevel = "тип";
+            return true;
+        }
+
         static Dictionary<int, string> BuildSrIdIndex(Document doc)
         {
             var index = new Dictionary<int, string>();

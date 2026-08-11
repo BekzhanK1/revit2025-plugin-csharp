@@ -50,6 +50,15 @@ namespace SmartRemont.ExportRooms.DTO
         [JsonProperty("set_name")]
         public string SetName { get; set; }
 
+        [JsonProperty("material_cnt")]
+        public double? MaterialCnt { get; set; }
+
+        /// <summary>
+        /// С work_set_tab: в MySpace инпут qty только при true (и не удалённых строках ДС).
+        /// </summary>
+        [JsonProperty("is_material_cnt_input")]
+        public bool? IsMaterialCntInput { get; set; }
+
         [JsonProperty("is_optional")]
         public int IsOptional { get; set; }
     }

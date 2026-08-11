@@ -14,6 +14,11 @@
     <DeployToRevit Condition="'$(DeployToRevit)' == ''">false</DeployToRevit>
   </PropertyGroup>
 
+  <!-- RevitAPI тянет Microsoft.VisualBasic 10.1; без Desktop.App MSBuild ругается MSB3277 (net8 ref = 10.0). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="RevitAPI">
       <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
