@@ -23,6 +23,8 @@ namespace SmartRemont.ExportRooms.Views
         DsTkCompareResult _result;
         RoomSrIdSnapshot _revitSnapshot;
         TkQtyScheduleSnapshot _scheduleQty;
+        ClientMaterialTkSnapshot _tkSnapshot;
+        Dictionary<int, RevitMaterialRowDto> _materialMeta = new();
         List<DsTkChangeItem> _dsItems = new();
         DsTkChangeItem _boundDs;
         bool _loading;
@@ -116,7 +118,8 @@ namespace SmartRemont.ExportRooms.Views
             {
                 var created = await DsTkChangeService.CreateEmptyAsync(_clientRequestId).ConfigureAwait(true);
                 await RefreshDsBindAsync(preferDsId: created.DsId).ConfigureAwait(true);
-                StatusText.Text = $"Создан черновик ДС №{created.DsId}. Можно отправить объёмы кнопкой «Отправить в ДС».";
+                await RebuildCompareAsync().ConfigureAwait(true);
+                StatusText.Text = $"Создан черновик ДС №{created.DsId}. Объёмы сверяются с ДС.";
             }
             catch (Exception ex)
             {
@@ -157,8 +160,9 @@ namespace SmartRemont.ExportRooms.Views
 
                 _boundDs = pick.SelectedItem;
                 ApplyDsBadge(_boundDs);
+                await RebuildCompareAsync().ConfigureAwait(true);
+                StatusText.Text = $"Привязана ДС №{_boundDs.DsId} ({_boundDs.StatusDisplay}). Объёмы сверяются с ДС.";
                 UpdateDsActionButtons();
-                StatusText.Text = $"Привязана ДС №{_boundDs.DsId} ({_boundDs.StatusDisplay}).";
             }
             catch (Exception ex)
             {
@@ -382,13 +386,15 @@ namespace SmartRemont.ExportRooms.Views
                 // Сверка не ждёт office /ds/read/ — иначе при 403/timeout «ничего не грузится».
                 await Task.WhenAll(tkTask, materialsTask).ConfigureAwait(true);
 
-                var tk = await tkTask.ConfigureAwait(true);
+                _tkSnapshot = await tkTask.ConfigureAwait(true);
                 var (materials, materialsOk, materialsError) = await materialsTask.ConfigureAwait(true);
+                _materialMeta = BuildMaterialMeta(materialsOk ? materials : null);
 
-                var meta = BuildMaterialMeta(materialsOk ? materials : null);
-                _result = DsTkCompareService.Compare(_revitSnapshot, tk, meta, _scheduleQty);
+                // Сначала ДС (для эталона объёмов), потом сверка.
+                await RefreshDsBindAsync().ConfigureAwait(true);
+                await RebuildCompareAsync().ConfigureAwait(true);
 
-                var note = _result.Note;
+                var note = _result?.Note ?? string.Empty;
                 if (!materialsOk && !string.IsNullOrWhiteSpace(materialsError))
                     note += $" Тип файла (RFA/surface): недоступен ({materialsError}).";
 
@@ -403,9 +409,17 @@ namespace SmartRemont.ExportRooms.Views
                                 ? "…"
                                 : string.Empty);
 
+                if (_boundDs != null && !note.Contains("ДС: №", StringComparison.Ordinal))
+                    note += $" ДС: №{_boundDs.DsId} ({_boundDs.StatusDisplay}).";
+                else if (_dsItems.Count > 1 && _dsItems.Count(i => i.CanEdit) > 1
+                         && !note.Contains("черновиков", StringComparison.OrdinalIgnoreCase))
+                    note += " Несколько черновиков TK_CHANGE — выберите ДС кнопкой «Выбрать…».";
+                else if (_dsItems.Count == 0
+                         && !note.Contains("ДС не создана", StringComparison.Ordinal)
+                         && DsBadgeText?.Text?.Contains("ошибка", StringComparison.OrdinalIgnoreCase) != true)
+                    note += " ДС не создана — можно создать пустой черновик.";
+
                 StatusText.Text = note;
-                UpdateStats();
-                BindRooms();
             }
             catch (Exception ex)
             {
@@ -413,6 +427,7 @@ namespace SmartRemont.ExportRooms.Views
                 StatusText.Text = ex.Message;
                 _result = null;
                 _scheduleQty = null;
+                _tkSnapshot = null;
                 UpdateStats();
                 BindRooms();
             }
@@ -421,22 +436,79 @@ namespace SmartRemont.ExportRooms.Views
                 _loading = false;
                 UpdateDsActionButtons();
             }
+        }
 
-            // После сверки — привязка ДС (отдельный путь, ошибки не сбрасывают таблицу).
-            await RefreshDsBindAsync().ConfigureAwait(true);
-            if (_result != null && StatusText != null)
+        async Task RebuildCompareAsync()
+        {
+            if (_revitSnapshot == null || _tkSnapshot == null)
+                return;
+
+            var tkForCompare = CloneTkSnapshot(_tkSnapshot);
+            var fromDs = false;
+
+            if (_boundDs != null && _boundDs.DsId > 0 && _clientRequestId > 0)
             {
-                var note = StatusText.Text ?? string.Empty;
-                if (_boundDs != null && !note.Contains("ДС: №", StringComparison.Ordinal))
-                    StatusText.Text = note + $" ДС: №{_boundDs.DsId} ({_boundDs.StatusDisplay}).";
-                else if (_dsItems.Count > 1 && _dsItems.Count(i => i.CanEdit) > 1
-                         && !note.Contains("черновиков", StringComparison.OrdinalIgnoreCase))
-                    StatusText.Text = note + " Несколько черновиков TK_CHANGE — выберите ДС кнопкой «Выбрать…».";
-                else if (_dsItems.Count == 0
-                         && !note.Contains("ДС не создана", StringComparison.Ordinal)
-                         && DsBadgeText?.Text?.Contains("ошибка", StringComparison.OrdinalIgnoreCase) != true)
-                    StatusText.Text = note + " ДС не создана — можно создать пустой черновик.";
+                try
+                {
+                    var dsRows = await DsTkChangeService
+                        .ReadTkMaterialsAsync(_clientRequestId, _boundDs.DsId)
+                        .ConfigureAwait(true);
+                    DsTkChangeService.ApplyDsQtyOverlay(tkForCompare, dsRows);
+                    fromDs = true;
+                }
+                catch (Exception ex)
+                {
+                    ExportRoomsApplication._logger?.Warning(
+                        ex,
+                        "DS TK materials overlay failed ds={DsId}",
+                        _boundDs.DsId);
+                    fromDs = false;
+                }
             }
+
+            _result = DsTkCompareService.Compare(
+                _revitSnapshot,
+                tkForCompare,
+                _materialMeta,
+                _scheduleQty,
+                qtyBaselineFromDs: fromDs);
+
+            UpdateStats();
+            BindRooms();
+            UpdateDsActionButtons();
+        }
+
+        static ClientMaterialTkSnapshot CloneTkSnapshot(ClientMaterialTkSnapshot source)
+        {
+            if (source == null)
+                return null;
+
+            return new ClientMaterialTkSnapshot
+            {
+                HasData = source.HasData,
+                ClientRequestId = source.ClientRequestId,
+                EmptyMessage = source.EmptyMessage,
+                Rows = (source.Rows ?? new List<ClientMaterialRowDto>())
+                    .Select(r => r == null
+                        ? null
+                        : new ClientMaterialRowDto
+                        {
+                            ClientMaterialId = r.ClientMaterialId,
+                            RoomId = r.RoomId,
+                            RoomName = r.RoomName,
+                            WorkSetId = r.WorkSetId,
+                            WorkSetName = r.WorkSetName,
+                            MaterialId = r.MaterialId,
+                            MaterialName = r.MaterialName,
+                            MaterialSetId = r.MaterialSetId,
+                            SetName = r.SetName,
+                            MaterialCnt = r.MaterialCnt,
+                            IsMaterialCntInput = r.IsMaterialCntInput,
+                            IsOptional = r.IsOptional
+                        })
+                    .Where(r => r != null)
+                    .ToList()
+            };
         }
 
         async Task RefreshDsBindAsync(int? preferDsId = null)
@@ -628,7 +700,14 @@ namespace SmartRemont.ExportRooms.Views
                 var msg = $"Объёмы: отправлено {apply.Succeeded} из {apply.Attempted}.";
                 if (apply.Failed > 0)
                     msg += $" Ошибок: {apply.Failed}.";
-                StatusText.Text = msg + $" ДС №{_boundDs.DsId}.";
+
+                await RebuildCompareAsync().ConfigureAwait(true);
+                StatusText.Text = msg + $" ДС №{_boundDs.DsId}."
+                    + (_result?.QtyBaselineFromDs == true
+                        ? $" Сверка обновлена по ДС (qty≠ {_result.QtyMismatchCount})."
+                        : string.Empty);
+
+                var logHint = "\n\nЛоги: %LocalAppData%\\SmartRemont\\logs\nИщите: DS TK qty";
 
                 if (apply.Failed > 0)
                 {
@@ -637,7 +716,7 @@ namespace SmartRemont.ExportRooms.Views
                         errText += $"\n… и ещё {apply.Errors.Count - 12}";
                     MessageBox.Show(
                         this,
-                        msg + "\n\n" + errText,
+                        msg + "\n\n" + errText + logHint,
                         "Частичная отправка",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
@@ -646,7 +725,8 @@ namespace SmartRemont.ExportRooms.Views
                 {
                     MessageBox.Show(
                         this,
-                        msg + "\nПроверьте черновик в MySpace.",
+                        msg + "\nПроверьте черновик в MySpace." + logHint
+                            + $"\napiOrigin: {Configs.ApiOriginUrl}",
                         "Объёмы отправлены",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);

@@ -212,7 +212,10 @@
                                                             </DataGridTextColumn.ElementStyle>
                                                         </DataGridTextColumn>
                                                         <DataGridTextColumn Header="Тип" Binding="{Binding KindDisplay}" Width="90" MinWidth="70"/>
-                                                        <DataGridTextColumn Header="Договор" Binding="{Binding TkQtyDisplay}" Width="70" MinWidth="56"/>
+                                                        <DataGridTextColumn Header="ДС/ТК"
+                                                                            Binding="{Binding TkQtyDisplay}"
+                                                                            Width="70"
+                                                                            MinWidth="56"/>
                                                         <DataGridTextColumn Header="Проект" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="56"/>
                                                         <DataGridTextColumn Header="Объём" Binding="{Binding QtyStatusDisplay}" Width="150" MinWidth="110">
                                                             <DataGridTextColumn.ElementStyle>

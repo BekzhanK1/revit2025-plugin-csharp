@@ -38,6 +38,8 @@ namespace SmartRemont.ExportRooms.Services
         public string QtyUnit { get; init; }
         public string QtyStatusKey { get; init; }
         public string QtyStatusDisplay { get; init; }
+        /// <summary>true — колонка эталона взята из привязанной ДС, не из исходного ТК.</summary>
+        public bool QtyBaselineFromDs { get; init; }
         public DsTkCompareStatus Status { get; init; }
 
         public string MaterialIdDisplay => MaterialId > 0
@@ -109,12 +111,12 @@ namespace SmartRemont.ExportRooms.Services
         public int QtyMismatchCount { get; init; }
         public int TotalRows => MatchCount + MissingInRevitCount + NotExpectedInModelCount + ExtraInRevitCount;
         public string Note { get; init; }
+        public bool QtyBaselineFromDs { get; init; }
         public List<TkQtyScheduleSourceInfo> ScheduleSources { get; init; } = new();
     }
 
     /// <summary>
-    /// Эталон — договор (ТК). Проект Revit должен совпадать: нет дыр и нет лишнего.
-    /// Объёмы: material_cnt ТК ↔ qty из ведомостей.
+    /// Эталон presence — договор (ТК). Объёмы: эталон (ТК или qty из привязанной ДС) ↔ ведомости.
     /// </summary>
     public static class DsTkCompareService
     {
@@ -127,9 +129,12 @@ namespace SmartRemont.ExportRooms.Services
             RoomSrIdSnapshot revit,
             ClientMaterialTkSnapshot tk,
             IReadOnlyDictionary<int, RevitMaterialRowDto> materialMeta = null,
-            TkQtyScheduleSnapshot scheduleQty = null)
+            TkQtyScheduleSnapshot scheduleQty = null,
+            bool qtyBaselineFromDs = false)
         {
             materialMeta ??= new Dictionary<int, RevitMaterialRowDto>();
+            var baselineName = qtyBaselineFromDs ? "ДС" : "договору";
+            var baselineShort = qtyBaselineFromDs ? "ДС" : "ТК";
 
             var revitByRoom = BuildRevitByRoom(revit);
             var tkByRoom = BuildTkByRoom(tk);
@@ -208,7 +213,12 @@ namespace SmartRemont.ExportRooms.Services
 
                     scheduleByMat.TryGetValue(materialId, out var scheduleQtyValue);
                     var hasScheduleQty = scheduleByMat.ContainsKey(materialId);
-                    var (qtyKey, qtyDisplay) = ResolveQtyStatus(tkQty, hasScheduleQty ? scheduleQtyValue : null, hasScheduleQty);
+                    var (qtyKey, qtyDisplay) = ResolveQtyStatus(
+                        tkQty,
+                        hasScheduleQty ? scheduleQtyValue : null,
+                        hasScheduleQty,
+                        baselineName,
+                        baselineShort);
 
                     var tkRow = PreferTkRowForApply(tkGroup);
                     var revitItem = revitGroup?.FirstOrDefault();
@@ -239,6 +249,7 @@ namespace SmartRemont.ExportRooms.Services
                         QtyUnit = qtyUnit,
                         QtyStatusKey = qtyKey,
                         QtyStatusDisplay = FormatQtyStatusDisplay(qtyDisplay, qtyUnit),
+                        QtyBaselineFromDs = qtyBaselineFromDs,
                         Status = status
                     };
 
@@ -286,9 +297,11 @@ namespace SmartRemont.ExportRooms.Services
             var scheduleLineCount = scheduleQty?.Lines?.Count ?? 0;
             var note = tk == null || !tk.HasData
                 ? (tk?.EmptyMessage ?? "ТК (договор) не загружен.")
-                : $"Эталон — договор (ТК). Совпадает: {match}, нет в проекте: {missing}, лишнее в проекте: {extra}, не ожидается в модели: {notExpected}."
+                : $"Эталон presence — договор (ТК). Совпадает: {match}, нет в проекте: {missing}, лишнее в проекте: {extra}, не ожидается в модели: {notExpected}."
                   + (scheduleLineCount > 0
-                      ? $" Объёмы ведомостей: {scheduleLineCount} строк, ≠ договору: {qtyMismatch}."
+                      ? (qtyBaselineFromDs
+                          ? $" Объёмы: эталон = ДС ↔ ведомости ({scheduleLineCount} строк), ≠ ДС: {qtyMismatch}."
+                          : $" Объёмы ведомостей: {scheduleLineCount} строк, ≠ договору: {qtyMismatch}.")
                       : string.Empty);
 
             return new DsTkCompareResult
@@ -300,6 +313,7 @@ namespace SmartRemont.ExportRooms.Services
                 ExtraInRevitCount = extra,
                 QtyMismatchCount = qtyMismatch,
                 Note = note,
+                QtyBaselineFromDs = qtyBaselineFromDs,
                 ScheduleSources = scheduleQty?.Sources ?? new List<TkQtyScheduleSourceInfo>()
             };
         }
@@ -335,22 +349,28 @@ namespace SmartRemont.ExportRooms.Services
             return any ? sum : null;
         }
 
-        static (string Key, string Display) ResolveQtyStatus(double? tkQty, double? scheduleQty, bool hasSchedule)
+        static (string Key, string Display) ResolveQtyStatus(
+            double? tkQty,
+            double? scheduleQty,
+            bool hasSchedule,
+            string baselineName,
+            string baselineShort)
         {
             if (!hasSchedule && tkQty == null)
                 return (null, null);
 
-            // Есть в договоре, нет строки в ведомости — обычно ок.
+            // Есть в эталоне, нет строки в ведомости — обычно ок.
             if (!hasSchedule)
-                return ("qty_tk_only", "объём только в договоре");
+                return ("qty_tk_only", $"объём только в {baselineShort}");
 
             if (tkQty == null)
                 return ("qty_schedule_only", "лишний объём в проекте");
 
             if (QtyEquals(tkQty.Value, scheduleQty!.Value))
-                return ("qty_match", "объём = договору");
+                return ("qty_match", $"объём = {baselineName}");
 
-            return ("qty_mismatch", $"объём ≠ договору: ТК {FormatQty(tkQty)} ≠ вед. {FormatQty(scheduleQty)}");
+            return ("qty_mismatch",
+                $"объём ≠ {baselineName}: {baselineShort} {FormatQty(tkQty)} ≠ вед. {FormatQty(scheduleQty)}");
         }
 
         static bool QtyEquals(double a, double b)

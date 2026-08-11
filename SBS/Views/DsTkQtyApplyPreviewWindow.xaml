@@ -84,7 +84,7 @@
                     <DataGridTextColumn Header="Комната" Binding="{Binding RoomDisplay}" Width="1.1*" MinWidth="90"/>
                     <DataGridTextColumn Header="Материал" Binding="{Binding MaterialDisplay}" Width="2*" MinWidth="140"/>
                     <DataGridTextColumn Header="Комплект" Binding="{Binding WorkSetDisplay}" Width="1.3*" MinWidth="100"/>
-                    <DataGridTextColumn Header="Договор" Binding="{Binding TkQtyDisplay}" Width="70" MinWidth="64"/>
+                    <DataGridTextColumn Header="ДС/ТК" Binding="{Binding TkQtyDisplay}" Width="70" MinWidth="64"/>
                     <DataGridTextColumn Header="Проект" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="64"/>
                     <DataGridTextColumn Header="Δ" Binding="{Binding DeltaDisplay}" Width="64" MinWidth="56"/>
                     <DataGridTextColumn Header="Ед." Binding="{Binding QtyUnitDisplay}" Width="56" MinWidth="48"/>

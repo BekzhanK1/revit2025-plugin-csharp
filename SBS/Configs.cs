@@ -104,6 +104,9 @@ namespace SmartRemont.ExportRooms
         public static string ClientRequestDsTkChangeSetItemCntUrl(int clientRequestId) =>
             $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/tk_change_set_item_cnt/";
 
+        public static string ClientRequestDsTkMaterialUrl(int clientRequestId, int dsId) =>
+            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/{dsId}/tk_material/";
+
         public static string DsTypesReadUrl =>
             $"{ApiOriginUrl}/client_request/common/ds_types/read/";
 

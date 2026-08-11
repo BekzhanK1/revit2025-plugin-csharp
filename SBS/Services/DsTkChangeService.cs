@@ -197,6 +197,12 @@ namespace SmartRemont.ExportRooms.Services
             Timeout = TimeSpan.FromSeconds(12)
         };
 
+        // Apply qty возвращает полный TK — 12с мало.
+        static readonly HttpClient ApplyHttp = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        };
+
         static int? _cachedTkChangeTypeId;
 
         public static async Task<(DsTkChangeBindState State, bool Ok, string Error)> TryListAsync(int clientRequestId)
@@ -386,6 +392,177 @@ namespace SmartRemont.ExportRooms.Services
             return item;
         }
 
+        public sealed class DsTkMaterialRow
+        {
+            public int ClientMaterialId { get; init; }
+            public int? MaterialId { get; init; }
+            public int? MaterialSetId { get; init; }
+            public string RoomName { get; init; }
+            public string MaterialName { get; init; }
+            public string WorkSetName { get; init; }
+            public double? MaterialCnt { get; init; }
+            public bool IsMaterialCntInput { get; init; }
+            public int? ActionType { get; init; }
+            public int? TkChangeId { get; init; }
+        }
+
+        /// <summary>
+        /// Материалы ДС с эффективным qty (уже с учётом tk_change), как в MySpace.
+        /// </summary>
+        public static async Task<List<DsTkMaterialRow>> ReadTkMaterialsAsync(int clientRequestId, int dsId)
+        {
+            EnsureRequest(clientRequestId);
+            if (dsId <= 0)
+                throw new InvalidOperationException("Не указан ID ДС");
+
+            var session = RequireSession();
+            var url = Configs.ClientRequestDsTkMaterialUrl(clientRequestId, dsId);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, url);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            EnsureSuccess(response, body, "материалов ДС ТК");
+
+            ExportRoomsApplication._logger?.Information(
+                "DS TK materials read cr={ClientRequestId} ds={DsId} http={Status} bytes={Bytes}",
+                clientRequestId,
+                dsId,
+                (int)response.StatusCode,
+                body?.Length ?? 0);
+
+            return ParseTkMaterials(body);
+        }
+
+        /// <summary>
+        /// Подменяет material_cnt / is_material_cnt_input в снимке ТК значениями из ДС (по client_material_id).
+        /// </summary>
+        public static ClientMaterialTkSnapshot ApplyDsQtyOverlay(
+            ClientMaterialTkSnapshot tk,
+            IReadOnlyList<DsTkMaterialRow> dsRows)
+        {
+            if (tk?.Rows == null || tk.Rows.Count == 0 || dsRows == null || dsRows.Count == 0)
+                return tk;
+
+            var byCm = dsRows
+                .Where(r => r != null && r.ClientMaterialId > 0)
+                .GroupBy(r => r.ClientMaterialId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var applied = 0;
+            foreach (var row in tk.Rows)
+            {
+                if (row?.ClientMaterialId is not > 0)
+                    continue;
+                if (!byCm.TryGetValue(row.ClientMaterialId.Value, out var ds))
+                    continue;
+
+                // Удалённые в ДС — qty в MySpace не правят.
+                if (ds.ActionType == 1)
+                {
+                    row.IsMaterialCntInput = false;
+                    applied++;
+                    continue;
+                }
+
+                if (ds.MaterialCnt != null)
+                    row.MaterialCnt = ds.MaterialCnt;
+                row.IsMaterialCntInput = ds.IsMaterialCntInput;
+                if (ds.MaterialSetId is > 0)
+                    row.MaterialSetId = ds.MaterialSetId;
+                applied++;
+            }
+
+            ExportRoomsApplication._logger?.Information(
+                "DS TK qty overlay applied={Applied} dsRows={DsRows} tkRows={TkRows}",
+                applied,
+                dsRows.Count,
+                tk.Rows.Count);
+
+            return tk;
+        }
+
+        static List<DsTkMaterialRow> ParseTkMaterials(string responseBody)
+        {
+            var list = new List<DsTkMaterialRow>();
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return list;
+
+            var root = JObject.Parse(responseBody);
+            if (root["status"]?.Value<bool>() == false)
+                throw new InvalidOperationException(ReadError(root) ?? "Ошибка чтения материалов ДС");
+
+            var data = root["data"];
+            if (data is JObject dataObj && dataObj["data"] != null)
+                data = dataObj["data"];
+
+            if (data is not JArray array)
+                return list;
+
+            foreach (var token in array.OfType<JObject>())
+            {
+                var cm = ReadInt(token["client_material_id"]) ?? 0;
+                if (cm <= 0)
+                    continue;
+
+                list.Add(new DsTkMaterialRow
+                {
+                    ClientMaterialId = cm,
+                    MaterialId = ReadInt(token["material_id"]),
+                    MaterialSetId = ReadInt(token["material_set_id"]),
+                    RoomName = ReadString(token["room_name"]),
+                    MaterialName = ReadString(token["material_name"]),
+                    WorkSetName = ReadString(token["work_set_name"]),
+                    MaterialCnt = ReadDouble(token["material_cnt"]),
+                    IsMaterialCntInput = ReadBool(token["is_material_cnt_input"]) == true,
+                    ActionType = ReadInt(token["action_type"]),
+                    TkChangeId = ReadInt(token["tk_change_id"])
+                });
+            }
+
+            return list;
+        }
+
+        static bool? ReadBool(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+            if (token.Type == JTokenType.Boolean)
+                return token.Value<bool>();
+            if (token.Type == JTokenType.Integer)
+                return token.Value<int>() != 0;
+            if (token.Type == JTokenType.Float)
+                return Math.Abs(token.Value<double>()) > double.Epsilon;
+            if (token.Type == JTokenType.String)
+            {
+                var raw = token.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(raw))
+                    return null;
+                if (bool.TryParse(raw, out var b))
+                    return b;
+                if (int.TryParse(raw, out var i))
+                    return i != 0;
+            }
+
+            return null;
+        }
+
+        static double? ReadDouble(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+            if (token.Type is JTokenType.Float or JTokenType.Integer)
+                return token.Value<double>();
+            if (token.Type == JTokenType.String
+                && double.TryParse(
+                    token.Value<string>()?.Trim()?.Replace(',', '.'),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var value))
+                return value;
+            return null;
+        }
+
         public static IReadOnlyList<DsTkQtyApplyCandidate> CollectQtyCandidates(
             DsTkCompareResult compare,
             DsTkQtyApplyMode mode)
@@ -503,6 +680,15 @@ namespace SmartRemont.ExportRooms.Services
             if (!session.HasGrant(QtyUpdGrant))
                 throw new InvalidOperationException($"Нет права {QtyUpdGrant} — изменение объёмов в ДС недоступно.");
 
+            var url = Configs.ClientRequestDsTkChangeSetItemCntUrl(clientRequestId);
+            ExportRoomsApplication._logger?.Information(
+                "DS TK qty apply START cr={ClientRequestId} ds={DsId} count={Count} url={Url} apiOrigin={ApiOrigin}",
+                clientRequestId,
+                dsId,
+                candidates.Count,
+                url,
+                Configs.ApiOriginUrl);
+
             var succeeded = 0;
             var failed = 0;
             var errors = new List<string>();
@@ -525,11 +711,21 @@ namespace SmartRemont.ExportRooms.Services
                     errors.Add($"{room}: {label} — {ex.Message}");
                     ExportRoomsApplication._logger?.Warning(
                         ex,
-                        "DS TK set item cnt failed ds={DsId} cm={ClientMaterialId}",
+                        "DS TK set item cnt failed ds={DsId} cm={ClientMaterialId} material={MaterialId} room={Room}",
                         dsId,
-                        item.ClientMaterialId);
+                        item.ClientMaterialId,
+                        item.MaterialId,
+                        room);
                 }
             }
+
+            ExportRoomsApplication._logger?.Information(
+                "DS TK qty apply END cr={ClientRequestId} ds={DsId} attempted={Attempted} ok={Succeeded} fail={Failed}",
+                clientRequestId,
+                dsId,
+                candidates.Count,
+                succeeded,
+                failed);
 
             return new DsTkQtyApplyResult
             {
@@ -547,6 +743,7 @@ namespace SmartRemont.ExportRooms.Services
             DsTkQtyApplyCandidate item,
             string accessToken)
         {
+            var url = Configs.ClientRequestDsTkChangeSetItemCntUrl(clientRequestId);
             var payload = new JObject
             {
                 ["ds_id"] = dsId,
@@ -559,36 +756,113 @@ namespace SmartRemont.ExportRooms.Services
                 ["cnt_material_cnt_arr"] = new JArray()
             };
 
-            using var httpRequest = new HttpRequestMessage(
-                HttpMethod.Post,
-                Configs.ClientRequestDsTkChangeSetItemCntUrl(clientRequestId));
-            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            httpRequest.Content = new StringContent(
-                payload.ToString(Formatting.None),
-                Encoding.UTF8,
-                "application/json");
+            var payloadJson = payload.ToString(Formatting.None);
+            ExportRoomsApplication._logger?.Information(
+                "DS TK qty REQUEST POST {Url} cm={ClientMaterialId} material={MaterialId} room={Room} tk={TkQty} schedule={ScheduleQty} unit={Unit} set={MaterialSetId} body={Body}",
+                url,
+                item.ClientMaterialId,
+                item.MaterialId,
+                item.RoomDisplay,
+                item.TkQty,
+                item.ScheduleQty,
+                item.QtyUnitDisplay,
+                item.MaterialSetId,
+                payloadJson);
 
-            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            httpRequest.Content = new StringContent(payloadJson, Encoding.UTF8, "application/json");
+
+            using var response = await ApplyHttp.SendAsync(httpRequest).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var bodyForLog = TruncateForLog(body, 6000);
+
+            ExportRoomsApplication._logger?.Information(
+                "DS TK qty RESPONSE HTTP {StatusCode} cm={ClientMaterialId} bytes={Bytes} body={Body}",
+                (int)response.StatusCode,
+                item.ClientMaterialId,
+                body?.Length ?? 0,
+                bodyForLog);
+
             EnsureSuccess(response, body, "изменения объёма в ДС");
 
             if (string.IsNullOrWhiteSpace(body))
+            {
+                ExportRoomsApplication._logger?.Warning(
+                    "DS TK qty RESPONSE empty body cm={ClientMaterialId}",
+                    item.ClientMaterialId);
                 return;
+            }
 
             try
             {
                 var root = JObject.Parse(body);
                 if (root["status"]?.Value<bool>() == false)
                     throw new InvalidOperationException(ReadError(root) ?? "Ошибка изменения объёма");
+
+                var echo = TrySummarizeMaterialEcho(root, item.ClientMaterialId);
+                if (!string.IsNullOrWhiteSpace(echo))
+                {
+                    ExportRoomsApplication._logger?.Information(
+                        "DS TK qty RESPONSE echo cm={ClientMaterialId}: {Echo}",
+                        item.ClientMaterialId,
+                        echo);
+                }
             }
             catch (InvalidOperationException)
             {
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
-                // Не-JSON ответ при HTTP 2xx — считаем успехом.
+                ExportRoomsApplication._logger?.Warning(
+                    ex,
+                    "DS TK qty RESPONSE parse warning cm={ClientMaterialId}",
+                    item.ClientMaterialId);
             }
+        }
+
+        static string TrySummarizeMaterialEcho(JObject root, int clientMaterialId)
+        {
+            if (root == null || clientMaterialId <= 0)
+                return null;
+
+            JArray rows = null;
+            if (root["data"] is JArray direct)
+                rows = direct;
+            else if (root["data"] is JObject dataObj && dataObj["data"] is JArray nested)
+                rows = nested;
+
+            if (rows == null)
+                return null;
+
+            foreach (var token in rows.OfType<JObject>())
+            {
+                var cm = ReadInt(token["client_material_id"]);
+                if (cm != clientMaterialId)
+                    continue;
+
+                var parts = new List<string>
+                {
+                    $"material_cnt={ReadString(token["material_cnt"]) ?? "null"}",
+                    $"material_new_cnt={ReadString(token["material_new_cnt"]) ?? "null"}",
+                    $"action_type={ReadString(token["action_type"]) ?? "null"}",
+                    $"tk_change_id={ReadString(token["tk_change_id"]) ?? "null"}",
+                    $"is_material_cnt_input={ReadString(token["is_material_cnt_input"]) ?? "null"}"
+                };
+                return string.Join(", ", parts);
+            }
+
+            return $"client_material_id={clientMaterialId} not found in response data";
+        }
+
+        static string TruncateForLog(string value, int maxChars)
+        {
+            if (string.IsNullOrEmpty(value))
+                return value;
+            if (value.Length <= maxChars)
+                return value;
+            return value.Substring(0, maxChars) + $"…(+{value.Length - maxChars} chars)";
         }
 
         static List<DsTkChangeItem> ParseDsList(string responseBody)
