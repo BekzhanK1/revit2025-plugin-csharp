@@ -129,6 +129,9 @@ namespace SmartRemont.ExportRooms.Services
                 changed = true;
             }
 
+            if (MergeMissingScheduleNames(loaded, defaults))
+                changed = true;
+
             if (changed)
             {
                 try
@@ -143,6 +146,41 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             return loaded;
+        }
+
+        /// <summary>
+        /// Подмешивает новые alias имён ведомостей из дефолтов, не трогая остальные правки AppData.
+        /// </summary>
+        static bool MergeMissingScheduleNames(List<Entry> loaded, List<Entry> defaults)
+        {
+            var byCode = defaults
+                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Code))
+                .GroupBy(e => e.Code.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var changed = false;
+            foreach (var entry in loaded)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Code))
+                    continue;
+                if (!byCode.TryGetValue(entry.Code.Trim(), out var def))
+                    continue;
+
+                entry.ScheduleNamesExact ??= new List<string>();
+                foreach (var name in def.ScheduleNamesExact ?? new List<string>())
+                {
+                    if (string.IsNullOrWhiteSpace(name))
+                        continue;
+                    if (entry.ScheduleNamesExact.Any(x =>
+                            string.Equals(x, name, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    entry.ScheduleNamesExact.Add(name);
+                    changed = true;
+                }
+            }
+
+            return changed;
         }
 
         static void NormalizeEntry(Entry e)
@@ -281,7 +319,12 @@ namespace SmartRemont.ExportRooms.Services
             {
                 Code = "T_PROFILE",
                 Title = "Т-профиль",
-                ScheduleNamesExact = new List<string> { "Спецификация Т-профиля", "Спецификация Т-профиль" },
+                ScheduleNamesExact = new List<string>
+                {
+                    "Спецификация Т-профилей",
+                    "Спецификация Т-профиля",
+                    "Спецификация Т-профиль"
+                },
                 Mode = ParseMode.GroupedByRoomHeader,
                 MaterialIdColumnsExact = new List<string> { "ID материала" },
                 MaterialNameColumnsExact = new List<string> { "Наименование" },

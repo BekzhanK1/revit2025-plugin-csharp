@@ -16,6 +16,25 @@ namespace SmartRemont.ExportRooms.Views
         /// <summary>Default <see cref="Window.Width"/> for <see cref="RemontHubWindow"/> (task-05).</summary>
         public const double HubDefaultWidth = 960;
 
+        public static void UseFullWorkArea(Window window)
+        {
+            window.SourceInitialized += (_, __) => ApplyFull(window);
+            window.Loaded += (_, __) => ApplyFull(window);
+        }
+
+        static void ApplyFull(Window window)
+        {
+            var area = SystemParameters.WorkArea;
+            window.WindowState = WindowState.Normal;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.Left = area.Left;
+            window.Top = area.Top;
+            window.Width = area.Width;
+            window.Height = area.Height;
+            window.MaxWidth = area.Width;
+            window.MaxHeight = area.Height;
+        }
+
         public static void UseFullWorkAreaHeight(Window window)
         {
             window.SourceInitialized += (_, __) => Apply(window);

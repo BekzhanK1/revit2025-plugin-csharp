@@ -37,6 +37,11 @@ namespace SmartRemont.ExportRooms.Services
         /// <summary>Сумма qty по roomKey → materialId.</summary>
         public Dictionary<string, Dictionary<int, double>> SumByRoomAndMaterial { get; set; }
             = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Qty из ведомостей без помещения (нет группировки / колонки комнаты).
+        /// </summary>
+        public Dictionary<int, double> SumByMaterialUngrouped { get; set; } = new();
     }
 
     /// <summary>
@@ -73,35 +78,35 @@ namespace SmartRemont.ExportRooms.Services
                     ScheduleNameExpected = expected
                 };
 
-                if (!TryFindSchedule(schedulesByName, entry.ScheduleNamesExact, out var schedule))
+                if (!TryFindSchedules(schedulesByName, entry.ScheduleNamesExact, out var schedules))
                 {
                     source.Message = $"Ведомость не найдена: {expected}";
                     snapshot.Sources.Add(source);
                     continue;
                 }
 
+                if (!TryPickReadableSchedule(
+                        schedules,
+                        entry,
+                        out var schedule,
+                        out var headers,
+                        out var rowCount,
+                        out var colId,
+                        out var colName,
+                        out var colQty,
+                        out var qtyHeader,
+                        out var colRoom,
+                        out var pickError))
+                {
+                    source.Found = true;
+                    source.ScheduleNameFound = schedules[0].Name;
+                    source.Message = pickError;
+                    snapshot.Sources.Add(source);
+                    continue;
+                }
+
                 source.ScheduleNameFound = schedule.Name;
                 source.Found = true;
-
-                if (!TryReadTable(schedule, out var headers, out var rowCount))
-                {
-                    source.Message = "Не удалось прочитать таблицу";
-                    snapshot.Sources.Add(source);
-                    continue;
-                }
-
-                var colId = ResolveColumnExact(headers, entry.MaterialIdColumnsExact, out _);
-                var colName = ResolveColumnExact(headers, entry.MaterialNameColumnsExact, out _);
-                var colQty = ResolveColumnExact(headers, entry.QuantityColumnsExact, out var qtyHeader);
-                var colRoom = ResolveColumnExact(headers, entry.RoomColumnsExact, out _);
-
-                if (colId == null)
-                {
-                    source.Message =
-                        "Нет колонки ID материала (добавьте «ID материала» в ведомость или отключите источник в конфиге)";
-                    snapshot.Sources.Add(source);
-                    continue;
-                }
 
                 // Если qty-колонка в мм, а scale=1 — применяем 0.001; если уже «м» / «шт» — не трогаем scale из конфига.
                 var effectiveScale = ResolveEffectiveScale(entry.QuantityScale, qtyHeader, entry.QuantityUnit);
@@ -134,6 +139,7 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             snapshot.SumByRoomAndMaterial = BuildSums(snapshot.Lines);
+            snapshot.SumByMaterialUngrouped = BuildUngroupedSums(snapshot.Lines);
             return snapshot;
         }
 
@@ -175,6 +181,21 @@ namespace SmartRemont.ExportRooms.Services
 
                 byMat.TryGetValue(line.MaterialId, out var prev);
                 byMat[line.MaterialId] = prev + line.Quantity;
+            }
+
+            return map;
+        }
+
+        static Dictionary<int, double> BuildUngroupedSums(IEnumerable<TkQtyScheduleLine> lines)
+        {
+            var map = new Dictionary<int, double>();
+            foreach (var line in lines ?? Enumerable.Empty<TkQtyScheduleLine>())
+            {
+                if (line.MaterialId <= 0 || !string.IsNullOrWhiteSpace(line.RoomName))
+                    continue;
+
+                map.TryGetValue(line.MaterialId, out var prev);
+                map[line.MaterialId] = prev + line.Quantity;
             }
 
             return map;
@@ -262,14 +283,11 @@ namespace SmartRemont.ExportRooms.Services
                 if (!string.IsNullOrWhiteSpace(roomFromCol) && !IsNoiseLabel(roomFromCol))
                     currentRoom = roomFromCol.Trim();
 
-                if (string.IsNullOrWhiteSpace(currentRoom))
-                    continue;
-
                 lines.Add(new TkQtyScheduleLine
                 {
                     SourceCode = entry.Code,
                     ScheduleName = schedule.Name,
-                    RoomName = currentRoom,
+                    RoomName = string.IsNullOrWhiteSpace(currentRoom) ? null : currentRoom,
                     MaterialId = materialId,
                     MaterialName = string.IsNullOrWhiteSpace(name) ? null : name,
                     Quantity = qty,
@@ -293,23 +311,80 @@ namespace SmartRemont.ExportRooms.Services
             return parsed.Value * (scale <= 0 ? 1d : scale);
         }
 
-        static bool TryFindSchedule(
+        static bool TryFindSchedules(
             Dictionary<string, ViewSchedule> byName,
             IReadOnlyList<string> names,
-            out ViewSchedule schedule)
+            out List<ViewSchedule> schedules)
         {
-            schedule = null;
+            schedules = new List<ViewSchedule>();
             if (names == null)
                 return false;
 
+            var seen = new HashSet<long>();
             foreach (var name in names)
             {
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
-                if (byName.TryGetValue(NormalizeName(name), out schedule))
-                    return true;
+                if (!byName.TryGetValue(NormalizeName(name), out var schedule) || schedule == null)
+                    continue;
+                if (!seen.Add(schedule.Id.Value))
+                    continue;
+                schedules.Add(schedule);
             }
 
+            return schedules.Count > 0;
+        }
+
+        static bool TryPickReadableSchedule(
+            IReadOnlyList<ViewSchedule> schedules,
+            TkQtyScheduleMapping.Entry entry,
+            out ViewSchedule schedule,
+            out Dictionary<string, int> headers,
+            out int rowCount,
+            out int? colId,
+            out int? colName,
+            out int? colQty,
+            out string qtyHeader,
+            out int? colRoom,
+            out string error)
+        {
+            schedule = null;
+            headers = null;
+            rowCount = 0;
+            colId = null;
+            colName = null;
+            colQty = null;
+            qtyHeader = null;
+            colRoom = null;
+            error = "Не удалось прочитать таблицу";
+
+            var sawMissingId = false;
+            foreach (var candidate in schedules)
+            {
+                if (!TryReadTable(candidate, out var candidateHeaders, out var candidateRows))
+                    continue;
+
+                var id = ResolveColumnExact(candidateHeaders, entry.MaterialIdColumnsExact, out _);
+                if (id == null)
+                {
+                    sawMissingId = true;
+                    continue;
+                }
+
+                schedule = candidate;
+                headers = candidateHeaders;
+                rowCount = candidateRows;
+                colId = id;
+                colName = ResolveColumnExact(candidateHeaders, entry.MaterialNameColumnsExact, out _);
+                colQty = ResolveColumnExact(candidateHeaders, entry.QuantityColumnsExact, out qtyHeader);
+                colRoom = ResolveColumnExact(candidateHeaders, entry.RoomColumnsExact, out _);
+                error = null;
+                return true;
+            }
+
+            error = sawMissingId
+                ? "Нет колонки ID материала (добавьте «ID материала» в ведомость или отключите источник в конфиге)"
+                : "Не удалось прочитать таблицу";
             return false;
         }
 

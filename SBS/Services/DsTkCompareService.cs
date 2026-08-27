@@ -73,9 +73,13 @@ namespace SmartRemont.ExportRooms.Services
         };
 
         public bool IsProblem =>
-            Status is DsTkCompareStatus.MissingInRevit or DsTkCompareStatus.ExtraInRevit
-            // qty_tk_only — норма (не все позиции договора есть в ведомостях).
-            || QtyStatusKey is "qty_mismatch" or "qty_schedule_only";
+            Status is DsTkCompareStatus.MissingInRevit or DsTkCompareStatus.ExtraInRevit;
+
+        /// <summary>Можно отправить в ДС (как поле ввода в MySpace).</summary>
+        public bool IsEditableQtyMismatch => QtyStatusKey == "qty_mismatch";
+
+        /// <summary>Сильный % у позиции без ввода в MySpace — сигнал, что проект неверный.</summary>
+        public bool IsProjectQtyAlert => QtyStatusKey == "qty_project_alert";
     }
 
     public sealed class DsTkCompareRoom
@@ -87,16 +91,16 @@ namespace SmartRemont.ExportRooms.Services
         {
             get
             {
-                var match = Rows.Count(r => r.Status == DsTkCompareStatus.Match);
                 var missing = Rows.Count(r => r.Status == DsTkCompareStatus.MissingInRevit);
-                var notExpected = Rows.Count(r => r.Status == DsTkCompareStatus.NotExpectedInModel);
                 var extra = Rows.Count(r => r.Status == DsTkCompareStatus.ExtraInRevit);
-                var qtyMismatch = Rows.Count(r => r.QtyStatusKey == "qty_mismatch");
-                var badge =
-                    $"{Rows.Count} поз. · ✓{match} · нет в проекте {missing} · лишнее {extra} · не ожидается {notExpected}";
-                if (qtyMismatch > 0)
-                    badge += $" · qty≠ {qtyMismatch}";
-                return badge;
+                if (missing == 0 && extra == 0)
+                    return "состав совпадает";
+                var parts = new List<string>();
+                if (missing > 0)
+                    parts.Add($"нет в проекте {missing}");
+                if (extra > 0)
+                    parts.Add($"лишнее {extra}");
+                return string.Join(" · ", parts);
             }
         }
     }
@@ -109,6 +113,7 @@ namespace SmartRemont.ExportRooms.Services
         public int NotExpectedInModelCount { get; init; }
         public int ExtraInRevitCount { get; init; }
         public int QtyMismatchCount { get; init; }
+        public int QtyProjectAlertCount { get; init; }
         public int TotalRows => MatchCount + MissingInRevitCount + NotExpectedInModelCount + ExtraInRevitCount;
         public string Note { get; init; }
         public bool QtyBaselineFromDs { get; init; }
@@ -122,8 +127,12 @@ namespace SmartRemont.ExportRooms.Services
     {
         /// <summary>Абсолютный допуск (шт / м² / м).</summary>
         const double QtyAbsTolerance = 0.05d;
-        /// <summary>Относительный допуск для больших площадей/длин.</summary>
+        /// <summary>Относительный допуск для «почти равно».</summary>
         const double QtyRelTolerance = 0.01d;
+        /// <summary>
+        /// Порог «проект сильно не сходится» для позиций без ввода в MySpace.
+        /// </summary>
+        public const double QtyProjectAlertRelThreshold = 0.10d;
 
         public static DsTkCompareResult Compare(
             RoomSrIdSnapshot revit,
@@ -154,6 +163,7 @@ namespace SmartRemont.ExportRooms.Services
             var notExpected = 0;
             var extra = 0;
             var qtyMismatch = 0;
+            var qtyProjectAlert = 0;
 
             foreach (var roomKey in roomKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
             {
@@ -213,14 +223,27 @@ namespace SmartRemont.ExportRooms.Services
 
                     scheduleByMat.TryGetValue(materialId, out var scheduleQtyValue);
                     var hasScheduleQty = scheduleByMat.ContainsKey(materialId);
+                    if (!hasScheduleQty
+                        && TryUngroupedScheduleQty(
+                            scheduleQty,
+                            materialId,
+                            roomKey,
+                            revitByRoom,
+                            out var ungroupedQty))
+                    {
+                        hasScheduleQty = true;
+                        scheduleQtyValue = ungroupedQty;
+                    }
+                    var tkRow = PreferTkRowForApply(tkGroup);
+                    var canEditQty = tkRow?.IsMaterialCntInput == true;
                     var (qtyKey, qtyDisplay) = ResolveQtyStatus(
                         tkQty,
                         hasScheduleQty ? scheduleQtyValue : null,
                         hasScheduleQty,
+                        canEditQty,
                         baselineName,
                         baselineShort);
 
-                    var tkRow = PreferTkRowForApply(tkGroup);
                     var revitItem = revitGroup?.FirstOrDefault();
                     var qtyUnit = ResolveQtyUnit(materialId, roomKey, scheduleQty);
 
@@ -230,7 +253,7 @@ namespace SmartRemont.ExportRooms.Services
                         MaterialId = materialId,
                         ClientMaterialId = tkRow?.ClientMaterialId,
                         MaterialSetId = tkRow?.MaterialSetId,
-                        IsMaterialCntInput = tkRow?.IsMaterialCntInput == true,
+                        IsMaterialCntInput = canEditQty,
                         MaterialName = Prefer(
                             Strip(tkRow?.MaterialName),
                             Strip(meta?.MaterialName),
@@ -257,6 +280,8 @@ namespace SmartRemont.ExportRooms.Services
                     CountStatus(status, ref match, ref missing, ref notExpected, ref extra);
                     if (qtyKey == "qty_mismatch")
                         qtyMismatch++;
+                    else if (qtyKey == "qty_project_alert")
+                        qtyProjectAlert++;
                 }
 
                 // Наборы без material_id — в модели по SR_ID не ожидаются.
@@ -300,8 +325,8 @@ namespace SmartRemont.ExportRooms.Services
                 : $"Эталон presence — договор (ТК). Совпадает: {match}, нет в проекте: {missing}, лишнее в проекте: {extra}, не ожидается в модели: {notExpected}."
                   + (scheduleLineCount > 0
                       ? (qtyBaselineFromDs
-                          ? $" Объёмы: эталон = ДС ↔ ведомости ({scheduleLineCount} строк), ≠ ДС: {qtyMismatch}."
-                          : $" Объёмы ведомостей: {scheduleLineCount} строк, ≠ договору: {qtyMismatch}.")
+                          ? $" Объёмы vs ДС: править {qtyMismatch}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}."
+                          : $" Объёмы vs договор: править {qtyMismatch}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}.")
                       : string.Empty);
 
             return new DsTkCompareResult
@@ -312,6 +337,7 @@ namespace SmartRemont.ExportRooms.Services
                 NotExpectedInModelCount = notExpected,
                 ExtraInRevitCount = extra,
                 QtyMismatchCount = qtyMismatch,
+                QtyProjectAlertCount = qtyProjectAlert,
                 Note = note,
                 QtyBaselineFromDs = qtyBaselineFromDs,
                 ScheduleSources = scheduleQty?.Sources ?? new List<TkQtyScheduleSourceInfo>()
@@ -353,6 +379,7 @@ namespace SmartRemont.ExportRooms.Services
             double? tkQty,
             double? scheduleQty,
             bool hasSchedule,
+            bool canEditInMyspace,
             string baselineName,
             string baselineShort)
         {
@@ -369,8 +396,29 @@ namespace SmartRemont.ExportRooms.Services
             if (QtyEquals(tkQty.Value, scheduleQty!.Value))
                 return ("qty_match", $"объём = {baselineName}");
 
-            return ("qty_mismatch",
-                $"объём ≠ {baselineName}: {baselineShort} {FormatQty(tkQty)} ≠ вед. {FormatQty(scheduleQty)}");
+            var rel = RelativeDiff(tkQty.Value, scheduleQty.Value);
+            var relPct = (rel * 100d).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+            var core = $"{baselineShort} {FormatQty(tkQty)} ≠ вед. {FormatQty(scheduleQty)} ({relPct}%)";
+
+            // Только то, что можно править в MySpace — кандидат на отправку в ДС.
+            if (canEditInMyspace)
+                return ("qty_mismatch", $"объём ≠ {baselineName}: {core}");
+
+            // Без ввода в MySpace: сильный % → алерт «проект неверный», слабый → тихо.
+            if (rel >= QtyProjectAlertRelThreshold)
+                return ("qty_project_alert",
+                    $"проект сильно ≠ {baselineName}: {core} — без поля ввода");
+
+            return ("qty_soft_diff",
+                $"небольшое расхождение: {core}");
+        }
+
+        static double RelativeDiff(double a, double b)
+        {
+            var scale = Math.Max(Math.Abs(a), Math.Abs(b));
+            if (scale <= 1e-9)
+                return Math.Abs(a - b) <= QtyAbsTolerance ? 0d : 1d;
+            return Math.Abs(a - b) / scale;
         }
 
         static bool QtyEquals(double a, double b)
@@ -380,6 +428,31 @@ namespace SmartRemont.ExportRooms.Services
                 return true;
             var scale = Math.Max(Math.Abs(a), Math.Abs(b));
             return scale > 0 && abs <= scale * QtyRelTolerance;
+        }
+
+        static bool TryUngroupedScheduleQty(
+            TkQtyScheduleSnapshot scheduleQty,
+            int materialId,
+            string roomKey,
+            IReadOnlyDictionary<string, List<RoomSrIdItem>> revitByRoom,
+            out double qty)
+        {
+            qty = 0;
+            if (scheduleQty?.SumByMaterialUngrouped == null
+                || !scheduleQty.SumByMaterialUngrouped.TryGetValue(materialId, out qty))
+                return false;
+
+            var rooms = new List<string>();
+            foreach (var kv in revitByRoom ?? new Dictionary<string, List<RoomSrIdItem>>())
+            {
+                if (kv.Value == null || kv.Value.All(i => i.SrId != materialId))
+                    continue;
+                if (!rooms.Exists(r => string.Equals(r, kv.Key, StringComparison.OrdinalIgnoreCase)))
+                    rooms.Add(kv.Key);
+            }
+
+            return rooms.Count == 1
+                   && string.Equals(rooms[0], roomKey, StringComparison.OrdinalIgnoreCase);
         }
 
         static string FormatQty(double? value) =>
@@ -400,26 +473,43 @@ namespace SmartRemont.ExportRooms.Services
 
         static string ResolveQtyUnit(int materialId, string roomKey, TkQtyScheduleSnapshot scheduleQty)
         {
-            var line = scheduleQty?.Lines?.FirstOrDefault(l =>
-                l.MaterialId == materialId
-                && string.Equals(
-                    DsAreaCompareService.GetRoomCompareKey(l.RoomName ?? string.Empty),
-                    roomKey,
-                    StringComparison.OrdinalIgnoreCase));
+            var line = FindScheduleLine(materialId, roomKey, scheduleQty);
             var unit = line?.Unit;
             return string.IsNullOrWhiteSpace(unit) || unit == "—" ? null : unit.Trim();
         }
 
         static string PreferScheduleName(int materialId, string roomKey, TkQtyScheduleSnapshot scheduleQty)
         {
-            var line = scheduleQty?.Lines?.FirstOrDefault(l =>
+            var line = FindScheduleLine(materialId, roomKey, scheduleQty, requireName: true);
+            return line?.MaterialName;
+        }
+
+        static TkQtyScheduleLine FindScheduleLine(
+            int materialId,
+            string roomKey,
+            TkQtyScheduleSnapshot scheduleQty,
+            bool requireName = false)
+        {
+            var lines = scheduleQty?.Lines;
+            if (lines == null || lines.Count == 0)
+                return null;
+
+            bool MatchesRoom(TkQtyScheduleLine l) =>
                 l.MaterialId == materialId
-                && !string.IsNullOrWhiteSpace(l.MaterialName)
+                && (!requireName || !string.IsNullOrWhiteSpace(l.MaterialName))
                 && string.Equals(
                     DsAreaCompareService.GetRoomCompareKey(l.RoomName ?? string.Empty),
                     roomKey,
-                    StringComparison.OrdinalIgnoreCase));
-            return line?.MaterialName;
+                    StringComparison.OrdinalIgnoreCase);
+
+            var roomMatch = lines.FirstOrDefault(MatchesRoom);
+            if (roomMatch != null)
+                return roomMatch;
+
+            return lines.FirstOrDefault(l =>
+                l.MaterialId == materialId
+                && string.IsNullOrWhiteSpace(l.RoomName)
+                && (!requireName || !string.IsNullOrWhiteSpace(l.MaterialName)));
         }
 
         static void CountStatus(

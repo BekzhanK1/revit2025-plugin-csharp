@@ -156,20 +156,21 @@ namespace SmartRemont.ExportRooms.Services
             Array.Empty<DsTkQtyApplyCandidate>();
         public int TotalQtyMismatch { get; init; }
         public int SkippedNotEditable { get; init; }
+        public int ProjectAlertCount { get; init; }
 
         public string ModeTitle => Mode switch
         {
-            DsTkQtyApplyMode.EditableOnly => "Как в MySpace — только редактируемые",
-            DsTkQtyApplyMode.All => "Все расхождения объёмов",
+            DsTkQtyApplyMode.EditableOnly => "Разрешённые объёмы (с полем ввода)",
+            DsTkQtyApplyMode.All => "Разрешённые объёмы",
             _ => "Объёмы не передаются"
         };
 
         public string ModeHint => Mode switch
         {
             DsTkQtyApplyMode.EditableOnly =>
-                "В ДС уйдут только позиции, у которых в MySpace есть поле ввода объёма (is_material_cnt_input).",
+                "В ДС уйдут только объёмы, которые можно править в MySpace.",
             DsTkQtyApplyMode.All =>
-                "В ДС уйдут все qty≠ с объёмом из ведомости. Позиции без ввода в MySpace тоже попадут в список.",
+                "В ДС только позиции с полем ввода. Алерты проекта остаются в сверке.",
             _ => "Объёмы не отправляются."
         };
     }
@@ -581,10 +582,12 @@ namespace SmartRemont.ExportRooms.Services
                     Mode = mode,
                     Candidates = Array.Empty<DsTkQtyApplyCandidate>(),
                     TotalQtyMismatch = 0,
-                    SkippedNotEditable = 0
+                    SkippedNotEditable = 0,
+                    ProjectAlertCount = 0
                 };
             }
 
+            var projectAlerts = compare.QtyProjectAlertCount;
             var allEligible = new List<DsTkQtyApplyCandidate>();
             foreach (var room in compare.Rooms)
             {
@@ -593,7 +596,10 @@ namespace SmartRemont.ExportRooms.Services
 
                 foreach (var row in room.Rows)
                 {
+                    // В ДС шлём только то, что MySpace позволяет править.
                     if (row == null || row.QtyStatusKey != "qty_mismatch")
+                        continue;
+                    if (!row.IsMaterialCntInput)
                         continue;
                     if (row.ClientMaterialId is not > 0)
                         continue;
@@ -611,7 +617,7 @@ namespace SmartRemont.ExportRooms.Services
                         QtyUnit = row.QtyUnit,
                         TkQty = row.TkQty,
                         ScheduleQty = row.ScheduleQty.Value,
-                        IsMaterialCntInput = row.IsMaterialCntInput
+                        IsMaterialCntInput = true
                     });
                 }
             }
@@ -632,28 +638,19 @@ namespace SmartRemont.ExportRooms.Services
                     Mode = mode,
                     Candidates = Array.Empty<DsTkQtyApplyCandidate>(),
                     TotalQtyMismatch = total,
-                    SkippedNotEditable = 0
+                    SkippedNotEditable = 0,
+                    ProjectAlertCount = projectAlerts
                 };
             }
 
-            if (mode == DsTkQtyApplyMode.EditableOnly)
-            {
-                var editable = allEligible.Where(c => c.IsMaterialCntInput).ToList();
-                return new DsTkQtyApplyPreview
-                {
-                    Mode = mode,
-                    Candidates = editable,
-                    TotalQtyMismatch = total,
-                    SkippedNotEditable = total - editable.Count
-                };
-            }
-
+            // All и EditableOnly — одно и то же: только MySpace-input.
             return new DsTkQtyApplyPreview
             {
                 Mode = mode,
                 Candidates = allEligible,
                 TotalQtyMismatch = total,
-                SkippedNotEditable = allEligible.Count(c => !c.IsMaterialCntInput)
+                SkippedNotEditable = projectAlerts,
+                ProjectAlertCount = projectAlerts
             };
         }
 

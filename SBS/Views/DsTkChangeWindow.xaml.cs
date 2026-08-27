@@ -33,7 +33,7 @@ namespace SmartRemont.ExportRooms.Views
         public DsTkChangeWindow(Document doc)
         {
             InitializeComponent();
-            WindowLayoutHelper.UseFullWorkAreaHeight(this);
+            WindowLayoutHelper.UseFullWorkArea(this);
             _doc = doc;
             _clientRequestId = ExportRoomsApplication.SelectedRemont?.ClientRequestId ?? 0;
             ClientRequestBadge.Text = _clientRequestId > 0
@@ -264,6 +264,7 @@ namespace SmartRemont.ExportRooms.Views
                 ["not_expected_in_model"] = _result.NotExpectedInModelCount,
                 ["extra_in_revit"] = _result.ExtraInRevitCount,
                 ["qty_mismatch"] = _result.QtyMismatchCount,
+                ["qty_project_alert"] = _result.QtyProjectAlertCount,
                 ["total"] = _result.TotalRows
             };
             SetIfHas((JObject)root["summary"], "note", _result.Note);
@@ -393,38 +394,13 @@ namespace SmartRemont.ExportRooms.Views
                 // Сначала ДС (для эталона объёмов), потом сверка.
                 await RefreshDsBindAsync().ConfigureAwait(true);
                 await RebuildCompareAsync().ConfigureAwait(true);
-
-                var note = _result?.Note ?? string.Empty;
-                if (!materialsOk && !string.IsNullOrWhiteSpace(materialsError))
-                    note += $" Тип файла (RFA/surface): недоступен ({materialsError}).";
-
-                var failedSources = _scheduleQty.Sources
-                    .Where(s => !s.Found || !string.IsNullOrWhiteSpace(s.Message))
-                    .Take(3)
-                    .Select(s => $"{s.Code}: {s.Message ?? "не найдена"}")
-                    .ToList();
-                if (failedSources.Count > 0)
-                    note += " Ведомости: " + string.Join("; ", failedSources)
-                            + (_scheduleQty.Sources.Count(s => !s.Found || !string.IsNullOrWhiteSpace(s.Message)) > 3
-                                ? "…"
-                                : string.Empty);
-
-                if (_boundDs != null && !note.Contains("ДС: №", StringComparison.Ordinal))
-                    note += $" ДС: №{_boundDs.DsId} ({_boundDs.StatusDisplay}).";
-                else if (_dsItems.Count > 1 && _dsItems.Count(i => i.CanEdit) > 1
-                         && !note.Contains("черновиков", StringComparison.OrdinalIgnoreCase))
-                    note += " Несколько черновиков TK_CHANGE — выберите ДС кнопкой «Выбрать…».";
-                else if (_dsItems.Count == 0
-                         && !note.Contains("ДС не создана", StringComparison.Ordinal)
-                         && DsBadgeText?.Text?.Contains("ошибка", StringComparison.OrdinalIgnoreCase) != true)
-                    note += " ДС не создана — можно создать пустой черновик.";
-
-                StatusText.Text = note;
+                UpdateStatusAndAlerts(materialsOk, materialsError);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK compare failed");
                 StatusText.Text = ex.Message;
+                HideMismatchWarning();
                 _result = null;
                 _scheduleQty = null;
                 _tkSnapshot = null;
@@ -436,6 +412,48 @@ namespace SmartRemont.ExportRooms.Views
                 _loading = false;
                 UpdateDsActionButtons();
             }
+        }
+
+        void UpdateStatusAndAlerts(bool materialsOk, string materialsError)
+        {
+            if (_result == null)
+            {
+                StatusText.Text = "Нет данных сверки.";
+                HideMismatchWarning();
+                return;
+            }
+
+            var missing = _result.MissingInRevitCount;
+            var extra = _result.ExtraInRevitCount;
+            var send = _result.QtyMismatchCount;
+            StatusText.Text = send > 0
+                ? $"К отправке в ДС: {send} (объёмы MySpace)."
+                : "Нет объёмов MySpace к отправке.";
+
+            if (!string.IsNullOrWhiteSpace(materialsError) && !materialsOk)
+                StatusText.Text += $" Тип файла: {materialsError}";
+
+            if (missing == 0 && extra == 0)
+            {
+                HideMismatchWarning();
+                return;
+            }
+
+            if (MismatchWarningPanel == null || MismatchWarningText == null)
+                return;
+
+            MismatchWarningText.Text =
+                $"Проект не совпадает с договором: нет в проекте {missing}, лишнее {extra}. "
+                + "Сейчас это не блокирует отправку. Дальше без совпадения состава отправка будет ограничена.";
+            MismatchWarningPanel.Visibility = System.Windows.Visibility.Visible;
+        }
+
+        void HideMismatchWarning()
+        {
+            if (MismatchWarningPanel != null)
+                MismatchWarningPanel.Visibility = System.Windows.Visibility.Collapsed;
+            if (MismatchWarningText != null)
+                MismatchWarningText.Text = string.Empty;
         }
 
         async Task RebuildCompareAsync()
@@ -613,9 +631,6 @@ namespace SmartRemont.ExportRooms.Views
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(fg));
         }
 
-        void QtyApplyMode_Checked(object sender, RoutedEventArgs e) =>
-            UpdateDsActionButtons();
-
         async void ApplyQtyButton_Click(object sender, RoutedEventArgs e)
         {
             if (_dsBusy || _loading || _clientRequestId <= 0)
@@ -655,25 +670,15 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var mode = ReadQtyApplyMode();
-            if (mode == DsTkQtyApplyMode.Skip)
+            var preview = DsTkChangeService.BuildQtyApplyPreview(_result, DsTkQtyApplyMode.EditableOnly);
+            if (preview.Candidates.Count == 0)
             {
                 MessageBox.Show(
                     this,
-                    "Выбран режим «Не передавать».\nВключите «Как в MySpace» или «Все qty≠».",
+                    "Нет объёмов к отправке: в MySpace нет поля ввода или объём ведомости совпадает.",
                     "Объёмы",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
-                return;
-            }
-
-            var preview = DsTkChangeService.BuildQtyApplyPreview(_result, mode);
-            if (preview.Candidates.Count == 0)
-            {
-                var hint = mode == DsTkQtyApplyMode.EditableOnly
-                    ? "Нет qty≠ с полем ввода в MySpace (или нет client_material_id / объёма ведомости)."
-                    : "Нет qty≠ для отправки (нужны расхождения с объёмом из ведомости и client_material_id).";
-                MessageBox.Show(this, hint, "Объёмы", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -725,7 +730,7 @@ namespace SmartRemont.ExportRooms.Views
                 {
                     MessageBox.Show(
                         this,
-                        msg + "\nПроверьте черновик в MySpace." + logHint
+                        msg + "\nПроверьте черновик ДС." + logHint
                             + $"\napiOrigin: {Configs.ApiOriginUrl}",
                         "Объёмы отправлены",
                         MessageBoxButton.OK,
@@ -744,15 +749,6 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        DsTkQtyApplyMode ReadQtyApplyMode()
-        {
-            if (QtyModeSkipRadio?.IsChecked == true)
-                return DsTkQtyApplyMode.Skip;
-            if (QtyModeAllRadio?.IsChecked == true)
-                return DsTkQtyApplyMode.All;
-            return DsTkQtyApplyMode.EditableOnly;
-        }
-
         void UpdateDsActionButtons()
         {
             if (CreateDsButton == null || PickDsButton == null)
@@ -766,13 +762,11 @@ namespace SmartRemont.ExportRooms.Views
             var hasLocked = _dsItems.Any(i => i.IsLocked);
             var hasAny = _dsItems.Count > 0;
             var canEditBound = _boundDs != null && _boundDs.CanEdit;
-            var mode = ReadQtyApplyMode();
-            var preview = mode == DsTkQtyApplyMode.Skip || _result == null
+            var preview = _result == null
                 ? null
-                : DsTkChangeService.BuildQtyApplyPreview(_result, mode);
+                : DsTkChangeService.BuildQtyApplyPreview(_result, DsTkQtyApplyMode.EditableOnly);
             var candidates = preview?.Candidates.Count ?? 0;
 
-            // Новую не создаём, если уже есть любая TK_CHANGE (черновик или прошедшая).
             CreateDsButton.IsEnabled = hasRequest && hasAdd && !busy && !hasAny;
             PickDsButton.IsEnabled = hasRequest && !busy && hasAny;
             CreateDsButton.ToolTip = !hasAdd
@@ -786,67 +780,25 @@ namespace SmartRemont.ExportRooms.Views
                 ? "Есть только ДС не в статусе черновик — выбрать для правок нельзя"
                 : "Выбрать существующий черновик ДС";
 
-            if (QtyModeHintText != null)
-            {
-                QtyModeHintText.Text = mode switch
-                {
-                    DsTkQtyApplyMode.EditableOnly =>
-                        "Только позиции с полем ввода объёма в MySpace. Перед отправкой покажем список изменений.",
-                    DsTkQtyApplyMode.All =>
-                        "Все qty≠ с ведомостью. В превью будет колонка, какие из них редактируются в MySpace.",
-                    _ => "Объёмы в ДС не отправляются."
-                };
-            }
-
             if (QtyCandidateBadgeText != null)
             {
-                if (mode == DsTkQtyApplyMode.Skip)
-                {
-                    QtyCandidateBadgeText.Text = "выкл";
-                }
-                else if (preview == null)
-                {
-                    QtyCandidateBadgeText.Text = "—";
-                }
-                else if (mode == DsTkQtyApplyMode.EditableOnly && preview.SkippedNotEditable > 0)
-                {
-                    QtyCandidateBadgeText.Text =
-                        $"{candidates} уйдёт · {preview.SkippedNotEditable} пропуск";
-                }
-                else
-                {
-                    QtyCandidateBadgeText.Text = candidates == 1
-                        ? "1 позиция"
-                        : $"{candidates} позиций";
-                }
+                QtyCandidateBadgeText.Text = preview == null
+                    ? "—"
+                    : candidates == 1 ? "1 уйдёт" : $"{candidates} уйдёт";
             }
 
             if (ApplyQtyButton != null)
             {
-                ApplyQtyButton.IsEnabled = hasRequest && canEditBound && hasQtyUpd && !busy
-                                          && mode != DsTkQtyApplyMode.Skip
-                                          && candidates > 0;
-                ApplyQtyButton.Content = mode == DsTkQtyApplyMode.Skip
-                    ? "Не передавать"
-                    : "Проверить и отправить";
+                ApplyQtyButton.IsEnabled = hasRequest && canEditBound && hasQtyUpd && !busy && candidates > 0;
+                ApplyQtyButton.Content = "Проверить и отправить";
                 ApplyQtyButton.ToolTip = !hasQtyUpd
                     ? $"Нет права {DsTkChangeService.QtyUpdGrant}"
                     : !canEditBound
                         ? "Нужен редактируемый черновик ДС"
-                        : mode == DsTkQtyApplyMode.Skip
-                            ? "Режим «Не передавать»"
-                            : candidates == 0
-                                ? "Нет qty≠ для выбранного режима"
-                                : $"Открыть превью: {candidates} позиций → ДС №{_boundDs.DsId}";
+                        : candidates == 0
+                            ? "Нет объёмов MySpace к отправке"
+                            : $"Открыть превью: {candidates} позиций → ДС №{_boundDs.DsId}";
             }
-
-            var modeEnabled = !busy;
-            if (QtyModeEditableRadio != null)
-                QtyModeEditableRadio.IsEnabled = modeEnabled;
-            if (QtyModeAllRadio != null)
-                QtyModeAllRadio.IsEnabled = modeEnabled;
-            if (QtyModeSkipRadio != null)
-                QtyModeSkipRadio.IsEnabled = modeEnabled;
         }
         static Dictionary<int, RevitMaterialRowDto> BuildMaterialMeta(RevitMaterialReadResponse materials)
         {
@@ -871,7 +823,6 @@ namespace SmartRemont.ExportRooms.Views
                 StatRoomsValue.Text = "0";
                 StatMatchValue.Text = "0";
                 StatMissingRevitValue.Text = "0";
-                StatNotExpectedValue.Text = "0";
                 StatExtraValue.Text = "0";
                 StatQtyMismatchValue.Text = "0";
                 return;
@@ -880,7 +831,6 @@ namespace SmartRemont.ExportRooms.Views
             StatRoomsValue.Text = _result.Rooms.Count.ToString(CultureInfo.InvariantCulture);
             StatMatchValue.Text = _result.MatchCount.ToString(CultureInfo.InvariantCulture);
             StatMissingRevitValue.Text = _result.MissingInRevitCount.ToString(CultureInfo.InvariantCulture);
-            StatNotExpectedValue.Text = _result.NotExpectedInModelCount.ToString(CultureInfo.InvariantCulture);
             StatExtraValue.Text = _result.ExtraInRevitCount.ToString(CultureInfo.InvariantCulture);
             StatQtyMismatchValue.Text = _result.QtyMismatchCount.ToString(CultureInfo.InvariantCulture);
         }
@@ -916,7 +866,7 @@ namespace SmartRemont.ExportRooms.Views
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
             NoDataText.Text = problemsOnly
-                ? "Расхождений нет — проект совпадает с договором (ТК)."
+                ? "Нет расхождений состава: в проекте ничего не недостаёт и нет лишнего."
                 : "Нет данных для сверки (пустой ТК и/или нет SR_ID в модели).";
         }
 

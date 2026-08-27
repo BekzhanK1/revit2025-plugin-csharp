@@ -33,43 +33,66 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                <TextBlock Text="ДС на изменение ТК" Style="{StaticResource Heading1}"/>
-                <TextBlock Text="Эталон — договор (ТК). Проект Revit должен совпадать: нет недостающих позиций и нет лишнего."
-                           Style="{StaticResource BodyText}"
-                           TextWrapping="Wrap"/>
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                    <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="8,4" Margin="0,0,8,0">
-                        <TextBlock x:Name="ClientRequestBadge" FontSize="13" FontWeight="SemiBold" Foreground="#1D4ED8" Text="Заявка #—"/>
-                    </Border>
-                    <Border x:Name="DsBadgeBorder" Background="#F1F5F9" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Padding="8,4" Margin="0,0,8,0">
-                        <TextBlock x:Name="DsBadgeText" FontSize="13" FontWeight="SemiBold" Foreground="#475569" Text="ДС: —"/>
-                    </Border>
-                    <Button x:Name="CreateDsButton"
-                            Content="Создать ДС"
-                            Style="{StaticResource SecondaryButton}"
-                            Height="30"
-                            Padding="12,0"
-                            Margin="0,0,8,0"
-                            Click="CreateDsButton_Click"/>
-                    <Button x:Name="PickDsButton"
-                            Content="Выбрать…"
-                            Style="{StaticResource SecondaryButton}"
-                            Height="30"
-                            Padding="12,0"
-                            Margin="0,0,12,0"
-                            Click="PickDsButton_Click"/>
-                    <TextBlock x:Name="ScanInfoText"
-                               FontSize="13"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               VerticalAlignment="Center"
-                               Text=""/>
-                </StackPanel>
-            </StackPanel>
-
-            <Grid Grid.Row="1" Margin="0,0,0,16">
+            <!-- 1. Header with Title and Global Actions -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="ДС на изменение ТК" Style="{StaticResource Heading1}"/>
+                    <TextBlock Text="Сверка состава с договором: чего нет в проекте и что лишнее. Объёмы в ДС — только как в MySpace."
+                               Style="{StaticResource BodyText}"
+                               TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="8,4" Margin="0,0,8,0">
+                            <TextBlock x:Name="ClientRequestBadge" FontSize="13" FontWeight="SemiBold" Foreground="#1D4ED8" Text="Заявка #—"/>
+                        </Border>
+                        <Border x:Name="DsBadgeBorder" Background="#F1F5F9" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Padding="8,4" Margin="0,0,12,0">
+                            <TextBlock x:Name="DsBadgeText" FontSize="13" FontWeight="SemiBold" Foreground="#475569" Text="ДС: —"/>
+                        </Border>
+                        <Button x:Name="CreateDsButton"
+                                Content="Создать ДС"
+                                Style="{StaticResource SecondaryButton}"
+                                Height="30"
+                                Padding="12,0"
+                                Margin="0,0,8,0"
+                                Click="CreateDsButton_Click"/>
+                        <Button x:Name="PickDsButton"
+                                Content="Выбрать…"
+                                Style="{StaticResource SecondaryButton}"
+                                Height="30"
+                                Padding="12,0"
+                                Margin="0,0,12,0"
+                                Click="PickDsButton_Click"/>
+                        <TextBlock x:Name="ScanInfoText"
+                                   FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Text=""/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Обновить"
+                            Style="{StaticResource SecondaryButton}"
+                            Height="36"
+                            Padding="16,0"
+                            Margin="0,0,8,0"
+                            Click="RefreshButton_Click"/>
+                    <Button x:Name="ExportJsonButton"
+                            Content="Экспорт JSON"
+                            Style="{StaticResource SecondaryButton}"
+                            Height="36"
+                            Padding="16,0"
+                            Click="ExportJsonButton_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- 2. Stats Panel -->
+            <Grid Grid.Row="1" Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
@@ -95,37 +118,44 @@
                         <TextBlock Text="нет в проекте" FontSize="12" Foreground="#92400E"/>
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="3" Style="{StaticResource StatBadge}" Background="#F1F5F9" BorderBrush="#CBD5E1">
-                    <StackPanel>
-                        <TextBlock x:Name="StatNotExpectedValue" FontSize="20" FontWeight="Bold" Foreground="#475569" Text="—"/>
-                        <TextBlock Text="не ожидается" FontSize="12" Foreground="#64748B"/>
-                    </StackPanel>
-                </Border>
-                <Border Grid.Column="4" Style="{StaticResource StatBadge}" Background="#FFF7ED" BorderBrush="#FED7AA">
+                <Border Grid.Column="3" Style="{StaticResource StatBadge}" Background="#FFF7ED" BorderBrush="#FED7AA">
                     <StackPanel>
                         <TextBlock x:Name="StatExtraValue" FontSize="20" FontWeight="Bold" Foreground="#C2410C" Text="—"/>
                         <TextBlock Text="лишнее" FontSize="12" Foreground="#9A3412"/>
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="5" Style="{StaticResource StatBadge}" Background="#FEF2F2" BorderBrush="#FECACA" Margin="0">
+                <Border Grid.Column="4" Style="{StaticResource StatBadge}" Background="#EFF6FF" BorderBrush="#BFDBFE" Margin="0">
                     <StackPanel>
-                        <TextBlock x:Name="StatQtyMismatchValue" FontSize="20" FontWeight="Bold" Foreground="#B91C1C" Text="—"/>
-                        <TextBlock Text="объём ≠" FontSize="12" Foreground="#991B1B"/>
+                        <TextBlock x:Name="StatQtyMismatchValue" FontSize="20" FontWeight="Bold" Foreground="#1D4ED8" Text="—"/>
+                        <TextBlock x:Name="StatQtyMismatchLabel" Text="к отправке" FontSize="12" Foreground="#1E40AF"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <Border x:Name="StatusBanner"
-                    Grid.Row="2"
-                    Background="#F8FAFC"
-                    BorderBrush="{StaticResource CardBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="14,10"
-                    Margin="0,0,0,12">
-                <TextBlock x:Name="StatusText" FontSize="13" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="Загрузка…"/>
-            </Border>
+            <!-- 3. Предупреждение по составу + короткий статус -->
+            <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                <Border x:Name="MismatchWarningPanel"
+                        Background="#FFF7ED"
+                        BorderBrush="#FDBA74"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10"
+                        Margin="0,0,0,8"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="MismatchWarningText"
+                               FontSize="13"
+                               TextWrapping="Wrap"
+                               Foreground="#9A3412"
+                               Text=""/>
+                </Border>
+                <TextBlock x:Name="StatusText"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="Загрузка…"/>
+            </StackPanel>
 
+            <!-- 4. Rooms List (Expander) -->
             <Border Grid.Row="3"
                     Background="#FAFAFA"
                     BorderBrush="{StaticResource CardBorderBrush}"
@@ -141,7 +171,7 @@
                     <Grid Grid.Row="0" Margin="0,0,0,12">
                         <TextBlock Text="ПОМЕЩЕНИЯ" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
                         <CheckBox x:Name="ProblemsOnlyCheckBox"
-                                  Content="Только расхождения"
+                                  Content="Только нет / лишнее"
                                   IsChecked="True"
                                   HorizontalAlignment="Right"
                                   Checked="ProblemsOnlyCheckBox_Changed"
@@ -153,96 +183,117 @@
                             <ItemsControl x:Name="RoomsItemsControl">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="{StaticResource CardBackgroundBrush}"
-                                                BorderBrush="{StaticResource CardBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="8"
-                                                Padding="16"
-                                                Margin="0,0,0,12">
-                                            <StackPanel>
-                                                <Grid Margin="0,0,0,10">
-                                                    <TextBlock Text="{Binding RoomName}"
-                                                               FontSize="16"
+                                        <Expander Margin="0,0,0,12" 
+                                                  Background="{StaticResource CardBackgroundBrush}"
+                                                  BorderBrush="{StaticResource CardBorderBrush}"
+                                                  BorderThickness="1"
+                                                  IsExpanded="True">
+                                            <!-- Style for rounded corners on Expander might need explicit Border in template, but WPF default is fine for now, or just use Padding -->
+                                            <Expander.Header>
+                                                <!-- Stretching Expander Header -->
+                                                <Grid HorizontalAlignment="Stretch" Margin="0,8,0,8" Width="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=Expander}, Path=ActualWidth}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" 
+                                                               Text="{Binding RoomName}"
+                                                               FontSize="15"
                                                                FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                    <TextBlock Text="{Binding SummaryBadge}"
-                                                               FontSize="12"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                               HorizontalAlignment="Right"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
                                                                VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" 
+                                                               Text="{Binding SummaryBadge}"
+                                                               FontSize="13"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,32,0"/>
                                                 </Grid>
-                                                <DataGrid ItemsSource="{Binding Rows}"
-                                                          Style="{StaticResource ModernDataGrid}"
-                                                          MinHeight="40"
-                                                          IsReadOnly="True"
-                                                          SelectionMode="Single"
-                                                          SelectionUnit="FullRow"
-                                                          AutoGenerateColumns="False">
-                                                    <DataGrid.RowStyle>
-                                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding StatusKey}" Value="match">
-                                                                    <Setter Property="Background" Value="#F0FDF4"/>
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding StatusKey}" Value="missing_revit">
-                                                                    <Setter Property="Background" Value="#FFFBEB"/>
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding StatusKey}" Value="not_expected">
-                                                                    <Setter Property="Background" Value="#F8FAFC"/>
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding StatusKey}" Value="extra">
-                                                                    <Setter Property="Background" Value="#FFF7ED"/>
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_mismatch">
-                                                                    <Setter Property="Background" Value="#FEF2F2"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </DataGrid.RowStyle>
-                                                    <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Материал" Binding="{Binding MaterialName}" Width="2.4*" MinWidth="160">
-                                                            <DataGridTextColumn.ElementStyle>
-                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
-                                                            </DataGridTextColumn.ElementStyle>
-                                                        </DataGridTextColumn>
-                                                        <DataGridTextColumn Header="SR_ID" Binding="{Binding MaterialIdDisplay}" Width="80" MinWidth="64"/>
-                                                        <DataGridTextColumn Header="Конструктив" Binding="{Binding WorkSetName}" Width="1.4*" MinWidth="100">
-                                                            <DataGridTextColumn.ElementStyle>
-                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
-                                                            </DataGridTextColumn.ElementStyle>
-                                                        </DataGridTextColumn>
-                                                        <DataGridTextColumn Header="Тип" Binding="{Binding KindDisplay}" Width="90" MinWidth="70"/>
-                                                        <DataGridTextColumn Header="ДС/ТК"
-                                                                            Binding="{Binding TkQtyDisplay}"
-                                                                            Width="70"
-                                                                            MinWidth="56"/>
-                                                        <DataGridTextColumn Header="Проект" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="56"/>
-                                                        <DataGridTextColumn Header="Объём" Binding="{Binding QtyStatusDisplay}" Width="150" MinWidth="110">
-                                                            <DataGridTextColumn.ElementStyle>
-                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_mismatch">
-                                                                            <Setter Property="Foreground" Value="#B91C1C"/>
-                                                                            <Setter Property="FontWeight" Value="SemiBold"/>
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_match">
-                                                                            <Setter Property="Foreground" Value="#15803D"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </DataGridTextColumn.ElementStyle>
-                                                        </DataGridTextColumn>
-                                                        <DataGridTextColumn Header="В Revit" Binding="{Binding RevitName}" Width="1.2*" MinWidth="90">
-                                                            <DataGridTextColumn.ElementStyle>
-                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
-                                                            </DataGridTextColumn.ElementStyle>
-                                                        </DataGridTextColumn>
-                                                        <DataGridTextColumn Header="Кол-во" Binding="{Binding Quantity}" Width="56" MinWidth="48"/>
-                                                        <DataGridTextColumn Header="Статус" Binding="{Binding StatusDisplay}" Width="110" MinWidth="90"/>
-                                                    </DataGrid.Columns>
-                                                </DataGrid>
-                                            </StackPanel>
-                                        </Border>
+                                            </Expander.Header>
+                                            <Expander.Content>
+                                                <Border Padding="16,0,16,16">
+                                                    <DataGrid ItemsSource="{Binding Rows}"
+                                                              Style="{StaticResource ModernDataGrid}"
+                                                              MinHeight="40"
+                                                              IsReadOnly="True"
+                                                              SelectionMode="Single"
+                                                              SelectionUnit="FullRow"
+                                                              AutoGenerateColumns="False"
+                                                              BorderThickness="1"
+                                                              BorderBrush="{StaticResource CardBorderBrush}">
+                                                        <DataGrid.RowStyle>
+                                                            <Style TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="match">
+                                                                        <Setter Property="Background" Value="#F0FDF4"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="missing_revit">
+                                                                        <Setter Property="Background" Value="#FFFBEB"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="not_expected">
+                                                                        <Setter Property="Background" Value="#F8FAFC"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusKey}" Value="extra">
+                                                                        <Setter Property="Background" Value="#FFF7ED"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_mismatch">
+                                                                        <Setter Property="Background" Value="#FEF2F2"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_project_alert">
+                                                                        <Setter Property="Background" Value="#FFF7ED"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </DataGrid.RowStyle>
+                                                        <DataGrid.Columns>
+                                                            <DataGridTextColumn Header="Материал" Binding="{Binding MaterialName}" Width="2.4*" MinWidth="160">
+                                                                <DataGridTextColumn.ElementStyle>
+                                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                                                                </DataGridTextColumn.ElementStyle>
+                                                            </DataGridTextColumn>
+                                                            <DataGridTextColumn Header="SR_ID" Binding="{Binding MaterialIdDisplay}" Width="80" MinWidth="64"/>
+                                                            <DataGridTextColumn Header="Конструктив" Binding="{Binding WorkSetName}" Width="1.4*" MinWidth="100">
+                                                                <DataGridTextColumn.ElementStyle>
+                                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                                                                </DataGridTextColumn.ElementStyle>
+                                                            </DataGridTextColumn>
+                                                            <DataGridTextColumn Header="Тип" Binding="{Binding KindDisplay}" Width="90" MinWidth="70"/>
+                                                            <DataGridTextColumn Header="ДС/ТК"
+                                                                                Binding="{Binding TkQtyDisplay}"
+                                                                                Width="70"
+                                                                                MinWidth="56"/>
+                                                            <DataGridTextColumn Header="Проект" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="56"/>
+                                                            <DataGridTextColumn Header="Объём" Binding="{Binding QtyStatusDisplay}" Width="150" MinWidth="110">
+                                                                <DataGridTextColumn.ElementStyle>
+                                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_mismatch">
+                                                                                <Setter Property="Foreground" Value="#B91C1C"/>
+                                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_project_alert">
+                                                                                <Setter Property="Foreground" Value="#C2410C"/>
+                                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_match">
+                                                                                <Setter Property="Foreground" Value="#15803D"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </DataGridTextColumn.ElementStyle>
+                                                            </DataGridTextColumn>
+                                                            <DataGridTextColumn Header="В Revit" Binding="{Binding RevitName}" Width="1.2*" MinWidth="90">
+                                                                <DataGridTextColumn.ElementStyle>
+                                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                                                                </DataGridTextColumn.ElementStyle>
+                                                            </DataGridTextColumn>
+                                                            <DataGridTextColumn Header="Кол-во" Binding="{Binding Quantity}" Width="56" MinWidth="48"/>
+                                                            <DataGridTextColumn Header="Статус" Binding="{Binding StatusDisplay}" Width="110" MinWidth="90"/>
+                                                        </DataGrid.Columns>
+                                                    </DataGrid>
+                                                </Border>
+                                            </Expander.Content>
+                                        </Expander>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -257,6 +308,7 @@
                 </Grid>
             </Border>
 
+            <!-- 5. Bottom Action Bar -->
             <Border Grid.Row="4"
                     Margin="0,16,0,0"
                     Background="#F8FAFC"
@@ -292,27 +344,14 @@
                                            Text="0 позиций"/>
                             </Border>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Обновить"
-                                    Style="{StaticResource SecondaryButton}"
-                                    Height="32"
-                                    Padding="12,0"
-                                    Margin="0,0,8,0"
-                                    Click="RefreshButton_Click"/>
-                            <Button x:Name="ExportJsonButton"
-                                    Content="JSON"
-                                    Style="{StaticResource SecondaryButton}"
-                                    Height="32"
-                                    Padding="12,0"
-                                    Margin="0,0,8,0"
-                                    Click="ExportJsonButton_Click"/>
-                            <Button Content="Закрыть"
-                                    Style="{StaticResource SecondaryButton}"
-                                    Height="32"
-                                    Padding="14,0"
-                                    IsCancel="True"
-                                    Click="CloseButton_Click"/>
-                        </StackPanel>
+                        <!-- Close button is moved here on the right, keeping action bar clean -->
+                        <Button Content="Закрыть"
+                                Style="{StaticResource SecondaryButton}"
+                                Height="32"
+                                Padding="14,0"
+                                IsCancel="True"
+                                Click="CloseButton_Click"
+                                HorizontalAlignment="Right"/>
                     </Grid>
 
                     <Grid Grid.Row="1">
@@ -322,32 +361,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="QtyModeEditableRadio"
-                                             GroupName="QtyApplyMode"
-                                             Content="Как в MySpace"
-                                             IsChecked="True"
-                                             Margin="0,0,16,0"
-                                             VerticalAlignment="Center"
-                                             Checked="QtyApplyMode_Checked"/>
-                                <RadioButton x:Name="QtyModeAllRadio"
-                                             GroupName="QtyApplyMode"
-                                             Content="Все qty≠"
-                                             Margin="0,0,16,0"
-                                             VerticalAlignment="Center"
-                                             Checked="QtyApplyMode_Checked"/>
-                                <RadioButton x:Name="QtyModeSkipRadio"
-                                             GroupName="QtyApplyMode"
-                                             Content="Не передавать"
-                                             VerticalAlignment="Center"
-                                             Checked="QtyApplyMode_Checked"/>
-                            </StackPanel>
                             <TextBlock x:Name="QtyModeHintText"
-                                       Margin="0,6,12,0"
                                        FontSize="12"
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                       Text="Только позиции с полем ввода объёма в MySpace. Перед отправкой покажем список изменений."/>
+                                       Text="В ДС уходят только объёмы, которые можно править в MySpace. Состав проекта пока не блокирует отправку."/>
                         </StackPanel>
 
                         <Button x:Name="ApplyQtyButton"

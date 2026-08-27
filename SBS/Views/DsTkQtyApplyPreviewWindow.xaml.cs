@@ -25,24 +25,12 @@ namespace SmartRemont.ExportRooms.Views
             StatSendValue.Text = preview.Candidates.Count.ToString(CultureInfo.InvariantCulture);
             StatDsValue.Text = $"№{dsId}";
 
-            if (preview.Mode == DsTkQtyApplyMode.EditableOnly)
-            {
-                StatSkipValue.Text = preview.SkippedNotEditable.ToString(CultureInfo.InvariantCulture);
-                StatSkipLabel.Text = "пропущено (нет ввода)";
-                EditableColumn.Visibility = Visibility.Collapsed;
-                FooterHintText.Text =
-                    preview.SkippedNotEditable > 0
-                        ? $"Из {preview.TotalQtyMismatch} qty≠ отфильтровано {preview.SkippedNotEditable} — в MySpace у них нет поля ввода объёма."
-                        : "Все найденные qty≠ можно править в MySpace.";
-            }
-            else
-            {
-                StatSkipValue.Text = preview.SkippedNotEditable.ToString(CultureInfo.InvariantCulture);
-                StatSkipLabel.Text = "без ввода MySpace";
-                EditableColumn.Visibility = Visibility.Visible;
-                FooterHintText.Text =
-                    "Колонка MySpace = is_material_cnt_input. «нет» обычно нельзя править руками в ДС.";
-            }
+            StatSkipValue.Text = preview.ProjectAlertCount.ToString(CultureInfo.InvariantCulture);
+            StatSkipLabel.Text = "алерт проекта ≥10%";
+            EditableColumn.Visibility = Visibility.Collapsed;
+
+            FooterHintText.Text =
+                "В ДС уйдут только объёмы с полем ввода в MySpace. Расхождения состава пока не блокируют.";
 
             if (!string.IsNullOrWhiteSpace(dsStatusDisplay))
                 StatDsValue.ToolTip = dsStatusDisplay;
