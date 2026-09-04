@@ -7,7 +7,7 @@
 | `README.md` | Главная документация, быстрый старт |
 | `AGENTS.md` | Инструкции для AI-агентов |
 | `SBS.sln` | Solution Visual Studio / `dotnet build` |
-| `deploy/` | Пример `.addin` для Revit |
+| `deploy/` | `.addin`, Inno `.iss`, `pack-installer.ps1` |
 | `external-agent-memory/` | Память между сессиями агентов |
 
 ## Активный проект `SBS/`

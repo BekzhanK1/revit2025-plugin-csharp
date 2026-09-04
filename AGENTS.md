@@ -50,6 +50,14 @@ dotnet build SBS.sln -c Release -p:DeployToRevit=true
 
 Путь деплоя задан в `SBS.csproj`: `RevitAddinDeployDir` → `C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\`.
 
+Установщик для проектировщиков (Inno Setup 6):
+
+```bash
+powershell -ExecutionPolicy Bypass -File deploy\pack-installer.ps1
+```
+
+Результат: `deploy/out/SmartRemont-Revit-2025-Setup.exe`. Не коммитить `deploy/payload/` и `deploy/out/`.
+
 ### Revit API
 
 - `RevitAPI.dll` / `RevitAPIUI.dll`: `Private=false`, путь к установленному Revit 2025.

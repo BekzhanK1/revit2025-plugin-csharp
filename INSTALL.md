@@ -6,6 +6,29 @@
 
 ---
 
+## Для проектировщиков
+
+Нужен файл **`SmartRemont-Revit-2025-Setup.exe`** (собирает разработчик, см. раздел «Сборка установщика»).
+
+1. Закройте **Revit 2025**.
+2. Запустите Setup.exe от имени администратора.
+3. Откройте Revit 2025 — вкладка **Smart Remont**.
+4. Войдите в Smart Remont.
+
+Удаление: «Параметры Windows → Приложения» или `appwiz.cpl` → Smart Remont — Revit 2025.
+
+Сборка установщика (на машине разработчика, нужен [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\pack-installer.ps1
+```
+
+Готовый файл: `deploy\out\SmartRemont-Revit-2025-Setup.exe`.
+
+Ниже — установка из исходников (для разработчиков).
+
+---
+
 ## 1. Требования
 
 | Компонент | Версия / путь |
