@@ -215,10 +215,11 @@ namespace SmartRemont.ExportRooms.Services
                 Title = "Электрические приборы (с ID)",
                 ScheduleNamesExact = new List<string>
                 {
+                    "Спецификация электрических приборов..",
                     "Спецификация электрических приборов.",
                     "Спецификация электрических приборов"
                 },
-                Mode = ParseMode.FlatByRoomColumn,
+                Mode = ParseMode.GroupedByRoomHeader,
                 MaterialIdColumnsExact = new List<string> { "ID материала" },
                 MaterialNameColumnsExact = new List<string> { "Наименование", "Описание" },
                 QuantityColumnsExact = new List<string> { "Кол-во, шт.", "Кол-во, шт", "Число, шт", "Кол-во" },

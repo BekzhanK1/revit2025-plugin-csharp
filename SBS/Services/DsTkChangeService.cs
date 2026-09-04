@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using SmartRemont.ExportRooms.DTO;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -106,6 +107,9 @@ namespace SmartRemont.ExportRooms.Services
         public int ClientMaterialId { get; init; }
         public int? MaterialSetId { get; init; }
         public int MaterialId { get; init; }
+        public bool IsSetMember { get; init; }
+        public int? TkChangeId { get; init; }
+        public double? HeadMaterialCnt { get; init; }
         public string MaterialName { get; init; }
         public string RoomName { get; init; }
         public string WorkSetName { get; init; }
@@ -405,6 +409,7 @@ namespace SmartRemont.ExportRooms.Services
             public bool IsMaterialCntInput { get; init; }
             public int? ActionType { get; init; }
             public int? TkChangeId { get; init; }
+            public List<ClientMaterialSetItemDto> SetItems { get; init; }
         }
 
         /// <summary>
@@ -436,7 +441,7 @@ namespace SmartRemont.ExportRooms.Services
         }
 
         /// <summary>
-        /// Подменяет material_cnt / is_material_cnt_input в снимке ТК значениями из ДС (по client_material_id).
+        /// Подменяет qty / состав набора в снимке ТК значениями из ДС по (client_material_id, material_id).
         /// </summary>
         public static ClientMaterialTkSnapshot ApplyDsQtyOverlay(
             ClientMaterialTkSnapshot tk,
@@ -450,6 +455,11 @@ namespace SmartRemont.ExportRooms.Services
                 .GroupBy(r => r.ClientMaterialId)
                 .ToDictionary(g => g.Key, g => g.First());
 
+            var byKey = dsRows
+                .Where(r => r != null && r.ClientMaterialId > 0 && r.MaterialId is > 0)
+                .GroupBy(r => (r.ClientMaterialId, r.MaterialId!.Value))
+                .ToDictionary(g => g.Key, g => g.First());
+
             var applied = 0;
             foreach (var row in tk.Rows)
             {
@@ -458,7 +468,6 @@ namespace SmartRemont.ExportRooms.Services
                 if (!byCm.TryGetValue(row.ClientMaterialId.Value, out var ds))
                     continue;
 
-                // Удалённые в ДС — qty в MySpace не правят.
                 if (ds.ActionType == 1)
                 {
                     row.IsMaterialCntInput = false;
@@ -466,11 +475,35 @@ namespace SmartRemont.ExportRooms.Services
                     continue;
                 }
 
-                if (ds.MaterialCnt != null)
-                    row.MaterialCnt = ds.MaterialCnt;
                 row.IsMaterialCntInput = ds.IsMaterialCntInput;
                 if (ds.MaterialSetId is > 0)
                     row.MaterialSetId = ds.MaterialSetId;
+                if (ds.TkChangeId is > 0)
+                    row.TkChangeId = ds.TkChangeId;
+
+                if (!row.IsSetMember)
+                {
+                    if (ds.MaterialCnt != null)
+                        row.MaterialCnt = ds.MaterialCnt;
+                    if (ds.SetItems is { Count: > 0 })
+                        row.SetItems = ds.SetItems;
+                    applied++;
+                    continue;
+                }
+
+                if (row.MaterialId is > 0
+                    && byKey.TryGetValue((row.ClientMaterialId.Value, row.MaterialId.Value), out var dsItem)
+                    && dsItem.MaterialCnt != null)
+                {
+                    row.MaterialCnt = dsItem.MaterialCnt;
+                    applied++;
+                    continue;
+                }
+
+                var fromSet = ds.SetItems?
+                    .FirstOrDefault(i => i.MaterialId == row.MaterialId);
+                if (fromSet?.MaterialCnt != null)
+                    row.MaterialCnt = fromSet.MaterialCnt;
                 applied++;
             }
 
@@ -517,7 +550,8 @@ namespace SmartRemont.ExportRooms.Services
                     MaterialCnt = ReadDouble(token["material_cnt"]),
                     IsMaterialCntInput = ReadBool(token["is_material_cnt_input"]) == true,
                     ActionType = ReadInt(token["action_type"]),
-                    TkChangeId = ReadInt(token["tk_change_id"])
+                    TkChangeId = ReadInt(token["tk_change_id"]),
+                    SetItems = ClientMaterialTkService.ParseSetItems(token)
                 });
             }
 
@@ -611,6 +645,9 @@ namespace SmartRemont.ExportRooms.Services
                         ClientMaterialId = row.ClientMaterialId.Value,
                         MaterialSetId = row.MaterialSetId is > 0 ? row.MaterialSetId : null,
                         MaterialId = row.MaterialId,
+                        IsSetMember = row.IsSetMember,
+                        TkChangeId = row.TkChangeId,
+                        HeadMaterialCnt = FindHeadQty(compare, row.ClientMaterialId.Value),
                         MaterialName = row.MaterialName,
                         RoomName = room.RoomName,
                         WorkSetName = row.WorkSetName,
@@ -622,9 +659,9 @@ namespace SmartRemont.ExportRooms.Services
                 }
             }
 
-            // Один client_material_id — одна запись.
+            // Шапка и элемент набора — разные позиции (один cm, разные material_id).
             allEligible = allEligible
-                .GroupBy(c => c.ClientMaterialId)
+                .GroupBy(c => (c.ClientMaterialId, c.MaterialId))
                 .Select(g => g.First())
                 .OrderBy(c => c.RoomDisplay, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(c => c.MaterialDisplay, StringComparer.OrdinalIgnoreCase)
@@ -654,10 +691,24 @@ namespace SmartRemont.ExportRooms.Services
             };
         }
 
+        static double? FindHeadQty(DsTkCompareResult compare, int clientMaterialId)
+        {
+            foreach (var room in compare?.Rooms ?? Enumerable.Empty<DsTkCompareRoom>())
+            {
+                var head = room.Rows?.FirstOrDefault(r =>
+                    r.ClientMaterialId == clientMaterialId && !r.IsSetMember);
+                if (head != null)
+                    return head.TkQty;
+            }
+
+            return null;
+        }
+
         public static async Task<DsTkQtyApplyResult> ApplyQtyAsync(
             int clientRequestId,
             int dsId,
-            IReadOnlyList<DsTkQtyApplyCandidate> candidates)
+            IReadOnlyList<DsTkQtyApplyCandidate> candidates,
+            DsTkCompareResult compare = null)
         {
             EnsureRequest(clientRequestId);
             if (dsId <= 0)
@@ -690,28 +741,48 @@ namespace SmartRemont.ExportRooms.Services
             var failed = 0;
             var errors = new List<string>();
 
-            foreach (var item in candidates)
+            foreach (var group in candidates.GroupBy(c => c.ClientMaterialId))
             {
+                var items = group.ToList();
+                var first = items[0];
                 try
                 {
-                    await SetItemCntAsync(clientRequestId, dsId, item, session.AccessToken)
-                        .ConfigureAwait(false);
-                    succeeded++;
+                    if (first.MaterialSetId is > 0)
+                    {
+                        var payload = BuildSetItemPayload(items, compare);
+                        await SetItemCntAsync(
+                                clientRequestId,
+                                dsId,
+                                first,
+                                session.AccessToken,
+                                payload)
+                            .ConfigureAwait(false);
+                        succeeded += items.Count;
+                    }
+                    else
+                    {
+                        foreach (var item in items)
+                        {
+                            await SetItemCntAsync(clientRequestId, dsId, item, session.AccessToken)
+                                .ConfigureAwait(false);
+                            succeeded++;
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    failed++;
-                    var label = string.IsNullOrWhiteSpace(item.MaterialName)
-                        ? $"material_id={item.MaterialId}"
-                        : item.MaterialName.Trim();
-                    var room = string.IsNullOrWhiteSpace(item.RoomName) ? "—" : item.RoomName.Trim();
+                    failed += items.Count;
+                    var label = string.IsNullOrWhiteSpace(first.MaterialName)
+                        ? $"material_id={first.MaterialId}"
+                        : first.MaterialName.Trim();
+                    var room = first.RoomDisplay;
                     errors.Add($"{room}: {label} — {ex.Message}");
                     ExportRoomsApplication._logger?.Warning(
                         ex,
                         "DS TK set item cnt failed ds={DsId} cm={ClientMaterialId} material={MaterialId} room={Room}",
                         dsId,
-                        item.ClientMaterialId,
-                        item.MaterialId,
+                        first.ClientMaterialId,
+                        first.MaterialId,
                         room);
                 }
             }
@@ -734,23 +805,116 @@ namespace SmartRemont.ExportRooms.Services
             };
         }
 
+        sealed class SetItemCntPayload
+        {
+            public double? HeadCnt { get; init; }
+            public List<int> MaterialIds { get; init; } = new();
+            public List<double> MaterialCnts { get; init; } = new();
+        }
+
+        static SetItemCntPayload BuildSetItemPayload(
+            IReadOnlyList<DsTkQtyApplyCandidate> group,
+            DsTkCompareResult compare)
+        {
+            var first = group[0];
+            var changed = group
+                .Where(c => c.MaterialId > 0)
+                .GroupBy(c => c.MaterialId)
+                .ToDictionary(g => g.Key, g => g.First().ScheduleQty);
+
+            var members = new List<DsTkCompareRow>();
+            DsTkCompareRow head = null;
+            foreach (var room in compare?.Rooms ?? Enumerable.Empty<DsTkCompareRoom>())
+            {
+                if (room?.Rows == null)
+                    continue;
+                foreach (var row in room.Rows)
+                {
+                    if (row.ClientMaterialId != first.ClientMaterialId)
+                        continue;
+                    if (row.IsSetMember && row.MaterialId > 0)
+                        members.Add(row);
+                    else if (!row.IsSetMember)
+                        head ??= row;
+                }
+            }
+
+            var isUpdate = first.TkChangeId is > 0;
+            var toSend = isUpdate
+                ? members.Where(m => changed.ContainsKey(m.MaterialId)).ToList()
+                : members;
+
+            var ids = new List<int>();
+            var cnts = new List<double>();
+            foreach (var row in toSend)
+            {
+                ids.Add(row.MaterialId);
+                cnts.Add(changed.TryGetValue(row.MaterialId, out var qty) ? qty : row.TkQty ?? 0);
+            }
+
+            if (ids.Count == 0)
+            {
+                foreach (var item in group)
+                {
+                    if (item.MaterialId <= 0)
+                        continue;
+                    ids.Add(item.MaterialId);
+                    cnts.Add(item.ScheduleQty);
+                }
+            }
+
+            var headCnt = first.HeadMaterialCnt ?? head?.TkQty;
+            var headChange = group.FirstOrDefault(c => !c.IsSetMember);
+            if (headChange != null)
+                headCnt = headChange.ScheduleQty;
+
+            return new SetItemCntPayload
+            {
+                HeadCnt = headCnt,
+                MaterialIds = ids,
+                MaterialCnts = cnts
+            };
+        }
+
         static async Task SetItemCntAsync(
             int clientRequestId,
             int dsId,
             DsTkQtyApplyCandidate item,
-            string accessToken)
+            string accessToken,
+            SetItemCntPayload setPayload = null)
         {
             var url = Configs.ClientRequestDsTkChangeSetItemCntUrl(clientRequestId);
+            var idArr = new JArray();
+            var cntArr = new JArray();
+            if (setPayload != null)
+            {
+                for (var i = 0; i < setPayload.MaterialIds.Count; i++)
+                {
+                    idArr.Add(setPayload.MaterialIds[i]);
+                    cntArr.Add(setPayload.MaterialCnts[i]);
+                }
+            }
+            else if (item.IsSetMember && item.MaterialId > 0)
+            {
+                idArr.Add(item.MaterialId);
+                cntArr.Add(item.ScheduleQty);
+            }
+
+            var headCnt = setPayload?.HeadCnt
+                ?? item.HeadMaterialCnt
+                ?? (item.IsSetMember ? (double?)null : item.ScheduleQty)
+                ?? item.ScheduleQty;
+
             var payload = new JObject
             {
                 ["ds_id"] = dsId,
                 ["client_material_id"] = item.ClientMaterialId,
-                ["cnt_material_cnt"] = item.ScheduleQty,
+                ["cnt_material_cnt"] = headCnt,
                 ["cnt_material_set_id"] = item.MaterialSetId,
                 ["cnt_action_type"] = null,
-                ["cnt_tk_change_id"] = null,
-                ["cnt_material_id_arr"] = new JArray(),
-                ["cnt_material_cnt_arr"] = new JArray()
+                ["cnt_tk_change_id"] = item.TkChangeId,
+                ["cnt_material_id_arr"] = idArr,
+                ["cnt_material_cnt_arr"] = cntArr
             };
 
             var payloadJson = payload.ToString(Formatting.None);

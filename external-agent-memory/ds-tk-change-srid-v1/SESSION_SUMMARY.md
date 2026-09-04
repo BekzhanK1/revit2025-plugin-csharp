@@ -29,7 +29,17 @@
 | `SBS/Services/TkQtyScheduleService.cs` | Чтение ViewSchedule |
 | `SBS/Views/DsTkChangeWindow.xaml(.cs)` | UI |
 
+## Наборы (flatten, 2026-08)
+
+Эталон сверки — **шапка + состав** (`items_json` / `set_items`). Иначе SR_ID розеток/рамок (`12133` и т.п.) в Revit помечались extra, хотя это слоты набора `5549`.
+
+- `ClientMaterialTkService.FlattenSets` + parse `items_json`/`items`/`set_items`
+- Overlay ДС по `(client_material_id, material_id)`; qty элемента набора — массивы `cnt_material_id_arr` / `cnt_material_cnt_arr`
+- JSON-экспорт: блок `tk` (развёрнутый)
+- Gold 3071538 локально: `%USERPROFILE%\Desktop\tk_gold_3071538.json` (не в git)
+
 ## Заметки по данным
 
 - Электрика без колонки «ID материала» → источник `ELECTRICS` пишет message в status/JSON; сверка присутствия всё равно идёт по SR_ID типов.
 - LED: комната может быть в колонке ID (grouped header) — поддержано.
+- Состав набора: plugin `tk/read` может не отдать `items_json`; тогда состав берётся из `GET …/ds/{ds}/tk_material/` при привязанной ДС.

@@ -24,6 +24,8 @@ namespace SmartRemont.ExportRooms.Services
         public int MaterialId { get; init; }
         public int? ClientMaterialId { get; init; }
         public int? MaterialSetId { get; init; }
+        public bool IsSetMember { get; init; }
+        public int? TkChangeId { get; init; }
         public bool IsMaterialCntInput { get; init; }
         public string MaterialName { get; init; }
         public string WorkSetName { get; init; }
@@ -253,6 +255,8 @@ namespace SmartRemont.ExportRooms.Services
                         MaterialId = materialId,
                         ClientMaterialId = tkRow?.ClientMaterialId,
                         MaterialSetId = tkRow?.MaterialSetId,
+                        IsSetMember = tkRow?.IsSetMember == true,
+                        TkChangeId = tkRow?.TkChangeId,
                         IsMaterialCntInput = canEditQty,
                         MaterialName = Prefer(
                             Strip(tkRow?.MaterialName),
@@ -351,7 +355,8 @@ namespace SmartRemont.ExportRooms.Services
 
             return tkGroup
                 .Where(r => r?.ClientMaterialId is > 0)
-                .OrderByDescending(r => r.MaterialCnt ?? -1d)
+                .OrderByDescending(r => r.IsSetMember)
+                .ThenByDescending(r => r.MaterialCnt ?? -1d)
                 .ThenByDescending(r => r.ClientMaterialId)
                 .FirstOrDefault()
                 ?? tkGroup.FirstOrDefault();

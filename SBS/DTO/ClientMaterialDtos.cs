@@ -61,5 +61,28 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("is_optional")]
         public int IsOptional { get; set; }
+
+        /// <summary>Состав набора (шапка). После flatten у дочерних строк пусто.</summary>
+        [JsonProperty("set_items")]
+        public List<ClientMaterialSetItemDto> SetItems { get; set; }
+
+        /// <summary>true — строка состава набора, не шапка client_material.</summary>
+        [JsonProperty("is_set_member")]
+        public bool IsSetMember { get; set; }
+
+        [JsonProperty("tk_change_id")]
+        public int? TkChangeId { get; set; }
+    }
+
+    public class ClientMaterialSetItemDto
+    {
+        [JsonProperty("material_id")]
+        public int? MaterialId { get; set; }
+
+        [JsonProperty("material_name")]
+        public string MaterialName { get; set; }
+
+        [JsonProperty("material_cnt")]
+        public double? MaterialCnt { get; set; }
     }
 }

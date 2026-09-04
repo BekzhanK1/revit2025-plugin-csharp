@@ -51,6 +51,8 @@ namespace SmartRemont.ExportRooms.Services
     {
         static readonly Regex NumberRegex = new(@"[-+]?\d+(?:[.,]\d+)?", RegexOptions.Compiled);
         static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+        /// <summary>В ведомости электрики ID сидит в имени: 12133_Рамка на 1 пост.</summary>
+        static readonly Regex IdInNameRegex = new(@"^(\d+)_(.+)$", RegexOptions.Compiled);
 
         public static TkQtyScheduleSnapshot Collect(Document doc)
         {
@@ -112,22 +114,15 @@ namespace SmartRemont.ExportRooms.Services
                 var effectiveScale = ResolveEffectiveScale(entry.QuantityScale, qtyHeader, entry.QuantityUnit);
 
                 List<TkQtyScheduleLine> lines;
-                switch (entry.Mode)
+                if (entry.Mode == TkQtyScheduleMapping.ParseMode.FlatByRoomColumn
+                    && colRoom != null
+                    && colId != null)
                 {
-                    case TkQtyScheduleMapping.ParseMode.FlatByRoomColumn:
-                        if (colRoom == null)
-                        {
-                            source.Message = "Нет колонки помещения";
-                            snapshot.Sources.Add(source);
-                            continue;
-                        }
-
-                        lines = ParseFlat(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom.Value, effectiveScale);
-                        break;
-
-                    default:
-                        lines = ParseGrouped(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom, effectiveScale);
-                        break;
+                    lines = ParseFlat(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom.Value, effectiveScale);
+                }
+                else
+                {
+                    lines = ParseGrouped(schedule, rowCount, headers, entry, colId, colName, colQty, colRoom, effectiveScale);
                 }
 
                 source.LineCount = lines.Count;
@@ -223,7 +218,11 @@ namespace SmartRemont.ExportRooms.Services
                     continue;
 
                 if (!TryParseMaterialId(GetCell(schedule, r, colId), out var materialId))
-                    continue;
+                {
+                    var nameCell = colName is int cn0 ? GetCell(schedule, r, cn0).Trim() : null;
+                    if (!TryParseIdFromName(nameCell, out materialId, out _))
+                        continue;
+                }
 
                 var qty = ResolveQuantity(schedule, r, colQty, scale);
                 var name = colName is int cn ? GetCell(schedule, r, cn).Trim() : null;
@@ -248,7 +247,7 @@ namespace SmartRemont.ExportRooms.Services
             int rowCount,
             Dictionary<string, int> headers,
             TkQtyScheduleMapping.Entry entry,
-            int colId,
+            int? colId,
             int? colName,
             int? colQty,
             int? colRoom,
@@ -262,19 +261,26 @@ namespace SmartRemont.ExportRooms.Services
                 if (IsNoiseRow(schedule, r, headers))
                     continue;
 
-                var idRaw = GetCell(schedule, r, colId).Trim();
-                var roomFromCol = colRoom is int cr ? GetCell(schedule, r, cr).Trim() : null;
-                var hasMaterialId = TryParseMaterialId(idRaw, out var materialId);
-                var qty = ResolveQuantity(schedule, r, colQty, scale);
+                var idRaw = colId is int ci ? GetCell(schedule, r, ci).Trim() : string.Empty;
                 var name = colName is int cn ? GetCell(schedule, r, cn).Trim() : null;
+                var roomFromCol = colRoom is int cr ? GetCell(schedule, r, cr).Trim() : null;
+                var displayName = name;
 
-                // Строка-заголовок группы: комната в Room-колонке или нечисловой ID (как LED).
+                var hasMaterialId = TryParseMaterialId(idRaw, out var materialId);
+                if (!hasMaterialId)
+                    hasMaterialId = TryParseIdFromName(name, out materialId, out displayName);
+
+                var qty = ResolveQuantity(schedule, r, colQty, scale);
+                var qtyRaw = colQty is int cq ? GetCell(schedule, r, cq).Trim() : null;
+                var hasQtyNumber = ParseNullableDouble(qtyRaw) != null;
+
+                // Строка-заголовок группы: комната без ID и без qty (как электрика по помещениям).
                 if (!hasMaterialId)
                 {
-                    var roomHeader = !string.IsNullOrWhiteSpace(roomFromCol)
-                        ? roomFromCol
-                        : (!string.IsNullOrWhiteSpace(idRaw) && !IsNoiseLabel(idRaw) ? idRaw : null);
+                    if (hasQtyNumber)
+                        continue;
 
+                    var roomHeader = FirstNonEmpty(roomFromCol, name, idRaw);
                     if (!string.IsNullOrWhiteSpace(roomHeader) && !IsNoiseLabel(roomHeader))
                         currentRoom = roomHeader.Trim();
                     continue;
@@ -289,13 +295,46 @@ namespace SmartRemont.ExportRooms.Services
                     ScheduleName = schedule.Name,
                     RoomName = string.IsNullOrWhiteSpace(currentRoom) ? null : currentRoom,
                     MaterialId = materialId,
-                    MaterialName = string.IsNullOrWhiteSpace(name) ? null : name,
+                    MaterialName = string.IsNullOrWhiteSpace(displayName) ? null : displayName,
                     Quantity = qty,
                     Unit = entry.QuantityUnit
                 });
             }
 
             return lines;
+        }
+
+        static bool TryParseIdFromName(string raw, out int materialId, out string rest)
+        {
+            materialId = 0;
+            rest = raw;
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+
+            var m = IdInNameRegex.Match(raw.Trim());
+            if (!m.Success)
+                return false;
+
+            if (!int.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out materialId)
+                || materialId <= 0)
+            {
+                materialId = 0;
+                return false;
+            }
+
+            rest = m.Groups[2].Value.Trim();
+            return !string.IsNullOrWhiteSpace(rest);
+        }
+
+        static string FirstNonEmpty(params string[] values)
+        {
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value.Trim();
+            }
+
+            return null;
         }
 
         static double ResolveQuantity(ViewSchedule schedule, int row, int? colQty, double scale)
@@ -325,11 +364,15 @@ namespace SmartRemont.ExportRooms.Services
             {
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
-                if (!byName.TryGetValue(NormalizeName(name), out var schedule) || schedule == null)
-                    continue;
-                if (!seen.Add(schedule.Id.Value))
-                    continue;
-                schedules.Add(schedule);
+
+                foreach (var variant in ScheduleNameVariants(name))
+                {
+                    if (!byName.TryGetValue(NormalizeName(variant), out var schedule) || schedule == null)
+                        continue;
+                    if (!seen.Add(schedule.Id.Value))
+                        continue;
+                    schedules.Add(schedule);
+                }
             }
 
             return schedules.Count > 0;
@@ -359,25 +402,67 @@ namespace SmartRemont.ExportRooms.Services
             error = "Не удалось прочитать таблицу";
 
             var sawMissingId = false;
+            ViewSchedule idInNameCandidate = null;
+            Dictionary<string, int> idInNameHeaders = null;
+            var idInNameRows = 0;
+            int? idInNameColName = null;
+            int? idInNameColQty = null;
+            string idInNameQtyHeader = null;
+            int? idInNameColRoom = null;
+            var idInNameHits = -1;
+
             foreach (var candidate in schedules)
             {
                 if (!TryReadTable(candidate, out var candidateHeaders, out var candidateRows))
                     continue;
 
                 var id = ResolveColumnExact(candidateHeaders, entry.MaterialIdColumnsExact, out _);
-                if (id == null)
+                var nameCol = ResolveColumnExact(candidateHeaders, entry.MaterialNameColumnsExact, out _);
+                var qtyCol = ResolveColumnExact(candidateHeaders, entry.QuantityColumnsExact, out var qtyHdr);
+                var roomCol = ResolveColumnExact(candidateHeaders, entry.RoomColumnsExact, out _);
+
+                if (id != null)
                 {
-                    sawMissingId = true;
-                    continue;
+                    schedule = candidate;
+                    headers = candidateHeaders;
+                    rowCount = candidateRows;
+                    colId = id;
+                    colName = nameCol;
+                    colQty = qtyCol;
+                    qtyHeader = qtyHdr;
+                    colRoom = roomCol;
+                    error = null;
+                    return true;
                 }
 
-                schedule = candidate;
-                headers = candidateHeaders;
-                rowCount = candidateRows;
-                colId = id;
-                colName = ResolveColumnExact(candidateHeaders, entry.MaterialNameColumnsExact, out _);
-                colQty = ResolveColumnExact(candidateHeaders, entry.QuantityColumnsExact, out qtyHeader);
-                colRoom = ResolveColumnExact(candidateHeaders, entry.RoomColumnsExact, out _);
+                sawMissingId = true;
+                if (nameCol == null || qtyCol == null)
+                    continue;
+
+                var hits = CountIdInNameHits(candidate, candidateRows, nameCol.Value);
+                if (hits <= idInNameHits)
+                    continue;
+
+                idInNameHits = hits;
+                idInNameCandidate = candidate;
+                idInNameHeaders = candidateHeaders;
+                idInNameRows = candidateRows;
+                idInNameColName = nameCol;
+                idInNameColQty = qtyCol;
+                idInNameQtyHeader = qtyHdr;
+                idInNameColRoom = roomCol;
+            }
+
+            if (idInNameCandidate != null)
+            {
+                schedule = idInNameCandidate;
+                headers = idInNameHeaders;
+                rowCount = idInNameRows;
+                colId = null;
+                colName = idInNameColName;
+                colQty = idInNameColQty;
+                qtyHeader = idInNameQtyHeader;
+                colRoom = idInNameColRoom;
                 error = null;
                 return true;
             }
@@ -386,6 +471,30 @@ namespace SmartRemont.ExportRooms.Services
                 ? "Нет колонки ID материала (добавьте «ID материала» в ведомость или отключите источник в конфиге)"
                 : "Не удалось прочитать таблицу";
             return false;
+        }
+
+        static int CountIdInNameHits(ViewSchedule schedule, int rowCount, int colName)
+        {
+            var hits = 0;
+            for (var r = 1; r < rowCount && r < 80; r++)
+            {
+                if (TryParseIdFromName(GetCell(schedule, r, colName), out _, out _))
+                    hits++;
+            }
+
+            return hits;
+        }
+
+        static IEnumerable<string> ScheduleNameVariants(string name)
+        {
+            yield return name;
+            var trimmed = name.Trim().TrimEnd('.');
+            if (string.IsNullOrWhiteSpace(trimmed))
+                yield break;
+
+            yield return trimmed;
+            yield return trimmed + ".";
+            yield return trimmed + "..";
         }
 
         static bool TryParseMaterialId(string raw, out int materialId)

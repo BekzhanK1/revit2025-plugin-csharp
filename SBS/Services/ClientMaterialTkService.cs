@@ -53,7 +53,200 @@ namespace SmartRemont.ExportRooms.Services
             var snapshot = ParseResponse(responseBody);
             if (snapshot.HasData)
                 await EnrichIsMaterialCntInputAsync(snapshot.Rows, session.AccessToken).ConfigureAwait(false);
+
+            var setsWithoutItems = snapshot.Rows.Count(r =>
+                r?.MaterialSetId is > 0 && (r.SetItems == null || r.SetItems.Count == 0));
+            ExportRoomsApplication._logger?.Information(
+                "TK read cr={ClientRequestId} rows={Rows} sets={Sets} sets_without_items={Bare}",
+                clientRequestId,
+                snapshot.Rows.Count,
+                snapshot.Rows.Count(r => r?.MaterialSetId is > 0),
+                setsWithoutItems);
+
             return snapshot;
+        }
+
+        public static ClientMaterialTkSnapshot FlattenSets(ClientMaterialTkSnapshot snapshot)
+        {
+            if (snapshot?.Rows == null || snapshot.Rows.Count == 0)
+                return snapshot;
+
+            snapshot.Rows = FlattenSetRows(snapshot.Rows);
+            return snapshot;
+        }
+
+        public static List<ClientMaterialRowDto> FlattenSetRows(IReadOnlyList<ClientMaterialRowDto> rows)
+        {
+            var result = new List<ClientMaterialRowDto>();
+            if (rows == null || rows.Count == 0)
+                return result;
+
+            foreach (var row in rows)
+            {
+                if (row == null)
+                    continue;
+
+                if (row.IsSetMember)
+                {
+                    result.Add(CloneRow(row));
+                    continue;
+                }
+
+                var head = CloneRow(row);
+                result.Add(head);
+
+                var items = row.SetItems;
+                if (items == null || items.Count == 0)
+                    continue;
+
+                var seen = new HashSet<int>();
+                if (head.MaterialId is > 0)
+                    seen.Add(head.MaterialId.Value);
+
+                foreach (var item in items)
+                {
+                    if (item?.MaterialId is not > 0)
+                        continue;
+                    if (!seen.Add(item.MaterialId.Value))
+                        continue;
+
+                    result.Add(new ClientMaterialRowDto
+                    {
+                        ClientMaterialId = head.ClientMaterialId,
+                        RoomId = head.RoomId,
+                        RoomName = head.RoomName,
+                        WorkSetId = head.WorkSetId,
+                        WorkSetName = head.WorkSetName,
+                        MaterialId = item.MaterialId,
+                        MaterialName = string.IsNullOrWhiteSpace(item.MaterialName)
+                            ? $"material_id={item.MaterialId}"
+                            : item.MaterialName,
+                        MaterialSetId = head.MaterialSetId,
+                        SetName = head.SetName,
+                        MaterialCnt = item.MaterialCnt,
+                        IsMaterialCntInput = head.IsMaterialCntInput,
+                        IsOptional = head.IsOptional,
+                        IsSetMember = true,
+                        TkChangeId = head.TkChangeId
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        public static ClientMaterialRowDto CloneRow(ClientMaterialRowDto row)
+        {
+            if (row == null)
+                return null;
+
+            return new ClientMaterialRowDto
+            {
+                ClientMaterialId = row.ClientMaterialId,
+                RoomId = row.RoomId,
+                RoomName = row.RoomName,
+                WorkSetId = row.WorkSetId,
+                WorkSetName = row.WorkSetName,
+                MaterialId = row.MaterialId,
+                MaterialName = row.MaterialName,
+                MaterialSetId = row.MaterialSetId,
+                SetName = row.SetName,
+                MaterialCnt = row.MaterialCnt,
+                IsMaterialCntInput = row.IsMaterialCntInput,
+                IsOptional = row.IsOptional,
+                IsSetMember = row.IsSetMember,
+                TkChangeId = row.TkChangeId,
+                SetItems = CloneSetItems(row.SetItems)
+            };
+        }
+
+        static List<ClientMaterialSetItemDto> CloneSetItems(List<ClientMaterialSetItemDto> items)
+        {
+            if (items == null || items.Count == 0)
+                return items;
+
+            return items
+                .Where(i => i != null)
+                .Select(i => new ClientMaterialSetItemDto
+                {
+                    MaterialId = i.MaterialId,
+                    MaterialName = i.MaterialName,
+                    MaterialCnt = i.MaterialCnt
+                })
+                .ToList();
+        }
+
+        public static List<ClientMaterialSetItemDto> ParseSetItems(JObject obj)
+        {
+            if (obj == null)
+                return new List<ClientMaterialSetItemDto>();
+
+            var token = obj["items_json"] ?? obj["items"] ?? obj["set_items"];
+            return ParseSetItemsToken(token);
+        }
+
+        public static List<ClientMaterialSetItemDto> ParseSetItemsToken(JToken token)
+        {
+            var list = new List<ClientMaterialSetItemDto>();
+            if (token == null || token.Type == JTokenType.Null)
+                return list;
+
+            if (token.Type == JTokenType.String)
+            {
+                var raw = token.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(raw))
+                    return list;
+                try
+                {
+                    token = JToken.Parse(raw);
+                }
+                catch
+                {
+                    return list;
+                }
+            }
+
+            if (token is JArray array)
+            {
+                foreach (var item in array.OfType<JObject>())
+                {
+                    var parsed = ParseSetItem(item);
+                    if (parsed != null)
+                        list.Add(parsed);
+                }
+
+                return list;
+            }
+
+            if (token is JObject map)
+            {
+                foreach (var prop in map.Properties())
+                {
+                    if (!int.TryParse(prop.Name, out var materialId) || materialId <= 0)
+                        continue;
+                    list.Add(new ClientMaterialSetItemDto
+                    {
+                        MaterialId = materialId,
+                        MaterialCnt = ReadDouble(prop.Value)
+                    });
+                }
+            }
+
+            return list;
+        }
+
+        static ClientMaterialSetItemDto ParseSetItem(JObject obj)
+        {
+            var materialId = ReadInt(obj["material_id"]);
+            if (materialId is not > 0)
+                return null;
+
+            return new ClientMaterialSetItemDto
+            {
+                MaterialId = materialId,
+                MaterialName = ReadString(obj["material_name"]),
+                MaterialCnt = ReadDouble(obj["material_cnt"])
+            };
         }
 
         /// <summary>
@@ -231,7 +424,9 @@ namespace SmartRemont.ExportRooms.Services
                 SetName = ReadString(obj["set_name"]),
                 MaterialCnt = ReadDouble(obj["material_cnt"]),
                 IsMaterialCntInput = ReadBool(obj["is_material_cnt_input"]),
-                IsOptional = ReadInt(obj["is_optional"]) ?? 0
+                IsOptional = ReadInt(obj["is_optional"]) ?? 0,
+                TkChangeId = ReadInt(obj["tk_change_id"]),
+                SetItems = ParseSetItems(obj)
             };
         }
 

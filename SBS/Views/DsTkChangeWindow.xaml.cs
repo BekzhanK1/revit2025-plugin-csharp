@@ -24,6 +24,7 @@ namespace SmartRemont.ExportRooms.Views
         RoomSrIdSnapshot _revitSnapshot;
         TkQtyScheduleSnapshot _scheduleQty;
         ClientMaterialTkSnapshot _tkSnapshot;
+        ClientMaterialTkSnapshot _tkFlattened;
         Dictionary<int, RevitMaterialRowDto> _materialMeta = new();
         List<DsTkChangeItem> _dsItems = new();
         DsTkChangeItem _boundDs;
@@ -281,7 +282,54 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             root["rooms"] = rooms;
+            root["tk"] = BuildExportTk(_tkFlattened ?? _tkSnapshot);
             return root;
+        }
+
+        static JObject BuildExportTk(ClientMaterialTkSnapshot tk)
+        {
+            var obj = new JObject
+            {
+                ["flattened"] = true,
+                ["rows"] = new JArray()
+            };
+            if (tk?.ClientRequestId is > 0)
+                obj["client_request_id"] = tk.ClientRequestId.Value;
+            if (tk?.Rows == null || tk.Rows.Count == 0)
+                return obj;
+
+            var rows = (JArray)obj["rows"];
+            foreach (var row in tk.Rows)
+            {
+                if (row == null)
+                    continue;
+                var o = new JObject
+                {
+                    ["is_set_member"] = row.IsSetMember
+                };
+                if (row.ClientMaterialId is > 0)
+                    o["client_material_id"] = row.ClientMaterialId.Value;
+                if (row.MaterialId is > 0)
+                    o["material_id"] = row.MaterialId.Value;
+                if (row.MaterialSetId is > 0)
+                    o["material_set_id"] = row.MaterialSetId.Value;
+                if (row.WorkSetId is > 0)
+                    o["work_set_id"] = row.WorkSetId.Value;
+                if (row.TkChangeId is > 0)
+                    o["tk_change_id"] = row.TkChangeId.Value;
+                if (row.MaterialCnt != null)
+                    o["material_cnt"] = row.MaterialCnt.Value;
+                o["is_material_cnt_input"] = row.IsMaterialCntInput == true;
+                SetIfHas(o, "room_name", row.RoomName);
+                SetIfHas(o, "work_set_name", row.WorkSetName);
+                SetIfHas(o, "material_name", row.MaterialName);
+                SetIfHas(o, "set_name", row.SetName);
+                rows.Add(o);
+            }
+
+            obj["row_count"] = rows.Count;
+            obj["set_member_count"] = tk.Rows.Count(r => r?.IsSetMember == true);
+            return obj;
         }
 
         static JObject BuildExportRow(DsTkCompareRow row)
@@ -298,6 +346,7 @@ namespace SmartRemont.ExportRooms.Views
                 obj["client_material_id"] = row.ClientMaterialId.Value;
             if (row.MaterialSetId is > 0)
                 obj["material_set_id"] = row.MaterialSetId.Value;
+            obj["is_set_member"] = row.IsSetMember;
             obj["is_material_cnt_input"] = row.IsMaterialCntInput;
 
             SetIfHas(obj, "material_name", row.MaterialName);
@@ -404,6 +453,7 @@ namespace SmartRemont.ExportRooms.Views
                 _result = null;
                 _scheduleQty = null;
                 _tkSnapshot = null;
+                _tkFlattened = null;
                 UpdateStats();
                 BindRooms();
             }
@@ -484,6 +534,15 @@ namespace SmartRemont.ExportRooms.Views
                 }
             }
 
+            ClientMaterialTkService.FlattenSets(tkForCompare);
+            _tkFlattened = tkForCompare;
+            ExportRoomsApplication._logger?.Information(
+                "TK flatten cr={ClientRequestId} rows={Rows} set_members={Members} from_ds={FromDs}",
+                _clientRequestId,
+                tkForCompare.Rows?.Count ?? 0,
+                tkForCompare.Rows?.Count(r => r?.IsSetMember == true) ?? 0,
+                fromDs);
+
             _result = DsTkCompareService.Compare(
                 _revitSnapshot,
                 tkForCompare,
@@ -507,23 +566,7 @@ namespace SmartRemont.ExportRooms.Views
                 ClientRequestId = source.ClientRequestId,
                 EmptyMessage = source.EmptyMessage,
                 Rows = (source.Rows ?? new List<ClientMaterialRowDto>())
-                    .Select(r => r == null
-                        ? null
-                        : new ClientMaterialRowDto
-                        {
-                            ClientMaterialId = r.ClientMaterialId,
-                            RoomId = r.RoomId,
-                            RoomName = r.RoomName,
-                            WorkSetId = r.WorkSetId,
-                            WorkSetName = r.WorkSetName,
-                            MaterialId = r.MaterialId,
-                            MaterialName = r.MaterialName,
-                            MaterialSetId = r.MaterialSetId,
-                            SetName = r.SetName,
-                            MaterialCnt = r.MaterialCnt,
-                            IsMaterialCntInput = r.IsMaterialCntInput,
-                            IsOptional = r.IsOptional
-                        })
+                    .Select(ClientMaterialTkService.CloneRow)
                     .Where(r => r != null)
                     .ToList()
             };
@@ -699,7 +742,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 StatusText.Text = $"Отправка объёмов в ДС №{_boundDs.DsId}…";
                 var apply = await DsTkChangeService
-                    .ApplyQtyAsync(_clientRequestId, _boundDs.DsId, candidates)
+                    .ApplyQtyAsync(_clientRequestId, _boundDs.DsId, candidates, _result)
                     .ConfigureAwait(true);
 
                 var msg = $"Объёмы: отправлено {apply.Succeeded} из {apply.Attempted}.";
