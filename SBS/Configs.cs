@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Configuration;
+using System.Linq;
 using System.Reflection;
 
 namespace SmartRemont.ExportRooms
@@ -120,7 +121,23 @@ namespace SmartRemont.ExportRooms
             return config.AppSettings.Settings[key]?.Value;
         }
 
-        static string NormalizeOrigin(string url) =>
-            url?.Trim().TrimEnd('/');
+        static string NormalizeOrigin(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return url;
+
+            // Drop accidental non-ASCII (e.g. Cyrillic ё pasted into .kz) — DNS then fails with "хост неизвестен".
+            var cleaned = new string(url.Trim().Where(c => c < 127 && !char.IsControl(c)).ToArray())
+                .TrimEnd('/');
+
+            if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                && !string.IsNullOrEmpty(uri.Host))
+            {
+                return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+            }
+
+            return cleaned;
+        }
     }
 }
