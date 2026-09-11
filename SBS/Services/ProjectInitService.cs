@@ -3,12 +3,20 @@ using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SmartRemont.ExportRooms.Services
 {
+    public sealed class ProjectInitProgress
+    {
+        public string Message { get; init; }
+        public int Done { get; init; }
+        public int Total { get; init; }
+        public bool Indeterminate { get; init; }
+    }
+
     public sealed class ProjectInitResult
     {
         public bool Success { get; set; }
@@ -19,6 +27,8 @@ namespace SmartRemont.ExportRooms.Services
         public bool FileAlreadyExists { get; set; }
         public bool IsWorksharedWarning { get; set; }
         public bool RemontConflict { get; set; }
+        public bool RolledBack { get; set; }
+        public bool Cancelled { get; set; }
     }
 
     public static class ProjectInitService
@@ -27,19 +37,23 @@ namespace SmartRemont.ExportRooms.Services
             Document doc,
             RemontOption remont,
             bool overwriteExistingFile,
-            IProgress<string> progress = null,
-            RevitMaterialReadResponse materialsResponse = null)
+            IProgress<ProjectInitProgress> progress = null,
+            RevitMaterialReadResponse materialsResponse = null,
+            CancellationToken cancellationToken = default,
+            bool ignorePreflightValidation = false)
         {
             if (doc == null)
                 throw new ArgumentNullException(nameof(doc));
             if (remont == null)
                 throw new ArgumentNullException(nameof(remont));
 
+            var worksharedError = ValidateWorkshared(doc);
+            if (worksharedError != null)
+                return Fail(worksharedError);
+
             var clientRequestId = remont.ClientRequestId;
             if (clientRequestId <= 0)
-            {
                 return Fail("Не указан ID заявки (client_request_id).");
-            }
 
             if (ProjectRemontMetadataService.IsInitialized(doc)
                 && !ProjectRemontMetadataService.ValidateMatches(doc, clientRequestId))
@@ -55,42 +69,34 @@ namespace SmartRemont.ExportRooms.Services
                 };
             }
 
-            var reusedPreviewResponse = materialsResponse != null;
-            Report(progress, reusedPreviewResponse ? "Подготовка материалов..." : "Чтение материалов...");
-            if (materialsResponse == null)
-            {
-                try
-                {
-                    materialsResponse = await RevitMaterialsService.ReadAsync(clientRequestId).ConfigureAwait(true);
-                }
-                catch (Exception ex)
-                {
-                    ExportRoomsApplication._logger?.Warning(ex, "Project init: materials read failed");
-                    return Fail("Не удалось получить материалы: " + ex.Message);
-                }
-            }
-            else if (materialsResponse.Data == null)
-            {
-                materialsResponse.Data = new List<RevitMaterialRowDto>();
-            }
-
-            ExportRoomsApplication._logger?.Information(
-                "Project init: materials ready client_request_id={ClientRequestId}, rows={RowCount}, surfaces_url={HasSurfacesUrl}, reuse_preview_response={Reused}",
+            var initSw = Stopwatch.StartNew();
+            materialsResponse = await EnsureMaterialsResponseAsync(
                 clientRequestId,
-                materialsResponse.Data?.Count ?? 0,
-                !string.IsNullOrWhiteSpace(materialsResponse.SurfacesFileUrl),
-                reusedPreviewResponse);
+                materialsResponse,
+                progress,
+                cancellationToken).ConfigureAwait(true);
+
+            if (ProjectInitMaterialsPreflightService.CountSyncableMaterials(materialsResponse.Data) <= 0)
+                return Fail(ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage());
 
             var remontId = remont.RemontId ?? materialsResponse.RemontId ?? 0;
-
             var targetPath = ProjectFileNamingService.BuildFullPath(
                 clientRequestId,
                 remontId,
                 remont.ResidentName,
                 remont.FlatNum);
 
-            Report(progress, "Сохранение копии проекта...");
+            Report(progress, "Сохранение копии проекта...", indeterminate: true);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var copySw = Stopwatch.StartNew();
             var copyResult = ProjectCopyService.SaveCopyAs(doc, targetPath, overwriteExistingFile);
+            copySw.Stop();
+            ExportRoomsApplication._logger?.Information(
+                "Project init phase save_copy_as: elapsed_ms={ElapsedMs}, success={Success}",
+                copySw.ElapsedMilliseconds,
+                copyResult.Success);
+
             if (!copyResult.Success)
             {
                 return new ProjectInitResult
@@ -103,136 +109,317 @@ namespace SmartRemont.ExportRooms.Services
                 };
             }
 
-            Report(progress, "Синхронизация материалов...");
-            RevitMaterialsSyncResult syncResult;
             try
             {
-                syncResult = await RevitMaterialsSyncOrchestrator.SyncAllAsync(
+                var syncResult = await RunMaterialsSyncAsync(
+                    doc,
+                    clientRequestId,
+                    materialsResponse,
+                    progress,
+                    cancellationToken,
+                    ignorePreflightValidation).ConfigureAwait(true);
+
+                if (!IsInitSyncSuccessful(syncResult, ignorePreflightValidation))
+                {
+                    return FailAfterCopy(BuildStrictSyncFailureMessage(syncResult), copyResult, syncResult);
+                }
+
+                Report(progress, "Запись метаданных заявки...", indeterminate: true);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var remontIdFinal = remontId;
+                ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
+                {
+                    RemontId = remontIdFinal,
+                    ClientRequestId = clientRequestId
+                });
+
+                Report(progress, "Сохранение проекта...", indeterminate: true);
+                doc.Save();
+
+                ProjectInitRollbackService.CleanupVersionBackups(copyResult.TargetPath);
+
+                initSw.Stop();
+                ExportRoomsApplication._logger?.Information(
+                    "Project init completed: client_request_id={ClientRequestId}, path={Path}, loaded={Loaded}, total_elapsed_ms={ElapsedMs}",
+                    clientRequestId,
+                    copyResult.TargetPath,
+                    syncResult.MaterialsLoaded,
+                    initSw.ElapsedMilliseconds);
+
+                var partialErrors = syncResult.ErrorCount;
+                return new ProjectInitResult
+                {
+                    Success = true,
+                    NewFilePath = copyResult.TargetPath,
+                    MaterialsLoaded = syncResult.MaterialsLoaded,
+                    Errors = partialErrors,
+                    IsWorksharedWarning = copyResult.IsWorksharedWarning,
+                    ErrorMessage = BuildInitSuccessWarning(copyResult, syncResult, ignorePreflightValidation)
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                ExportRoomsApplication._logger?.Warning("Project init cancelled by user");
+                return FailAfterCopy("Инициализация отменена.", copyResult, cancelled: true);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex, "Project init failed");
+                return FailAfterCopy(ex.Message, copyResult);
+            }
+        }
+
+        /// <summary>
+        /// Повторная strict-синхронизация материалов без SaveCopyAs (проект уже инициализирован).
+        /// </summary>
+        public static async Task<ProjectInitResult> ResyncMaterialsAsync(
+            Document doc,
+            RemontOption remont,
+            IProgress<ProjectInitProgress> progress = null,
+            RevitMaterialReadResponse materialsResponse = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (doc == null)
+                throw new ArgumentNullException(nameof(doc));
+            if (remont == null)
+                throw new ArgumentNullException(nameof(remont));
+
+            var worksharedError = ValidateWorkshared(doc);
+            if (worksharedError != null)
+                return Fail(worksharedError);
+
+            var clientRequestId = remont.ClientRequestId;
+            if (clientRequestId <= 0)
+                return Fail("Не указан ID заявки (client_request_id).");
+
+            if (!ProjectRemontMetadataService.CanUseHubWorkFeatures(doc)
+                || !ProjectRemontMetadataService.ValidateMatches(doc, clientRequestId))
+            {
+                return Fail("Re-sync доступен только для уже инициализированного проекта текущей заявки.");
+            }
+
+            materialsResponse = await EnsureMaterialsResponseAsync(
+                clientRequestId,
+                materialsResponse,
+                progress,
+                cancellationToken).ConfigureAwait(true);
+
+            if (ProjectInitMaterialsPreflightService.CountSyncableMaterials(materialsResponse.Data) <= 0)
+                return Fail(ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage());
+
+            try
+            {
+                var syncResult = await RunMaterialsSyncAsync(
+                    doc,
+                    clientRequestId,
+                    materialsResponse,
+                    progress,
+                    cancellationToken,
+                    ignorePreflightValidation: false).ConfigureAwait(true);
+
+                if (!IsInitSyncSuccessful(syncResult, ignorePreflightValidation: false))
+                {
+                    return new ProjectInitResult
+                    {
+                        Success = false,
+                        NewFilePath = doc.PathName,
+                        MaterialsLoaded = syncResult.MaterialsLoaded,
+                        Errors = Math.Max(syncResult.ErrorCount, 1),
+                        ErrorMessage = BuildStrictSyncFailureMessage(syncResult)
+                    };
+                }
+
+                Report(progress, "Сохранение проекта...", indeterminate: true);
+                doc.Save();
+                ProjectInitRollbackService.CleanupVersionBackups(doc.PathName);
+
+                return new ProjectInitResult
+                {
+                    Success = true,
+                    NewFilePath = doc.PathName,
+                    MaterialsLoaded = syncResult.MaterialsLoaded,
+                    Errors = 0
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                return new ProjectInitResult
+                {
+                    Success = false,
+                    Cancelled = true,
+                    NewFilePath = doc.PathName,
+                    ErrorMessage = "Re-sync отменён."
+                };
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex, "Project resync failed");
+                return Fail(ex.Message, doc.PathName);
+            }
+        }
+
+        static async Task<RevitMaterialReadResponse> EnsureMaterialsResponseAsync(
+            int clientRequestId,
+            RevitMaterialReadResponse materialsResponse,
+            IProgress<ProjectInitProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            if (materialsResponse != null)
+            {
+                materialsResponse.Data ??= new List<RevitMaterialRowDto>();
+                return materialsResponse;
+            }
+
+            Report(progress, "Чтение материалов...", indeterminate: true);
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                return await RevitMaterialsService.ReadAsync(clientRequestId, cancellationToken).ConfigureAwait(true);
+            }
+            finally
+            {
+                sw.Stop();
+                ExportRoomsApplication._logger?.Information(
+                    "Project init phase materials_read: elapsed_ms={ElapsedMs}",
+                    sw.ElapsedMilliseconds);
+            }
+        }
+
+        static async Task<RevitMaterialsSyncResult> RunMaterialsSyncAsync(
+            Document doc,
+            int clientRequestId,
+            RevitMaterialReadResponse materialsResponse,
+            IProgress<ProjectInitProgress> progress,
+            CancellationToken cancellationToken,
+            bool ignorePreflightValidation)
+        {
+            Report(progress, "Синхронизация материалов...", indeterminate: true);
+            var syncSw = Stopwatch.StartNew();
+            try
+            {
+                var syncProgress = new Progress<RevitMaterialsSyncProgress>(p =>
+                {
+                    progress?.Report(new ProjectInitProgress
+                    {
+                        Message = p.Message,
+                        Done = p.Done,
+                        Total = p.Total,
+                        Indeterminate = p.Total <= 0
+                    });
+                });
+
+                var options = ignorePreflightValidation
+                    ? RevitMaterialsSyncOptions.InitSkipSrIdValidation
+                    : RevitMaterialsSyncOptions.StrictInit;
+
+                return await RevitMaterialsSyncOrchestrator.SyncAllAsync(
                     doc,
                     clientRequestId,
                     materialsResponse.Data,
                     materialsResponse.SurfacesFileUrl?.Trim(),
-                    materialsResponse.SurfacesFileHash?.Trim()).ConfigureAwait(true);
+                    materialsResponse.SurfacesFileHash?.Trim(),
+                    syncProgress,
+                    options,
+                    cancellationToken).ConfigureAwait(true);
             }
-            catch (Exception ex)
+            finally
             {
-                ExportRoomsApplication._logger?.Error(ex, "Project init: materials sync failed");
-                return Fail("Синхронизация материалов не удалась: " + ex.Message, copyResult.TargetPath);
+                syncSw.Stop();
+                ExportRoomsApplication._logger?.Information(
+                    "Project init phase materials_sync: elapsed_ms={ElapsedMs}, ignore_preflight={IgnorePreflight}",
+                    syncSw.ElapsedMilliseconds,
+                    ignorePreflightValidation);
+            }
+        }
+
+        static string ValidateWorkshared(Document doc)
+        {
+            if (doc == null || !doc.IsWorkshared)
+                return null;
+
+            return "Worksharing включён — инициализация и re-sync в v1 не поддерживаются. "
+                   + "Откройте локальную копию шаблона без центральной модели.";
+        }
+
+        static bool IsInitSyncSuccessful(RevitMaterialsSyncResult syncResult, bool ignorePreflightValidation)
+        {
+            if (syncResult == null || syncResult.TotalSyncable <= 0)
+                return false;
+
+            if (ignorePreflightValidation)
+                return syncResult.MaterialsLoaded > 0;
+
+            return syncResult.Success
+                   && syncResult.ErrorCount == 0
+                   && syncResult.MaterialsLoaded >= syncResult.TotalSyncable;
+        }
+
+        static string BuildInitSuccessWarning(
+            ProjectCopyResult copyResult,
+            RevitMaterialsSyncResult syncResult,
+            bool ignorePreflightValidation)
+        {
+            if (copyResult?.IsWorksharedWarning == true)
+                return ProjectCopyService.WorksharedUnsupportedMessage;
+
+            if (!ignorePreflightValidation || syncResult?.ErrorCount <= 0)
+                return null;
+
+            return $"Загружено {syncResult.MaterialsLoaded} из {syncResult.TotalSyncable}. "
+                   + $"Не удалось: {syncResult.ErrorCount}. Проверьте SR_ID и surfaces.rvt.";
+        }
+
+        static string BuildStrictSyncFailureMessage(RevitMaterialsSyncResult syncResult)
+        {
+            if (!string.IsNullOrWhiteSpace(syncResult?.ErrorMessage))
+                return syncResult.ErrorMessage;
+
+            if (syncResult?.TotalSyncable > 0 && syncResult.MaterialsLoaded <= 0)
+            {
+                return $"Не импортировано ни одного материала из {syncResult.TotalSyncable}. "
+                       + "Проверьте RFA, SR_ID и surfaces.rvt на сервере.";
             }
 
-            if (syncResult.ErrorCount > 0)
-            {
-                ExportRoomsApplication._logger?.Warning(
-                    "Project init: materials sync completed with {ErrorCount} error(s), {Loaded} loaded. Proceeding with metadata binding.",
-                    syncResult.ErrorCount,
-                    syncResult.MaterialsLoaded);
-            }
+            return "Инициализация остановлена: не все материалы прошли проверку и загрузку.";
+        }
 
-            Report(progress, "Запись метаданных заявки...");
-            try
-            {
-                ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
-                {
-                    RemontId = remontId,
-                    ClientRequestId = clientRequestId
-                });
-            }
-            catch (Exception ex)
-            {
-                ExportRoomsApplication._logger?.Error(ex, "Project init: metadata write failed");
-                return Fail("Не удалось записать метаданные заявки: " + ex.Message, copyResult.TargetPath);
-            }
+        static ProjectInitResult FailAfterCopy(
+            string message,
+            ProjectCopyResult copyResult,
+            RevitMaterialsSyncResult syncResult = null,
+            bool cancelled = false)
+        {
+            var rolledBack = false;
+            if (!cancelled && !string.IsNullOrWhiteSpace(copyResult?.TargetPath))
+                rolledBack = ProjectInitRollbackService.TryRollbackInitCopy(copyResult.TargetPath);
 
-            Report(progress, "Сохранение проекта...");
-            try
+            var fullMessage = message;
+            if (rolledBack)
             {
-                doc.Save();
+                fullMessage += "\n\nКопия проекта на диске удалена. "
+                               + ProjectInitRollbackService.CloseWithoutSavingHint;
             }
-            catch (Exception ex)
-            {
-                ExportRoomsApplication._logger?.Error(ex, "Project init: document save failed");
-                return new ProjectInitResult
-                {
-                    Success = false,
-                    NewFilePath = copyResult.TargetPath,
-                    MaterialsLoaded = syncResult.MaterialsLoaded,
-                    Errors = syncResult.ErrorCount,
-                    IsWorksharedWarning = copyResult.IsWorksharedWarning,
-                    ErrorMessage = "Не удалось сохранить проект: " + ex.Message
-                };
-            }
-
-            CleanupBackupFiles(copyResult.TargetPath);
-
-            ExportRoomsApplication._logger?.Information(
-                "Project init completed: client_request_id={ClientRequestId}, path={Path}, loaded={Loaded}, errors={Errors}",
-                clientRequestId,
-                copyResult.TargetPath,
-                syncResult.MaterialsLoaded,
-                syncResult.ErrorCount);
 
             return new ProjectInitResult
             {
-                Success = true,
-                NewFilePath = copyResult.TargetPath,
-                MaterialsLoaded = syncResult.MaterialsLoaded,
-                Errors = syncResult.ErrorCount,
-                IsWorksharedWarning = copyResult.IsWorksharedWarning,
-                ErrorMessage = syncResult.ErrorCount > 0
-                    ? syncResult.ErrorMessage ?? $"Загружено {syncResult.MaterialsLoaded}, ошибок: {syncResult.ErrorCount}"
-                    : copyResult.IsWorksharedWarning ? ProjectCopyService.WorksharedUnsupportedMessage : null
+                Success = false,
+                Cancelled = cancelled,
+                NewFilePath = copyResult?.TargetPath,
+                MaterialsLoaded = syncResult?.MaterialsLoaded ?? 0,
+                Errors = syncResult?.ErrorCount ?? (cancelled ? 0 : 1),
+                IsWorksharedWarning = copyResult?.IsWorksharedWarning ?? false,
+                RolledBack = rolledBack,
+                ErrorMessage = fullMessage
             };
         }
 
-        static string ResolveResidentName(RemontOption remont)
-        {
-            if (!string.IsNullOrWhiteSpace(remont.ResidentName))
-                return remont.ResidentName.Trim();
-
-            if (!string.IsNullOrWhiteSpace(remont.Name))
-                return remont.Name.Trim();
-
-            return null;
-        }
-
-        /// <summary>
-        /// Revit пишет версионный бэкап ({name}.NNNN.rvt) рядом с файлом при каждом Save,
-        /// MaximumBackups в SaveOptions не может быть 0 — удаляем бэкап вручную после init.
-        /// </summary>
-        static void CleanupBackupFiles(string targetPath)
-        {
-            if (string.IsNullOrWhiteSpace(targetPath))
-                return;
-
-            try
+        static void Report(IProgress<ProjectInitProgress> progress, string message, bool indeterminate = false) =>
+            progress?.Report(new ProjectInitProgress
             {
-                var directory = Path.GetDirectoryName(targetPath);
-                var baseName = Path.GetFileNameWithoutExtension(targetPath);
-                if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(baseName))
-                    return;
-
-                var pattern = "^" + Regex.Escape(baseName) + @"\.\d{4}\.rvt$";
-                var regex = new Regex(pattern, RegexOptions.IgnoreCase);
-
-                foreach (var file in Directory.EnumerateFiles(directory))
-                {
-                    var fileName = Path.GetFileName(file);
-                    if (!regex.IsMatch(fileName))
-                        continue;
-
-                    File.Delete(file);
-                    ExportRoomsApplication._logger?.Information(
-                        "Project init: removed backup file {BackupPath}", file);
-                }
-            }
-            catch (Exception ex)
-            {
-                ExportRoomsApplication._logger?.Warning(ex, "Project init: backup cleanup failed for {TargetPath}", targetPath);
-            }
-        }
-
-        static void Report(IProgress<string> progress, string message) =>
-            progress?.Report(message);
+                Message = message,
+                Indeterminate = indeterminate
+            });
 
         static ProjectInitResult Fail(string message, string newFilePath = null) =>
             new ProjectInitResult

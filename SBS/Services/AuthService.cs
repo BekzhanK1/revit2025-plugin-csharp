@@ -4,6 +4,7 @@ using SmartRemont.ExportRooms.Models;
 using System;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SmartRemont.ExportRooms.Services
@@ -85,6 +86,68 @@ namespace SmartRemont.ExportRooms.Services
             AuthStorage.Clear();
             ExportRoomsApplication.CurrentSession = null;
             ExportRoomsApplication.SelectedRemont = null;
+        }
+
+        internal static async Task<bool> TryRefreshTokenCoreAsync(CancellationToken cancellationToken = default)
+        {
+            var session = ExportRoomsApplication.CurrentSession ?? AuthStorage.Load();
+            if (session == null || string.IsNullOrWhiteSpace(session.RefreshToken))
+                return false;
+
+            var body = JsonConvert.SerializeObject(new { refresh = session.RefreshToken });
+            using var content = new StringContent(body, Encoding.UTF8, "application/json");
+            using var response = await Http.PostAsync(Configs.AuthRefreshUrl, content, cancellationToken)
+                .ConfigureAwait(false);
+            var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ExportRoomsApplication._logger?.Warning(
+                    "Token refresh failed: http={HttpStatus}, body={BodyPreview}",
+                    (int)response.StatusCode,
+                    Truncate(responseBody, 200));
+                return false;
+            }
+
+            try
+            {
+                dynamic parsed = JsonConvert.DeserializeObject(responseBody);
+                var access = parsed?.access?.ToString();
+                var refresh = parsed?.refresh?.ToString();
+
+                if (string.IsNullOrWhiteSpace(access))
+                {
+                    var loginResponse = JsonConvert.DeserializeObject<RevitLoginResponse>(responseBody);
+                    access = loginResponse?.Token?.Access;
+                    refresh = refresh ?? loginResponse?.Token?.Refresh;
+                }
+
+                if (string.IsNullOrWhiteSpace(access))
+                    return false;
+
+                session.AccessToken = access.Trim();
+                if (!string.IsNullOrWhiteSpace(refresh))
+                    session.RefreshToken = refresh.Trim();
+
+                AuthStorage.Save(session);
+                ExportRoomsApplication.CurrentSession = session;
+
+                ExportRoomsApplication._logger?.Information("Token refresh succeeded");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Token refresh response parse failed");
+                return false;
+            }
+        }
+
+        static string Truncate(string value, int maxLength)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+                return value;
+
+            return value.Substring(0, maxLength) + "…";
         }
     }
 }

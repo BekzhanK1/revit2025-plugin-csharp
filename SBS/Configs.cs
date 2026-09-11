@@ -71,6 +71,8 @@ namespace SmartRemont.ExportRooms
 
         public static string AuthLoginUrl => $"{ApiOriginUrl}/auth/revit/login/";
 
+        public static string AuthRefreshUrl => $"{ApiOriginUrl}/auth/token/refresh/";
+
         public static string QuickSearchUrl => $"{ApiOriginUrl}/client_request/quick_search/";
 
         public static string MaterialValidationUrl => $"{ApiOriginUrl}/common/catalog/validate_material_ids/";

@@ -10,6 +10,13 @@ namespace SmartRemont.ExportRooms.Services
     {
         public bool IsInProject { get; init; }
         public string Label { get; init; }
+
+        /// <summary>
+        /// Значение SR_ID, фактически прочитанное в Revit. Индекс строится по ключу SR_ID,
+        /// поэтому при найденном совпадении оно всегда равно запрошенному material_id —
+        /// поле сделано отдельным для явного отображения в UI (диагностика/доверие к данным).
+        /// </summary>
+        public int? SrId { get; init; }
     }
 
     /// <summary>
@@ -35,7 +42,8 @@ namespace SmartRemont.ExportRooms.Services
                     result[materialId] = new MaterialPresenceInfo
                     {
                         IsInProject = true,
-                        Label = label
+                        Label = label,
+                        SrId = materialId
                     };
                 }
                 else
@@ -43,7 +51,8 @@ namespace SmartRemont.ExportRooms.Services
                     result[materialId] = new MaterialPresenceInfo
                     {
                         IsInProject = false,
-                        Label = null
+                        Label = null,
+                        SrId = null
                     };
                 }
             }
@@ -55,6 +64,30 @@ namespace SmartRemont.ExportRooms.Services
             CheckMaterials(doc, new[] { materialId }).TryGetValue(materialId, out var info)
                 ? info
                 : new MaterialPresenceInfo { IsInProject = false };
+
+        public static MaterialPresenceInfo LookupInIndex(IReadOnlyDictionary<int, string> index, int materialId)
+        {
+            if (index != null && index.TryGetValue(materialId, out var label))
+            {
+                return new MaterialPresenceInfo
+                {
+                    IsInProject = true,
+                    Label = label,
+                    SrId = materialId
+                };
+            }
+
+            return new MaterialPresenceInfo { IsInProject = false };
+        }
+
+        public static void AddToIndex(IDictionary<int, string> index, int materialId, string label)
+        {
+            if (index == null || materialId <= 0 || string.IsNullOrWhiteSpace(label))
+                return;
+
+            if (!index.ContainsKey(materialId))
+                index[materialId] = label.Trim();
+        }
 
         /// <summary>
         /// Читает SR_ID с экземпляра, иначе с типа. Возвращает false, если параметра нет / не число.
@@ -87,7 +120,7 @@ namespace SmartRemont.ExportRooms.Services
             return true;
         }
 
-        static Dictionary<int, string> BuildSrIdIndex(Document doc)
+        public static Dictionary<int, string> BuildSrIdIndex(Document doc)
         {
             var index = new Dictionary<int, string>();
             if (doc == null)

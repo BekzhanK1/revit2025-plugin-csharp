@@ -13,6 +13,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <RevitAddinDeployDir>C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\</RevitAddinDeployDir>
+    <RevitAddinsManifestDir>C:\ProgramData\Autodesk\Revit\Addins\2025\</RevitAddinsManifestDir>
     <DeployToRevit Condition="'$(DeployToRevit)' == ''">false</DeployToRevit>
   </PropertyGroup>
 
@@ -53,6 +54,7 @@
     <Compile Include="Models\RoomMeasurementsModels.cs" />
     <Compile Include="Models\RoomMaterialsModels.cs" />
     <Compile Include="Models\TypeParameterModels.cs" />
+    <Compile Include="Services\AuthApiClient.cs" />
     <Compile Include="Services\AuthService.cs" />
     <Compile Include="Services\AuthStorage.cs" />
     <Compile Include="Services\AuthGuard.cs" />
@@ -70,6 +72,8 @@
     <Compile Include="Services\LocalSettingsService.cs" />
     <Compile Include="Services\TenMinuteBucketFileSink.cs" />
     <Compile Include="Services\RevitMaterialsDownloadService.cs" />
+    <Compile Include="Services\RevitMaterialsSyncOptions.cs" />
+    <Compile Include="Services\ProjectInitRollbackService.cs" />
     <Compile Include="Services\RevitMaterialPresenceService.cs" />
     <Compile Include="Services\RevitFamilyImportService.cs" />
     <Compile Include="Services\RevitSurfaceImportService.cs" />
@@ -90,6 +94,7 @@
     <Compile Include="Services\ProjectFileNamingService.cs" />
     <Compile Include="Services\ProjectCopyService.cs" />
     <Compile Include="Services\RevitMaterialsSyncOrchestrator.cs" />
+    <Compile Include="Services\ProjectInitMaterialsPreflightService.cs" />
     <Compile Include="Services\ProjectInitService.cs" />
     <Compile Include="Services\CredentialManager.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
@@ -166,6 +171,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\export_32.png" />
+    <Resource Include="Resources\logo.png" />
     <Resource Include="Resources\unit.png" />
   </ItemGroup>
 
@@ -267,7 +274,13 @@
       <_DeployFiles Include="$(TargetDir)*.json" />
       <_DeployFiles Include="$(TargetDir)*.config" />
       <_DeployResourceFiles Include="Resources\*.png" />
+      <_AddinManifest Include="$(MSBuildProjectDirectory)\..\deploy\SmartRemont.ExportRooms.addin" />
     </ItemGroup>
+    <Copy SourceFiles="@(_AddinManifest)"
+          DestinationFolder="$(RevitAddinsManifestDir)"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true"
+          Condition="Exists('@(_AddinManifest)')" />
     <MakeDir Directories="$(RevitAddinDeployDir)Resources\" />
     <Copy SourceFiles="@(_DeployResourceFiles)"
           DestinationFolder="$(RevitAddinDeployDir)Resources\"

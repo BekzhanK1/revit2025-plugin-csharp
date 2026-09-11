@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SmartRemont.ExportRooms.Services
@@ -15,7 +16,9 @@ namespace SmartRemont.ExportRooms.Services
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        public static async Task<RevitMaterialReadResponse> ReadAsync(int clientRequestId)
+        public static async Task<RevitMaterialReadResponse> ReadAsync(
+            int clientRequestId,
+            CancellationToken cancellationToken = default)
         {
             var session = ExportRoomsApplication.CurrentSession;
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
@@ -30,10 +33,9 @@ namespace SmartRemont.ExportRooms.Services
                 clientRequestId,
                 url);
 
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, url);
-            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
-
-            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            using var response = await AuthApiClient.SendAsync(
+                () => new HttpRequestMessage(HttpMethod.Get, url),
+                cancellationToken).ConfigureAwait(false);
             var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             ExportRoomsApplication._logger?.Information(
@@ -134,10 +136,8 @@ namespace SmartRemont.ExportRooms.Services
                 var session = ExportRoomsApplication.CurrentSession;
                 if (session == null || string.IsNullOrWhiteSpace(session.AccessToken)) return (null, false, "Требуется авторизация");
 
-                using var httpRequest = new HttpRequestMessage(HttpMethod.Get, Configs.RevitMaterialReadUrl(clientRequestId));
-                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
-
-                using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+                using var response = await AuthApiClient.SendAsync(
+                    () => new HttpRequestMessage(HttpMethod.Get, Configs.RevitMaterialReadUrl(clientRequestId))).ConfigureAwait(false);
                 var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)

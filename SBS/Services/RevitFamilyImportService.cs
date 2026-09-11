@@ -22,13 +22,17 @@ namespace SmartRemont.ExportRooms.Services
 
         public static List<FamilyImportResult> LoadFamiliesIntoDocument(
             Document doc,
-            IEnumerable<(int materialId, string filePath, string revitFileType)> items)
+            IEnumerable<(int materialId, string filePath, string revitFileType)> items,
+            IProgress<(int done, int total, int materialId, string label)> progress = null,
+            IReadOnlyDictionary<int, string> materialNames = null)
         {
             if (doc == null)
                 throw new System.ArgumentNullException(nameof(doc));
 
             var itemList = (items ?? Enumerable.Empty<(int, string, string)>()).ToList();
             var results = new List<FamilyImportResult>();
+            var importTotal = itemList.Count;
+            var importDone = 0;
 
             ExportRoomsApplication._logger?.Information(
                 "Family import start: count={Count}, doc={DocTitle}",
@@ -38,9 +42,13 @@ namespace SmartRemont.ExportRooms.Services
             if (itemList.Count == 0)
                 return results;
 
+            var srIdIndex = RevitMaterialPresenceService.BuildSrIdIndex(doc);
+
             // LoadFamily нельзя вызывать внутри открытой Transaction — иначе часто возвращает false.
             foreach (var (materialId, filePath, revitFileType) in itemList)
             {
+                var importLabel = ResolveImportLabel(materialId, materialNames);
+                progress?.Report((importDone, importTotal, materialId, importLabel));
                 var type = (revitFileType ?? string.Empty).Trim().ToLowerInvariant();
 
                 if (type != "rfa")
@@ -56,6 +64,8 @@ namespace SmartRemont.ExportRooms.Services
                         Success = false,
                         ErrorMessage = "Импорт материалов пока не поддержан"
                     });
+                    importDone++;
+                    progress?.Report((importDone, importTotal, materialId, importLabel));
                     continue;
                 }
 
@@ -71,11 +81,13 @@ namespace SmartRemont.ExportRooms.Services
                         Success = false,
                         ErrorMessage = "Файл семейства не найден"
                     });
+                    importDone++;
+                    progress?.Report((importDone, importTotal, materialId, importLabel));
                     continue;
                 }
 
                 // Уже есть тип/семейство с этим SR_ID — повторная загрузка не нужна.
-                var already = RevitMaterialPresenceService.CheckMaterial(doc, materialId);
+                var already = RevitMaterialPresenceService.LookupInIndex(srIdIndex, materialId);
                 if (already.IsInProject)
                 {
                     ExportRoomsApplication._logger?.Information(
@@ -89,6 +101,8 @@ namespace SmartRemont.ExportRooms.Services
                         AlreadyInProject = true,
                         FamilyName = already.Label
                     });
+                    importDone++;
+                    progress?.Report((importDone, importTotal, materialId, importLabel));
                     continue;
                 }
 
@@ -113,13 +127,17 @@ namespace SmartRemont.ExportRooms.Services
                             loaded,
                             family?.Name ?? System.IO.Path.GetFileNameWithoutExtension(filePath),
                             loadOptions.FamilyAlreadyInProject);
+                        var familyName = family?.Name ?? System.IO.Path.GetFileNameWithoutExtension(filePath);
+                        RevitMaterialPresenceService.AddToIndex(srIdIndex, materialId, familyName);
                         results.Add(new FamilyImportResult
                         {
                             MaterialId = materialId,
                             Success = true,
                             AlreadyInProject = loadOptions.FamilyAlreadyInProject,
-                            FamilyName = family?.Name ?? System.IO.Path.GetFileNameWithoutExtension(filePath)
+                            FamilyName = familyName
                         });
+                        importDone++;
+                        progress?.Report((importDone, importTotal, materialId, importLabel));
                         continue;
                     }
 
@@ -134,12 +152,15 @@ namespace SmartRemont.ExportRooms.Services
                             "Family import ok via family-document fallback: material_id={MaterialId}, family={Family}",
                             materialId,
                             viaFamilyDoc.Name);
+                        RevitMaterialPresenceService.AddToIndex(srIdIndex, materialId, viaFamilyDoc.Name);
                         results.Add(new FamilyImportResult
                         {
                             MaterialId = materialId,
                             Success = true,
                             FamilyName = viaFamilyDoc.Name
                         });
+                        importDone++;
+                        progress?.Report((importDone, importTotal, materialId, importLabel));
                         continue;
                     }
 
@@ -147,6 +168,7 @@ namespace SmartRemont.ExportRooms.Services
                     if (existingFamily != null)
                     {
                         RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
+                        RevitMaterialPresenceService.AddToIndex(srIdIndex, materialId, existingFamily.Name);
                         results.Add(new FamilyImportResult
                         {
                             MaterialId = materialId,
@@ -154,13 +176,18 @@ namespace SmartRemont.ExportRooms.Services
                             AlreadyInProject = true,
                             FamilyName = existingFamily.Name
                         });
+                        importDone++;
+                        progress?.Report((importDone, importTotal, materialId, importLabel));
                         continue;
                     }
 
                     // LoadFamily вернул false, но SR_ID мог уже оказаться в проекте.
-                    var afterLoad = RevitMaterialPresenceService.CheckMaterial(doc, materialId);
+                    // LoadFamily=false означает, что новых элементов не добавилось — полный
+                    // ресскан документа здесь не нужен, достаточно уже собранного srIdIndex.
+                    var afterLoad = RevitMaterialPresenceService.LookupInIndex(srIdIndex, materialId);
                     if (afterLoad.IsInProject)
                     {
+                        RevitMaterialPresenceService.AddToIndex(srIdIndex, materialId, afterLoad.Label);
                         RevitMaterialsDownloadService.MarkCacheFileReadOnly(filePath);
                         results.Add(new FamilyImportResult
                         {
@@ -169,6 +196,8 @@ namespace SmartRemont.ExportRooms.Services
                             AlreadyInProject = true,
                             FamilyName = afterLoad.Label
                         });
+                        importDone++;
+                        progress?.Report((importDone, importTotal, materialId, importLabel));
                         continue;
                     }
 
@@ -181,6 +210,8 @@ namespace SmartRemont.ExportRooms.Services
                         Success = false,
                         ErrorMessage = $"Не удалось загрузить семейство (LoadFamily=false): {System.IO.Path.GetFileName(filePath)}"
                     });
+                    importDone++;
+                    progress?.Report((importDone, importTotal, materialId, importLabel));
                 }
                 catch (Autodesk.Revit.Exceptions.ApplicationException ex)
                 {
@@ -194,6 +225,8 @@ namespace SmartRemont.ExportRooms.Services
                         Success = false,
                         ErrorMessage = ex.Message
                     });
+                    importDone++;
+                    progress?.Report((importDone, importTotal, materialId, importLabel));
                 }
                 catch (Exception ex)
                 {
@@ -207,6 +240,8 @@ namespace SmartRemont.ExportRooms.Services
                         Success = false,
                         ErrorMessage = ex.Message
                     });
+                    importDone++;
+                    progress?.Report((importDone, importTotal, materialId, importLabel));
                 }
             }
 
@@ -219,6 +254,18 @@ namespace SmartRemont.ExportRooms.Services
                 results.Count);
 
             return results;
+        }
+
+        static string ResolveImportLabel(int materialId, IReadOnlyDictionary<int, string> materialNames)
+        {
+            if (materialNames != null
+                && materialNames.TryGetValue(materialId, out var name)
+                && !string.IsNullOrWhiteSpace(name))
+            {
+                return name.Trim();
+            }
+
+            return $"#{materialId}";
         }
 
         /// <summary>
@@ -299,7 +346,10 @@ namespace SmartRemont.ExportRooms.Services
             }
         }
 
-        static string ValidateSrIdInRfaFile(
+        /// <summary>
+        /// Возвращает null, если SR_ID в RFA корректен; иначе — текст ошибки.
+        /// </summary>
+        public static string ValidateSrIdInRfaFile(
             Autodesk.Revit.ApplicationServices.Application app,
             string filePath,
             int expectedMaterialId)

@@ -3,9 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont — Синхронизация материалов"
-        Width="{x:Static views:WindowLayoutHelper.HubDefaultWidth}"
         MinWidth="880"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
@@ -63,7 +62,13 @@
                         <Button x:Name="RetryButton" Content="Повторить загрузку" Style="{StaticResource ModernSecondaryButton}" HorizontalAlignment="Center" Padding="20,0" Click="RetryButton_Click"/>
                     </StackPanel>
 
-                    <DataGrid x:Name="MaterialsDataGrid" Style="{StaticResource ModernDataGrid}" Visibility="Collapsed" BorderThickness="0" Background="Transparent">
+                    <DataGrid x:Name="MaterialsDataGrid"
+                              Style="{StaticResource ModernDataGrid}"
+                              Visibility="Collapsed"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              HorizontalScrollBarVisibility="Auto"
+                              CanUserResizeColumns="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding MaterialIdDisplay}" Width="90">
                                 <DataGridTextColumn.ElementStyle>
@@ -73,9 +78,24 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Название" Binding="{Binding MaterialName}" Width="*" MinWidth="240">
+                            <DataGridTextColumn Header="SR_ID в Revit" Binding="{Binding SrIdInRevitDisplay}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Название" Binding="{Binding MaterialName}" Width="*" MinWidth="200">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Название в Revit" Binding="{Binding RevitNameDisplay}" Width="*" MinWidth="200">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="FontStyle" Value="Italic"/>
+                                    </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="160">

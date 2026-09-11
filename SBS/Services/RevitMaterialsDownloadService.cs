@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SmartRemont.ExportRooms.Services
@@ -43,7 +44,8 @@ namespace SmartRemont.ExportRooms.Services
         public static async Task<DownloadResult> EnsureSurfacesLibraryAsync(
             int remontId,
             string surfacesFileUrl,
-            string surfacesFileHash = null)
+            string surfacesFileHash = null,
+            CancellationToken cancellationToken = default)
         {
             if (remontId <= 0)
             {
@@ -92,8 +94,10 @@ namespace SmartRemont.ExportRooms.Services
 
             try
             {
-                var bytes = await Http.GetByteArrayAsync(downloadUrl).ConfigureAwait(false);
-                await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
+                using var httpResponse = await Http.GetAsync(downloadUrl, cancellationToken).ConfigureAwait(false);
+                httpResponse.EnsureSuccessStatusCode();
+                var bytes = await httpResponse.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+                await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken).ConfigureAwait(false);
                 if (File.Exists(targetPath))
                 {
                     TryClearReadOnly(targetPath);
@@ -249,9 +253,12 @@ namespace SmartRemont.ExportRooms.Services
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        const int MaxConcurrentDownloads = 5;
+
         public static async Task<List<DownloadResult>> SyncAsync(
             IEnumerable<RevitMaterialRowDto> rows,
-            IProgress<(int materialId, int done, int total, bool downloading)> progress = null)
+            IProgress<(int materialId, int done, int total, bool downloading)> progress = null,
+            CancellationToken cancellationToken = default)
         {
             var rowList = (rows ?? Enumerable.Empty<RevitMaterialRowDto>())
                 .Where(r => r.MaterialId.HasValue && !string.IsNullOrWhiteSpace(r.RevitFileUrl))
@@ -259,35 +266,48 @@ namespace SmartRemont.ExportRooms.Services
 
             Directory.CreateDirectory(CacheRoot);
             var manifest = LoadManifest();
-            var results = new List<DownloadResult>();
             var total = rowList.Count;
-            var done = 0;
+            var doneCounter = 0;
+            var manifestLock = new object();
 
-            foreach (var row in rowList)
+            using var gate = new SemaphoreSlim(MaxConcurrentDownloads);
+
+            var tasks = rowList.Select(async row =>
             {
-                var materialId = row.MaterialId.Value;
-
+                var materialId = row.MaterialId!.Value;
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    progress?.Report((materialId, done, total, downloading: false));
-                    var result = await SyncOneAsync(row, manifest, progress, done, total).ConfigureAwait(false);
-                    results.Add(result);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var doneBefore = Volatile.Read(ref doneCounter);
+                    progress?.Report((materialId, doneBefore, total, downloading: false));
+                    return await SyncOneAsync(row, manifest, manifestLock, progress, doneBefore, total, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
                     ExportRoomsApplication._logger?.Warning(ex, "Revit material download failed for {MaterialId}", materialId);
-                    results.Add(new DownloadResult
+                    return new DownloadResult
                     {
                         MaterialId = materialId,
                         RevitFileType = row.RevitFileType,
                         Success = false,
                         ErrorMessage = ex.Message
-                    });
+                    };
                 }
+                finally
+                {
+                    var doneAfter = Interlocked.Increment(ref doneCounter);
+                    progress?.Report((materialId, doneAfter, total, downloading: false));
+                    gate.Release();
+                }
+            }).ToList();
 
-                done++;
-                progress?.Report((materialId, done, total, downloading: false));
-            }
+            var results = (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
 
             SaveManifest(manifest);
             return results;
@@ -296,30 +316,51 @@ namespace SmartRemont.ExportRooms.Services
         static async Task<DownloadResult> SyncOneAsync(
             RevitMaterialRowDto row,
             Dictionary<int, CacheManifestEntry> manifest,
+            object manifestLock,
             IProgress<(int materialId, int done, int total, bool downloading)> progress,
             int done,
-            int total)
+            int total,
+            CancellationToken cancellationToken = default)
         {
             var materialId = row.MaterialId.Value;
             var revitFileType = row.RevitFileType?.Trim() ?? string.Empty;
+            var requestedHash = NormalizeHash(row.RevitFileHash);
 
-            // TODO: инвалидация по revit_file_hash, когда backend начнёт его заполнять (сейчас всегда NULL)
-            if (manifest.TryGetValue(materialId, out var cached) &&
-                !string.IsNullOrWhiteSpace(cached.FilePath) &&
-                File.Exists(cached.FilePath))
+            CacheManifestEntry cached;
+            lock (manifestLock)
             {
-                ExportRoomsApplication._logger?.Debug(
-                    "RFA download cache hit: material_id={MaterialId}, path={Path}",
-                    materialId,
-                    cached.FilePath);
-                return new DownloadResult
+                if (!manifest.TryGetValue(materialId, out cached)
+                    || string.IsNullOrWhiteSpace(cached.FilePath)
+                    || !File.Exists(cached.FilePath))
                 {
-                    MaterialId = materialId,
-                    RevitFileType = revitFileType,
-                    Success = true,
-                    Skipped = true,
-                    FilePath = cached.FilePath
-                };
+                    cached = null;
+                }
+            }
+
+            if (cached != null)
+            {
+                if (HashMatches(cached.RevitFileHash, requestedHash))
+                {
+                    ExportRoomsApplication._logger?.Debug(
+                        "RFA download cache hit: material_id={MaterialId}, path={Path}, hash={Hash}",
+                        materialId,
+                        cached.FilePath,
+                        requestedHash ?? "—");
+                    return new DownloadResult
+                    {
+                        MaterialId = materialId,
+                        RevitFileType = revitFileType,
+                        Success = true,
+                        Skipped = true,
+                        FilePath = cached.FilePath
+                    };
+                }
+
+                ExportRoomsApplication._logger?.Information(
+                    "RFA download cache invalidated by hash: material_id={MaterialId}, cached={CachedHash}, requested={RequestedHash}",
+                    materialId,
+                    NormalizeHash(cached.RevitFileHash) ?? "—",
+                    requestedHash ?? "—");
             }
 
             var fileName = BuildFileName(materialId, row.RevitAssetName, row.MaterialName, revitFileType);
@@ -336,8 +377,10 @@ namespace SmartRemont.ExportRooms.Services
                     revitFileType,
                     TryGetHost(downloadUrl),
                     targetPath);
-                var bytes = await Http.GetByteArrayAsync(downloadUrl).ConfigureAwait(false);
-                await File.WriteAllBytesAsync(tempPath, bytes).ConfigureAwait(false);
+                using var httpResponse = await Http.GetAsync(downloadUrl, cancellationToken).ConfigureAwait(false);
+                httpResponse.EnsureSuccessStatusCode();
+                var bytes = await httpResponse.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+                await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken).ConfigureAwait(false);
                 if (File.Exists(targetPath))
                 {
                     TryClearReadOnly(targetPath);
@@ -346,12 +389,15 @@ namespace SmartRemont.ExportRooms.Services
 
                 File.Move(tempPath, targetPath);
 
-                manifest[materialId] = new CacheManifestEntry
+                lock (manifestLock)
                 {
-                    FilePath = targetPath,
-                    RevitFileHash = string.IsNullOrWhiteSpace(row.RevitFileHash) ? null : row.RevitFileHash.Trim(),
-                    DownloadedAt = DateTime.UtcNow
-                };
+                    manifest[materialId] = new CacheManifestEntry
+                    {
+                        FilePath = targetPath,
+                        RevitFileHash = requestedHash,
+                        DownloadedAt = DateTime.UtcNow
+                    };
+                }
 
                 ExportRoomsApplication._logger?.Information(
                     "RFA download ok: material_id={MaterialId}, bytes={Bytes}, path={Path}",
@@ -415,6 +461,23 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrWhiteSpace(url))
                 return "—";
             return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "—";
+        }
+
+        public static bool TryGetCachedFilePath(int materialId, out string filePath)
+        {
+            filePath = null;
+            if (materialId <= 0)
+                return false;
+
+            if (!LoadManifest().TryGetValue(materialId, out var entry)
+                || string.IsNullOrWhiteSpace(entry?.FilePath)
+                || !File.Exists(entry.FilePath))
+            {
+                return false;
+            }
+
+            filePath = entry.FilePath;
+            return true;
         }
 
         static Dictionary<int, CacheManifestEntry> LoadManifest()

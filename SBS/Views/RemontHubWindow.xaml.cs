@@ -3,8 +3,10 @@ using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -26,6 +28,8 @@ namespace SmartRemont.ExportRooms.Views
         const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
 
         bool _initInProgress;
+        bool _showInitOverlay;
+        CancellationTokenSource _initCts;
 
         public RemontHubWindow(Document doc)
         {
@@ -523,6 +527,36 @@ namespace SmartRemont.ExportRooms.Views
             var metadata = ProjectRemontMetadataService.TryRead(_doc);
             UpdateProjectInitializedBadge(
                 ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc) ? metadata : null);
+            UpdateInitializedProjectPanel(
+                ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc) ? metadata : null);
+        }
+
+        void UpdateInitializedProjectPanel(ProjectRemontMetadata metadata)
+        {
+            if (metadata == null || metadata.ClientRequestId <= 0)
+            {
+                InitializedProjectPanel.Visibility = System.Windows.Visibility.Collapsed;
+                return;
+            }
+
+            InitializedProjectPanel.Visibility = System.Windows.Visibility.Visible;
+            InitializedProjectPathText.Text = string.IsNullOrWhiteSpace(_doc?.PathName)
+                ? "Путь к файлу не сохранён — выполните Save."
+                : _doc.PathName;
+
+            var initializedAt = metadata.InitializedAt;
+            if (!string.IsNullOrWhiteSpace(initializedAt)
+                && DateTime.TryParse(initializedAt, out var parsed))
+            {
+                InitializedProjectMetaText.Text =
+                    $"Инициализирован: {parsed.ToLocalTime():dd.MM.yyyy HH:mm} · заявка #{metadata.ClientRequestId}";
+            }
+            else
+            {
+                InitializedProjectMetaText.Text = $"Заявка #{metadata.ClientRequestId}";
+            }
+
+            ResyncMaterialsButton.IsEnabled = !_initInProgress;
         }
 
         void UpdateProjectInitializedBadge(ProjectRemontMetadata metadata)
@@ -549,6 +583,7 @@ namespace SmartRemont.ExportRooms.Views
             var selectedClientRequestId = remont?.ClientRequestId ?? 0;
             var isInitialized = ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
 
+            CloseButton.IsEnabled = !_initInProgress;
             ApplyHubMenuVisibility(isInitialized);
 
             if (!isInitialized)
@@ -560,6 +595,7 @@ namespace SmartRemont.ExportRooms.Views
 
             var metadata = ProjectRemontMetadataService.TryRead(_doc);
             ApplyInitFeatureBadge(InitProjectButton, metadata?.ClientRequestId);
+            UpdateInitializedProjectPanel(metadata);
 
             if (selectedClientRequestId > 0 && metadata != null && metadata.ClientRequestId != selectedClientRequestId)
             {
@@ -641,6 +677,17 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
+            if (_doc.IsWorkshared)
+            {
+                AppMessageDialog.Show(
+                    this,
+                    AppMessageKind.InDevelopment,
+                    "Worksharing не поддерживается",
+                    "Инициализация доступна только для локального шаблона без центральной модели.",
+                    ProjectCopyService.WorksharedUnsupportedMessage);
+                return;
+            }
+
             if (ProjectRemontMetadataService.IsInitialized(_doc)
                 && !ProjectRemontMetadataService.ValidateMatches(_doc, clientRequestId))
             {
@@ -662,7 +709,7 @@ namespace SmartRemont.ExportRooms.Views
                 remont?.FlatNum);
             var fileExists = File.Exists(targetPath);
 
-            SetStatus("Загрузка списка материалов...", isSuccess: true);
+            ShowInitProgress("Загрузка списка материалов...", indeterminate: true);
 
             RevitMaterialReadResponse materialsResponse;
             try
@@ -672,6 +719,7 @@ namespace SmartRemont.ExportRooms.Views
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "Project init preview: materials read failed");
+                HideInitProgress();
                 SetStatus("Не удалось загрузить материалы: " + ex.Message, isSuccess: false);
                 MessageBox.Show(
                     ex.Message,
@@ -681,24 +729,39 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var preview = new ProjectInitPreviewWindow(clientRequestId, targetPath, fileExists, materialsResponse)
+            HideInitProgress();
+
+            if (ProjectInitMaterialsPreflightService.CountSyncableMaterials(materialsResponse.Data) <= 0)
+            {
+                SetStatus(ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage(), isSuccess: false);
+                MessageBox.Show(
+                    ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage(),
+                    "Нет материалов для init",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var preview = new ProjectInitPreviewWindow(_doc, clientRequestId, targetPath, fileExists, materialsResponse)
             {
                 Owner = this
             };
 
             if (preview.ShowDialog() != true)
             {
-                SetStatus(string.Empty, isSuccess: true);
+                ClearStatus();
                 return;
             }
 
             _initInProgress = true;
             InitProjectButton.IsEnabled = false;
-            SetStatus("Подготовка к инициализации...", isSuccess: true);
+            CloseButton.IsEnabled = false;
+            ResyncMaterialsButton.IsEnabled = false;
+            BeginInitProgress("Подготовка к инициализации...", indeterminate: true);
 
-            var progress = new Progress<string>(message => SetStatus(message, isSuccess: true));
+            var progress = new Progress<ProjectInitProgress>(UpdateInitProgress);
 
-            ProjectInitResult result;
+            ProjectInitResult result = null;
             try
             {
                 result = await ProjectInitService.InitializeProjectAsync(
@@ -706,19 +769,25 @@ namespace SmartRemont.ExportRooms.Views
                     remont,
                     overwriteExistingFile: fileExists,
                     progress,
-                    materialsResponse).ConfigureAwait(true);
+                    materialsResponse,
+                    _initCts.Token,
+                    ignorePreflightValidation: preview.PreflightValidationIgnored).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Error(ex, "Project init failed");
                 SetStatus("Ошибка инициализации: " + ex.Message, isSuccess: false);
-                _initInProgress = false;
-                RefreshProjectInitState();
                 return;
             }
+            finally
+            {
+                EndInitProgress();
+                _initInProgress = false;
+                RefreshProjectInitState();
+            }
 
-            _initInProgress = false;
-            RefreshProjectInitState();
+            if (result == null)
+                return;
 
             if (result.RemontConflict)
             {
@@ -733,6 +802,12 @@ namespace SmartRemont.ExportRooms.Views
 
             if (!result.Success)
             {
+                if (result.Cancelled)
+                {
+                    SetStatus(result.ErrorMessage ?? "Инициализация отменена", isSuccess: false);
+                    return;
+                }
+
                 if (result.FileAlreadyExists && !fileExists)
                 {
                     SetStatus(result.ErrorMessage ?? "Файл уже существует", isSuccess: false);
@@ -743,6 +818,7 @@ namespace SmartRemont.ExportRooms.Views
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
                     MessageBox.Show(
+                        this,
                         result.ErrorMessage,
                         "Ошибка инициализации",
                         MessageBoxButton.OK,
@@ -753,10 +829,19 @@ namespace SmartRemont.ExportRooms.Views
 
             var details = BuildInitSuccessDetails(result);
             ProjectPostInitExitService.RequestShutdownRevitAfterPluginExit(result.NewFilePath);
+            var successTitle = result.Errors > 0
+                ? "Проект инициализирован с ошибками"
+                : "Проект инициализирован";
+            var successSummary = result.Errors > 0
+                ? $"Загружено материалов: {result.MaterialsLoaded}, ошибок: {result.Errors}"
+                : $"Загружено материалов: {result.MaterialsLoaded}";
+            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                details = result.ErrorMessage + "\n\n" + details;
+
             AppMessageDialog.ShowSuccess(
                 this,
-                "Проект инициализирован",
-                $"Загружено материалов: {result.MaterialsLoaded}",
+                successTitle,
+                successSummary,
                 details,
                 buttonText: "Закрыть");
 
@@ -777,6 +862,170 @@ namespace SmartRemont.ExportRooms.Views
             lines.Add("Затем откройте сохранённый файл вручную через Файл → Открыть.");
 
             return string.Join("\n\n", lines);
+        }
+
+        void BeginInitProgress(string message, bool indeterminate)
+        {
+            _initCts?.Cancel();
+            _initCts?.Dispose();
+            _initCts = new CancellationTokenSource();
+            _showInitOverlay = true;
+
+            InitLoaderOverlay.CancelRequested -= InitLoaderOverlay_CancelRequested;
+            InitLoaderOverlay.CancelRequested += InitLoaderOverlay_CancelRequested;
+
+            StatusBanner.Visibility = System.Windows.Visibility.Collapsed;
+            StatusPlainHost.Visibility = System.Windows.Visibility.Collapsed;
+            InitLoaderOverlay.Show(message, indeterminate, allowCancel: true);
+        }
+
+        void InitLoaderOverlay_CancelRequested(object sender, EventArgs e)
+        {
+            if (_initCts != null && !_initCts.IsCancellationRequested)
+                _initCts.Cancel();
+        }
+
+        void UpdateInitProgress(ProjectInitProgress progress)
+        {
+            if (progress == null || !_showInitOverlay)
+                return;
+
+            if (progress.Indeterminate || progress.Total <= 0)
+                InitLoaderOverlay.Show(progress.Message, indeterminate: true, allowCancel: true);
+            else
+                InitLoaderOverlay.UpdateProgress(progress.Done, progress.Total, progress.Message);
+        }
+
+        void EndInitProgress()
+        {
+            _showInitOverlay = false;
+            InitLoaderOverlay.CancelRequested -= InitLoaderOverlay_CancelRequested;
+            _initCts?.Dispose();
+            _initCts = null;
+            InitLoaderOverlay.HideImmediate();
+        }
+
+        void ShowInitProgress(string message, bool indeterminate)
+        {
+            StatusBanner.Visibility = System.Windows.Visibility.Collapsed;
+            StatusPlainHost.Visibility = System.Windows.Visibility.Collapsed;
+            InitLoaderOverlay.Show(message, indeterminate, allowCancel: false);
+        }
+
+        void HideInitProgress() => EndInitProgress();
+
+        async void ResyncMaterialsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_initInProgress)
+                return;
+
+            var remont = ExportRoomsApplication.SelectedRemont;
+            if (remont?.ClientRequestId <= 0)
+            {
+                SetStatus("Не указан ID заявки", isSuccess: false);
+                return;
+            }
+
+            if (_doc.IsWorkshared)
+            {
+                SetStatus("Worksharing не поддерживается для re-sync.", isSuccess: false);
+                return;
+            }
+
+            if (!ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc)
+                || !ProjectRemontMetadataService.ValidateMatches(_doc, remont.ClientRequestId))
+            {
+                SetStatus("Re-sync доступен только для инициализированного проекта текущей заявки.", isSuccess: false);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                this,
+                "Повторная strict-синхронизация материалов без SaveCopyAs. Продолжить?",
+                "Re-sync материалов",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            _initInProgress = true;
+            ResyncMaterialsButton.IsEnabled = false;
+            CloseButton.IsEnabled = false;
+            BeginInitProgress("Re-sync материалов...", indeterminate: true);
+
+            var progress = new Progress<ProjectInitProgress>(UpdateInitProgress);
+            ProjectInitResult result = null;
+            try
+            {
+                result = await ProjectInitService.ResyncMaterialsAsync(
+                    _doc,
+                    remont,
+                    progress,
+                    cancellationToken: _initCts.Token).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Re-sync не удался: " + ex.Message, isSuccess: false);
+                return;
+            }
+            finally
+            {
+                EndInitProgress();
+                _initInProgress = false;
+                RefreshProjectInitState();
+            }
+
+            if (result == null)
+                return;
+
+            if (!result.Success)
+            {
+                SetStatus(result.ErrorMessage ?? "Re-sync не удался", isSuccess: false);
+                if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                {
+                    MessageBox.Show(
+                        this,
+                        result.ErrorMessage,
+                        result.Cancelled ? "Re-sync отменён" : "Ошибка re-sync",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+                return;
+            }
+
+            SetStatus($"Re-sync завершён: загружено {result.MaterialsLoaded} материалов", isSuccess: true);
+            await FetchAsyncStates().ConfigureAwait(true);
+        }
+
+        void OpenProjectFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            var path = _doc?.PathName;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                SetStatus("Путь к файлу проекта не сохранён.", isSuccess: false);
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(path);
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                SetStatus("Папка проекта не найдена.", isSuccess: false);
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = directory,
+                UseShellExecute = true
+            });
+        }
+
+        void ClearStatus()
+        {
+            StatusBanner.Visibility = System.Windows.Visibility.Collapsed;
+            StatusPlainHost.Visibility = System.Windows.Visibility.Collapsed;
+            StatusTextBlock.Text = string.Empty;
+            StatusPlainText.Text = string.Empty;
         }
 
         async void DsAreaChangeButton_Click(object sender, RoutedEventArgs e)

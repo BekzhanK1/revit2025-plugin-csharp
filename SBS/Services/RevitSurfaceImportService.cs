@@ -58,6 +58,11 @@ namespace SmartRemont.ExportRooms.Services
                 var sourceBySrId = BuildSrIdElementMap(sourceDoc);
                 LogElementMapDiagnostics(sourceDoc, sourceBySrId, ids);
 
+                // Индекс целевого проекта строится один раз, а не через FindElementBySrId
+                // (полный скан doc) на каждый materialId — иначе N surface-материалов давали
+                // N полных сканов целевого документа внутри транзакции.
+                var targetBySrId = BuildSrIdElementMap(doc);
+
                 using var tx = new Transaction(doc, "Smart Remont: импорт surface-типов");
                 tx.Start();
 
@@ -74,7 +79,7 @@ namespace SmartRemont.ExportRooms.Services
                         continue;
                     }
 
-                    var existing = FindElementBySrId(doc, materialId);
+                    var existing = targetBySrId.TryGetValue(materialId, out var existingEl) ? existingEl : null;
                     if (existing != null)
                     {
                         results.Add(new SurfaceImportResult
@@ -161,6 +166,92 @@ namespace SmartRemont.ExportRooms.Services
             return results;
         }
 
+        /// <summary>
+        /// Проверяет наличие SR_ID в surfaces.rvt без изменения целевого проекта.
+        /// </summary>
+        public static List<SurfaceImportResult> ValidateMaterialsInLibrary(
+            Autodesk.Revit.ApplicationServices.Application app,
+            string surfacesRvtPath,
+            IEnumerable<int> materialIds)
+        {
+            var ids = (materialIds ?? Enumerable.Empty<int>()).Distinct().ToList();
+            var results = new List<SurfaceImportResult>();
+
+            if (ids.Count == 0)
+                return results;
+
+            if (string.IsNullOrWhiteSpace(surfacesRvtPath) || !System.IO.File.Exists(surfacesRvtPath))
+            {
+                foreach (var materialId in ids)
+                {
+                    results.Add(new SurfaceImportResult
+                    {
+                        MaterialId = materialId,
+                        Success = false,
+                        ErrorMessage = "Файл surfaces.rvt не найден"
+                    });
+                }
+
+                return results;
+            }
+
+            Document sourceDoc = null;
+            try
+            {
+                var modelPath = ModelPathUtils.ConvertUserVisiblePathToModelPath(surfacesRvtPath);
+                sourceDoc = app.OpenDocumentFile(modelPath, new OpenOptions());
+                var sourceBySrId = BuildSrIdElementMap(sourceDoc);
+
+                foreach (var materialId in ids)
+                {
+                    if (sourceBySrId.ContainsKey(materialId))
+                    {
+                        results.Add(new SurfaceImportResult
+                        {
+                            MaterialId = materialId,
+                            Success = true,
+                            MaterialName = FormatElementLabel(sourceBySrId[materialId])
+                        });
+                    }
+                    else
+                    {
+                        results.Add(new SurfaceImportResult
+                        {
+                            MaterialId = materialId,
+                            Success = false,
+                            ErrorMessage = $"{SrIdParameterName}={materialId} не найден в surfaces.rvt"
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Surface validation failed for {Path}", surfacesRvtPath);
+                foreach (var materialId in ids.Where(id => results.All(r => r.MaterialId != id)))
+                {
+                    results.Add(new SurfaceImportResult
+                    {
+                        MaterialId = materialId,
+                        Success = false,
+                        ErrorMessage = $"Не удалось открыть surfaces.rvt: {ex.Message}"
+                    });
+                }
+            }
+            finally
+            {
+                try
+                {
+                    sourceDoc?.Close(false);
+                }
+                catch (Exception ex)
+                {
+                    ExportRoomsApplication._logger?.Debug(ex, "Failed to close surfaces.rvt after validation");
+                }
+            }
+
+            return results;
+        }
+
         static void SafeCloseSourceDocument(Document sourceDoc, Document projectDoc)
         {
             if (sourceDoc == null || !sourceDoc.IsValidObject || ReferenceEquals(sourceDoc, projectDoc))
@@ -227,18 +318,6 @@ namespace SmartRemont.ExportRooms.Services
             {
                 yield return material;
             }
-        }
-
-        static Element FindElementBySrId(Document doc, int materialId)
-        {
-            foreach (var element in CollectSrIdSearchTargets(doc))
-            {
-                if (TryReadSrIdFromElement(element, out var srId, out _)
-                    && srId == materialId)
-                    return element;
-            }
-
-            return null;
         }
 
         static string FormatElementLabel(Element element)

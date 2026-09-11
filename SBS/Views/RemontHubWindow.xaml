@@ -168,10 +168,12 @@
         </ResourceDictionary>
     </Window.Resources>
 
+    <Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Border Margin="32">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -286,8 +288,50 @@
                     </Grid>
                 </Border>
 
+                <Border Grid.Row="2"
+                        x:Name="InitializedProjectPanel"
+                        Background="#F0FDF4"
+                        BorderBrush="#BBF7D0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20,16"
+                        Margin="0,0,0,24"
+                        Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="ПРОЕКТ ИНИЦИАЛИЗИРОВАН"
+                                       Style="{StaticResource SectionLabel}"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock x:Name="InitializedProjectPathText"
+                                       FontSize="13"
+                                       Foreground="#1F2937"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock x:Name="InitializedProjectMetaText"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="OpenProjectFolderButton"
+                                    Content="Открыть папку"
+                                    Style="{StaticResource ModernSecondaryButton}"
+                                    Margin="0,0,8,0"
+                                    Click="OpenProjectFolderButton_Click"/>
+                            <Button x:Name="ResyncMaterialsButton"
+                                    Content="Re-sync материалов"
+                                    Style="{StaticResource ModernSecondaryButton}"
+                                    Click="ResyncMaterialsButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- FUNCTIONS DASHBOARD -->
-                <StackPanel Grid.Row="2" Margin="0,0,0,32">
+                <StackPanel Grid.Row="3" Margin="0,0,0,32">
                     <TextBlock x:Name="FunctionsSectionLabel"
                                Text="ФУНКЦИИ И ОПЕРАЦИИ"
                                Style="{StaticResource SectionLabel}"
@@ -368,7 +412,7 @@
                 </StackPanel>
 
                 <!-- FOOTER ACTIONS -->
-                <Grid Grid.Row="3">
+                <Grid Grid.Row="4">
                     <Border Background="#EFF6FF"
                             BorderBrush="#BFDBFE"
                             BorderThickness="1"
@@ -402,4 +446,10 @@
             </Grid>
         </Border>
     </ScrollViewer>
+    <views:LoadingOverlay x:Name="InitLoaderOverlay"
+                          Visibility="Collapsed"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Panel.ZIndex="1000"/>
+    </Grid>
 </Window>

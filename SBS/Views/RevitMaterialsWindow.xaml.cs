@@ -25,7 +25,7 @@ namespace SmartRemont.ExportRooms.Views
         public RevitMaterialsWindow(int clientRequestId, Document doc)
         {
             InitializeComponent();
-            WindowLayoutHelper.UseFullWorkAreaHeight(this);
+            WindowLayoutHelper.UseFullWorkArea(this);
             _clientRequestId = clientRequestId;
             _doc = doc;
             Loaded += RevitMaterialsWindow_Loaded;
@@ -121,14 +121,14 @@ namespace SmartRemont.ExportRooms.Views
             {
                 if (row.Source?.MaterialId == null)
                 {
-                    row.ApplyPresence(false);
+                    row.ApplyPresence(false, null, null);
                     continue;
                 }
 
                 if (presence.TryGetValue(row.Source.MaterialId.Value, out var info))
-                    row.ApplyPresence(info.IsInProject);
+                    row.ApplyPresence(info.IsInProject, info.Label, info.SrId);
                 else
-                    row.ApplyPresence(false);
+                    row.ApplyPresence(false, null, null);
             }
         }
 
@@ -347,6 +347,8 @@ namespace SmartRemont.ExportRooms.Views
         string _projectStatusDisplay = "—";
         string _detailDisplay = string.Empty;
         string _syncError;
+        string _revitNameDisplay = "—";
+        string _srIdInRevitDisplay = "—";
 
         public RevitMaterialRowDto Source { get; init; }
         public string MaterialIdDisplay { get; init; }
@@ -405,9 +407,41 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        public void ApplyPresence(bool isInProject)
+        /// <summary>Имя семейства/типа/материала, под которым SR_ID найден в текущем проекте Revit.</summary>
+        public string RevitNameDisplay
+        {
+            get => _revitNameDisplay;
+            private set
+            {
+                if (_revitNameDisplay == value)
+                    return;
+
+                _revitNameDisplay = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>Значение параметра SR_ID, фактически найденное на элементе в текущем проекте.</summary>
+        public string SrIdInRevitDisplay
+        {
+            get => _srIdInRevitDisplay;
+            private set
+            {
+                if (_srIdInRevitDisplay == value)
+                    return;
+
+                _srIdInRevitDisplay = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void ApplyPresence(bool isInProject, string revitLabel, int? srId)
         {
             IsInProject = isInProject;
+            RevitNameDisplay = isInProject && !string.IsNullOrWhiteSpace(revitLabel) ? revitLabel.Trim() : "—";
+            SrIdInRevitDisplay = isInProject && srId.HasValue
+                ? srId.Value.ToString(CultureInfo.InvariantCulture)
+                : "—";
             RefreshStatusLabels();
         }
 

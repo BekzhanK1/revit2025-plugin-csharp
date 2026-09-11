@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -27,17 +28,47 @@ namespace SmartRemont.ExportRooms
 
         public static BitmapImage LoadBitmap(string fileName)
         {
+            foreach (var candidate in GetBitmapCandidates(fileName))
+            {
+                var image = TryLoadBitmapFromUri(candidate);
+                if (image != null)
+                    return image;
+            }
+
+            throw new FileNotFoundException(
+                $"Не найден ресурс «{fileName}» (ни на диске в Resources/, ни в сборке).",
+                fileName);
+        }
+
+        static IEnumerable<Uri> GetBitmapCandidates(string fileName)
+        {
             var diskPath = Path.Combine(ResourcesDirectory, fileName);
-            var uri = File.Exists(diskPath)
-                ? new Uri(diskPath, UriKind.Absolute)
-                : new Uri(PackResourceBase + fileName);
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.UriSource = uri;
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.EndInit();
-            image.Freeze();
-            return image;
+            if (File.Exists(diskPath))
+                yield return new Uri(diskPath, UriKind.Absolute);
+
+            yield return new Uri(PackResourceBase + fileName, UriKind.Absolute);
+        }
+
+        static BitmapImage TryLoadBitmapFromUri(Uri uri)
+        {
+            try
+            {
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.UriSource = uri;
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.EndInit();
+                image.Freeze();
+                return image;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Debug(
+                    ex,
+                    "Brand asset not loaded from {Uri}",
+                    uri);
+                return null;
+            }
         }
 
         public static bool TryApplyCompanyLogo(Image target, double maxHeight = 48)

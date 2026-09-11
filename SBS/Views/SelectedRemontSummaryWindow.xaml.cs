@@ -72,7 +72,7 @@ namespace SmartRemont.ExportRooms.Views
         public SelectedRemontSummaryWindow(Document doc)
         {
             InitializeComponent();
-            WindowLayoutHelper.UseFullWorkAreaHeight(this);
+            WindowLayoutHelper.UseFullWorkArea(this);
             _doc = doc;
             Loaded += SelectedRemontSummaryWindow_Loaded;
         }

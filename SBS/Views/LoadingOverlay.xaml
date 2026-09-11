@@ -2,7 +2,9 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:SmartRemont.ExportRooms.Views"
-             Background="{DynamicResource AppBackgroundBrush}">
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             IsHitTestVisible="True">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -11,10 +13,52 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Image x:Name="OverlayLogoImage" Width="200" Height="60" Stretch="Uniform" Margin="0,0,0,24"/>
-            <ProgressBar IsIndeterminate="True" Width="120" Height="4" BorderThickness="0" Background="#E2E8F0" Foreground="{StaticResource AppPrimaryBrush}"/>
+    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <Border Background="#F2F8FAFC"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"/>
+
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MaxWidth="460"
+                    Margin="32">
+            <Image x:Name="OverlayLogoImage"
+                   Width="200"
+                   Height="60"
+                   Stretch="Uniform"
+                   Margin="0,0,0,24"/>
+            <TextBlock x:Name="StatusTextBlock"
+                       Text="Загрузка..."
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Margin="0,0,0,8"/>
+            <TextBlock x:Name="ProgressDetailTextBlock"
+                       FontSize="13"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Margin="0,0,0,16"
+                       Visibility="Collapsed"/>
+            <ProgressBar x:Name="OverlayProgressBar"
+                         Width="320"
+                         Height="8"
+                         Minimum="0"
+                         Maximum="1"
+                         Value="0"
+                         BorderThickness="0"
+                         Background="#E2E8F0"
+                         Foreground="{StaticResource AppPrimaryBrush}"
+                         Margin="0,0,0,16"/>
+            <Button x:Name="CancelButton"
+                    Content="Отмена"
+                    Width="120"
+                    Height="36"
+                    Visibility="Collapsed"
+                    Style="{StaticResource ModernSecondaryButton}"
+                    Click="CancelButton_Click"/>
         </StackPanel>
     </Grid>
 </UserControl>

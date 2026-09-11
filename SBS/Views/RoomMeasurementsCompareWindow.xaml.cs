@@ -72,7 +72,7 @@ namespace SmartRemont.ExportRooms.Views
         public RoomMeasurementsCompareWindow(Document doc)
         {
             InitializeComponent();
-            WindowLayoutHelper.UseFullWorkAreaHeight(this);
+            WindowLayoutHelper.UseFullWorkArea(this);
             _doc = doc;
             Loaded += RoomMeasurementsCompareWindow_Loaded;
         }

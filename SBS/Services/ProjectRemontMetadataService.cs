@@ -27,9 +27,9 @@ namespace SmartRemont.ExportRooms.Services
             if (projectInfo == null)
                 return null;
 
-            var schema = ProjectRemontSchema.GetOrCreateSchema();
-            var entity = projectInfo.GetEntity(schema);
-            if (!entity.IsValid())
+            var entity = TryGetEntity(projectInfo, ProjectRemontSchema.GetOrCreateSchema())
+                         ?? TryGetEntity(projectInfo, Schema.Lookup(ProjectRemontSchema.LegacySchemaGuid));
+            if (entity == null || !entity.IsValid())
                 return null;
 
             ProjectRemontMetadata metadata;
@@ -126,6 +126,15 @@ namespace SmartRemont.ExportRooms.Services
         }
 
 
+
+        static Entity TryGetEntity(Element element, Schema schema)
+        {
+            if (element == null || schema == null)
+                return null;
+
+            var entity = element.GetEntity(schema);
+            return entity.IsValid() ? entity : null;
+        }
 
         static string GetAssemblyVersion()
         {
