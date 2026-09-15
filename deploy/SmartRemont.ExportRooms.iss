@@ -1,5 +1,5 @@
 #define MyAppName "Smart Remont — Revit 2025"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "dev1.0.1"
 #define MyAppPublisher "Smart Remont"
 #define AddinsDir "{commonappdata}\Autodesk\Revit\Addins\2025"
 #define PluginDir "{commonappdata}\Autodesk\Revit\Addins\2025\SmartRemont"
