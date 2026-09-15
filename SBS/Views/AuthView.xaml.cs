@@ -1,3 +1,4 @@
+using SmartRemont.ExportRooms;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
@@ -17,6 +18,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void AuthView_Loaded(object sender, RoutedEventArgs e)
         {
+            WindowLayoutHelper.ApplyBrandLabels(this);
             var session = AuthService.RestoreSession();
             if (session != null)
                 ShowWelcome(session);

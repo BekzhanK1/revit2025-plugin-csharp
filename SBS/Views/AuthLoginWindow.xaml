@@ -20,80 +20,179 @@
     </Window.Resources>
 
     <Border Style="{StaticResource ModernCard}" Margin="24" Padding="40,32">
-        <StackPanel>
-            <!-- Logo -->
-            <Image x:Name="CompanyLogoImage"
-                   MaxHeight="44"
-                   Margin="0,0,0,16"
-                   Stretch="Uniform"
-                   HorizontalAlignment="Left"
-                   Visibility="Collapsed"/>
+        <Grid MinHeight="280">
+            <!-- Version check -->
+            <StackPanel x:Name="VersionCheckPanel">
+                <Image x:Name="CompanyLogoImage"
+                       MaxHeight="44"
+                       Margin="0,0,0,16"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Left"
+                       Visibility="Collapsed"/>
 
-            <!-- Title -->
-            <TextBlock Text="Smart Remont"
-                       Style="{StaticResource Heading1}"/>
-            <TextBlock Text="Войдите, чтобы продолжить"
-                       Style="{StaticResource BodyText}"
-                       Margin="0,0,0,32"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Smart Remont"
+                               Style="{StaticResource Heading1}"
+                               Margin="0"/>
+                    <TextBlock x:Name="PluginVersionTextBlock"
+                               Grid.Column="1"
+                               VerticalAlignment="Bottom"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="12,0,0,4"/>
+                </Grid>
 
-            <!-- Email -->
-            <TextBlock Text="Email" Style="{StaticResource FieldLabel}"/>
-            <TextBox x:Name="EmailTextBox"
-                     Style="{StaticResource ModernInputField}"
-                     Margin="0,0,0,20"/>
+                <TextBlock x:Name="VersionCheckTitleTextBlock"
+                           Text="Проверяю версию плагина…"
+                           Style="{StaticResource BodyText}"
+                           Margin="0,0,0,20"/>
 
-            <!-- Password -->
-            <TextBlock Text="Пароль" Style="{StaticResource FieldLabel}"/>
-            <PasswordBox x:Name="PasswordBox"
-                         Style="{StaticResource ModernPasswordField}"
-                         Margin="0,0,0,20"
-                         KeyDown="PasswordBox_KeyDown"/>
+                <ProgressBar x:Name="VersionCheckProgressBar"
+                             Height="8"
+                             IsIndeterminate="True"
+                             BorderThickness="0"
+                             Background="#E2E8F0"
+                             Foreground="{StaticResource AppPrimaryBrush}"
+                             Margin="0,0,0,16"/>
 
-            <!-- Error -->
-            <Border x:Name="ErrorBorder"
-                    Background="{StaticResource ErrorBackgroundBrush}"
-                    BorderBrush="{StaticResource ErrorBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12,12"
-                    Margin="0,0,0,20"
-                    Visibility="Collapsed">
-                <StackPanel Orientation="Horizontal">
-                    <Path Data="{StaticResource IconWarning}" 
-                          Fill="{StaticResource ErrorBrush}" 
-                          Width="16" Height="16" 
-                          Stretch="Uniform"
-                          VerticalAlignment="Top"
-                          Margin="0,2,8,0"/>
-                    <TextBlock x:Name="ErrorTextBlock"
+                <TextBlock x:Name="VersionCheckDetailTextBlock"
+                           FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,16"/>
+
+                <Border x:Name="VersionCheckSuccessBorder"
+                        Background="#ECFDF5"
+                        BorderBrush="#86EFAC"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,12"
+                        Margin="0,0,0,16"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="VersionCheckSuccessTextBlock"
+                               FontSize="13"
+                               Foreground="#15803D"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <Border x:Name="VersionCheckErrorBorder"
+                        Background="{StaticResource ErrorBackgroundBrush}"
+                        BorderBrush="{StaticResource ErrorBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,12"
+                        Margin="0,0,0,16"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="VersionCheckErrorTextBlock"
                                FontSize="13"
                                Foreground="{StaticResource ErrorBrush}"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-            </Border>
+                               TextWrapping="Wrap"/>
+                </Border>
 
-            <!-- Actions -->
-            <Grid Margin="0,8,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="0"
-                        Content="Отмена"
-                        Style="{StaticResource ModernSecondaryButton}"
-                        IsCancel="True"
-                        Click="CancelButton_Click"/>
+                    <Button Grid.Column="0"
+                            Content="Отмена"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            IsCancel="True"
+                            Click="CancelButton_Click"/>
 
-                <Button x:Name="LoginButton"
-                        Grid.Column="2"
-                        Content="Войти"
-                        Style="{StaticResource ModernPrimaryButton}"
-                        IsDefault="True"
-                        Click="LoginButton_Click"/>
-            </Grid>
-        </StackPanel>
+                    <Button x:Name="VersionCheckRetryButton"
+                            Grid.Column="2"
+                            Content="Повторить"
+                            Style="{StaticResource ModernPrimaryButton}"
+                            Visibility="Collapsed"
+                            Click="VersionCheckRetryButton_Click"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Login -->
+            <StackPanel x:Name="LoginPanel" Visibility="Collapsed" Opacity="0">
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Smart Remont"
+                               Style="{StaticResource Heading1}"
+                               Margin="0"/>
+                    <TextBlock x:Name="LoginHeaderVersionTextBlock"
+                               Grid.Column="1"
+                               VerticalAlignment="Bottom"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="12,0,0,4"/>
+                </Grid>
+                <TextBlock Text="Войдите, чтобы продолжить"
+                           Style="{StaticResource BodyText}"
+                           Margin="0,0,0,32"/>
+
+                <TextBlock Text="Email" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="EmailTextBox"
+                         Style="{StaticResource ModernInputField}"
+                         Margin="0,0,0,20"/>
+
+                <TextBlock Text="Пароль" Style="{StaticResource FieldLabel}"/>
+                <PasswordBox x:Name="PasswordBox"
+                             Style="{StaticResource ModernPasswordField}"
+                             Margin="0,0,0,20"
+                             KeyDown="PasswordBox_KeyDown"/>
+
+                <Border x:Name="ErrorBorder"
+                        Background="{StaticResource ErrorBackgroundBrush}"
+                        BorderBrush="{StaticResource ErrorBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,12"
+                        Margin="0,0,0,20"
+                        Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="{StaticResource IconWarning}"
+                              Fill="{StaticResource ErrorBrush}"
+                              Width="16" Height="16"
+                              Stretch="Uniform"
+                              VerticalAlignment="Top"
+                              Margin="0,2,8,0"/>
+                        <TextBlock x:Name="ErrorTextBlock"
+                                   FontSize="13"
+                                   Foreground="{StaticResource ErrorBrush}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                            Content="Отмена"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            IsCancel="True"
+                            Click="CancelButton_Click"/>
+
+                    <Button x:Name="LoginButton"
+                            Grid.Column="2"
+                            Content="Войти"
+                            Style="{StaticResource ModernPrimaryButton}"
+                            IsDefault="True"
+                            Click="LoginButton_Click"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
     </Border>
 </Window>

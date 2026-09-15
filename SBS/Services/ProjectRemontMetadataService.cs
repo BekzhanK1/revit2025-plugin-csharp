@@ -71,7 +71,7 @@ namespace SmartRemont.ExportRooms.Services
                 : metadata.InitializedAt;
 
             var pluginVersion = string.IsNullOrWhiteSpace(metadata.PluginVersion)
-                ? GetAssemblyVersion()
+                ? PluginVersion.GetCurrent()
                 : metadata.PluginVersion;
 
             var schema = ProjectRemontSchema.GetOrCreateSchema();
@@ -136,10 +136,5 @@ namespace SmartRemont.ExportRooms.Services
             return entity.IsValid() ? entity : null;
         }
 
-        static string GetAssemblyVersion()
-        {
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
-            return version?.ToString() ?? "unknown";
-        }
     }
 }

@@ -35,6 +35,7 @@ namespace SmartRemont.ExportRooms.Views
             string buttonText = "OK")
         {
             var dialog = new AppMessageDialog { Owner = owner };
+            WindowLayoutHelper.EnableEnvironmentBranding(dialog);
             if (owner == null)
                 dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
 

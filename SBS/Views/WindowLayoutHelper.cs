@@ -1,5 +1,7 @@
+using SmartRemont.ExportRooms;
 using System;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace SmartRemont.ExportRooms.Views
@@ -18,6 +20,7 @@ namespace SmartRemont.ExportRooms.Views
 
         public static void UseFullWorkArea(Window window)
         {
+            EnableEnvironmentBranding(window);
             window.SourceInitialized += (_, __) => ApplyFull(window);
             window.Loaded += (_, __) => ApplyFull(window);
         }
@@ -37,8 +40,53 @@ namespace SmartRemont.ExportRooms.Views
 
         public static void UseFullWorkAreaHeight(Window window)
         {
+            EnableEnvironmentBranding(window);
             window.SourceInitialized += (_, __) => Apply(window);
             window.Loaded += (_, __) => Apply(window);
+        }
+
+        public static void EnableEnvironmentBranding(Window window)
+        {
+            if (window == null)
+                return;
+
+            window.Loaded += (_, __) => ApplyEnvironmentBranding(window);
+        }
+
+        public static void ApplyEnvironmentBranding(Window window)
+        {
+            if (window == null)
+                return;
+
+            window.Title = AppBranding.NormalizeWindowTitle(window.Title);
+            ApplyBrandLabels(window);
+        }
+
+        public static void ApplyBrandLabels(DependencyObject root)
+        {
+            if (!Configs.IsTestApi || root == null)
+                return;
+
+            ApplyBrandTextDeep(root);
+        }
+
+        static void ApplyBrandTextDeep(DependencyObject root)
+        {
+            if (root == null)
+                return;
+
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is System.Windows.Controls.TextBlock textBlock
+                    && string.Equals(textBlock.Text, AppBranding.ProductName, StringComparison.Ordinal))
+                {
+                    textBlock.Text = AppBranding.DisplayName;
+                }
+
+                ApplyBrandTextDeep(child);
+            }
         }
 
         static void Apply(Window window)

@@ -75,13 +75,13 @@ namespace SmartRemont.ExportRooms
                 };
                 form.AddControl(new AuthView());
                 AuthService.RestoreSession();
-                _uiApp.RegisterDockablePane(_toolPaneId, "Smart Remont", form);
+                _uiApp.RegisterDockablePane(_toolPaneId, AppBranding.DisplayName, form);
             }
         }
 
         void AddRibbonPanel(UIControlledApplication application)
         {
-            var tabName = "Smart Remont";
+            var tabName = AppBranding.DisplayName;
             application.CreateRibbonTab(tabName);
             RibbonPanel ribbonPanel1 = application.CreateRibbonPanel(tabName, "Параметры");
             ExportSmartRemontRooms_button(ribbonPanel1);

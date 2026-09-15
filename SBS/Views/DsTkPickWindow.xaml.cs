@@ -14,6 +14,7 @@ namespace SmartRemont.ExportRooms.Views
         public DsTkPickWindow(IReadOnlyList<DsTkChangeItem> items)
         {
             InitializeComponent();
+            WindowLayoutHelper.EnableEnvironmentBranding(this);
             var list = (items ?? new List<DsTkChangeItem>())
                 .OrderByDescending(i => i.CanEdit)
                 .ThenByDescending(i => i.DsId)

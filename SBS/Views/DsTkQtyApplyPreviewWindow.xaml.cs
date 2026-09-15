@@ -14,6 +14,7 @@ namespace SmartRemont.ExportRooms.Views
             string dsStatusDisplay)
         {
             InitializeComponent();
+            WindowLayoutHelper.EnableEnvironmentBranding(this);
 
             preview ??= new DsTkQtyApplyPreview
             {

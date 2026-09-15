@@ -20,6 +20,7 @@ namespace SmartRemont.ExportRooms.Views
         public ScheduleMappingWindow(Document doc = null)
         {
             InitializeComponent();
+            WindowLayoutHelper.EnableEnvironmentBranding(this);
             _viewModel = new ScheduleMappingWindowViewModel(doc);
             DataContext = _viewModel;
         }

@@ -9,8 +9,12 @@ namespace SmartRemont.ExportRooms
     {
         public const string ApiOriginUrlKey = "apiOriginUrl";
         public const string S3OriginUrlKey = "s3OriginUrl";
+        public const string ProductionApiOriginUrl = "https://myspace-api.smartremont.kz";
         const string DefaultApiOriginUrl = "https://office-testapi.smart-remont.kz";
         const string DefaultS3OriginUrl = "https://s3.smartremont.kz/smartremont";
+
+        public static bool IsTestApi =>
+            !string.Equals(ApiOriginUrl, ProductionApiOriginUrl, StringComparison.OrdinalIgnoreCase);
 
         static string _apiOriginUrl;
         static string _s3OriginUrl;
@@ -68,6 +72,9 @@ namespace SmartRemont.ExportRooms
                 ? S3OriginUrl + trimmed
                 : S3OriginUrl + "/" + trimmed;
         }
+
+        public static string PluginVersionCheckUrl(int revitYear, string clientVersion) =>
+            $"{ApiOriginUrl}/revit/plugin/version/check/?revit_year={revitYear}&client_version={Uri.EscapeDataString(clientVersion ?? string.Empty)}";
 
         public static string AuthLoginUrl => $"{ApiOriginUrl}/auth/revit/login/";
 

@@ -17,6 +17,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             _doc = doc;
             InitializeComponent();
+            WindowLayoutHelper.EnableEnvironmentBranding(this);
             Loaded += HomeWindow_Loaded;
         }
 
