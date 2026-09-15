@@ -4,6 +4,7 @@ using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.ProjectRemont;
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace SmartRemont.ExportRooms.Services
@@ -138,7 +139,16 @@ namespace SmartRemont.ExportRooms.Services
 
         static string GetAssemblyVersion()
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            var assembly = Assembly.GetExecutingAssembly();
+            var informational = assembly
+                .GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), false)
+                .OfType<AssemblyInformationalVersionAttribute>()
+                .FirstOrDefault()
+                ?.InformationalVersion;
+            if (!string.IsNullOrWhiteSpace(informational))
+                return informational.Trim();
+
+            var version = assembly.GetName().Version;
             return version?.ToString() ?? "unknown";
         }
     }
