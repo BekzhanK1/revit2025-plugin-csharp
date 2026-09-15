@@ -7,20 +7,56 @@ namespace SmartRemont.ExportRooms
 {
     public static class Configs
     {
+        public const string UseTestApiKey = "useTestApi";
         public const string ApiOriginUrlKey = "apiOriginUrl";
         public const string S3OriginUrlKey = "s3OriginUrl";
         public const string ProductionApiOriginUrl = "https://myspace-api.smartremont.kz";
-        const string DefaultApiOriginUrl = "https://office-testapi.smart-remont.kz";
+        public const string TestApiOriginUrl = "https://office-testapi.smart-remont.kz";
         const string DefaultS3OriginUrl = "https://s3.smartremont.kz/smartremont";
 
         public static bool IsTestApi =>
             !string.Equals(ApiOriginUrl, ProductionApiOriginUrl, StringComparison.OrdinalIgnoreCase);
 
+        static bool? _useTestApi;
         static string _apiOriginUrl;
         static string _s3OriginUrl;
 
         /// <summary>
-        /// Базовый URL API (origin). Меняется в app.config / SmartRemont.ExportRooms.dll.config, ключ apiOriginUrl.
+        /// true — тестовый API, false — боевой. Ключ useTestApi в app.config / SmartRemont.ExportRooms.dll.config.
+        /// </summary>
+        public static bool UseTestApi
+        {
+            get
+            {
+                if (_useTestApi.HasValue)
+                    return _useTestApi.Value;
+
+                var fromToggle = ReadAppSetting(UseTestApiKey);
+                if (!string.IsNullOrWhiteSpace(fromToggle))
+                {
+                    _useTestApi = ParseBool(fromToggle);
+                    return _useTestApi.Value;
+                }
+
+                // Обратная совместимость: если задан только apiOriginUrl — определяем окружение по URL.
+                var legacyUrl = ReadAppSetting(ApiOriginUrlKey);
+                if (!string.IsNullOrWhiteSpace(legacyUrl))
+                {
+                    _useTestApi = !string.Equals(
+                        NormalizeOrigin(legacyUrl),
+                        ProductionApiOriginUrl,
+                        StringComparison.OrdinalIgnoreCase);
+                    return _useTestApi.Value;
+                }
+
+                _useTestApi = false;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Базовый URL API (origin). По умолчанию из пресетов test/prod (useTestApi).
+        /// Необязательный apiOriginUrl переопределяет пресет.
         /// </summary>
         public static string ApiOriginUrl
         {
@@ -29,9 +65,14 @@ namespace SmartRemont.ExportRooms
                 if (_apiOriginUrl != null)
                     return _apiOriginUrl;
 
-                var fromConfig = ReadAppSetting(ApiOriginUrlKey);
-                _apiOriginUrl = NormalizeOrigin(
-                    string.IsNullOrWhiteSpace(fromConfig) ? DefaultApiOriginUrl : fromConfig);
+                var overrideUrl = ReadAppSetting(ApiOriginUrlKey);
+                if (!string.IsNullOrWhiteSpace(overrideUrl))
+                {
+                    _apiOriginUrl = NormalizeOrigin(overrideUrl);
+                    return _apiOriginUrl;
+                }
+
+                _apiOriginUrl = UseTestApi ? TestApiOriginUrl : ProductionApiOriginUrl;
                 return _apiOriginUrl;
             }
         }
@@ -128,6 +169,17 @@ namespace SmartRemont.ExportRooms
             var loc = Assembly.GetExecutingAssembly().Location;
             var config = ConfigurationManager.OpenExeConfiguration(loc);
             return config.AppSettings.Settings[key]?.Value;
+        }
+
+        static bool ParseBool(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var normalized = value.Trim();
+            return normalized.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || normalized.Equals("1", StringComparison.Ordinal)
+                || normalized.Equals("yes", StringComparison.OrdinalIgnoreCase);
         }
 
         static string NormalizeOrigin(string url)
