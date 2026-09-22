@@ -54,7 +54,9 @@ namespace SmartRemont.ExportRooms.Services
             progress?.Report("Ожидание фоновой загрузки файлов…");
             try
             {
-                await RevitMaterialsSyncOrchestrator.PreDownloadTask.ConfigureAwait(false);
+                // Revit API (OpenDocumentFile) ниже должен идти в UI-потоке. ConfigureAwait(false)
+                // уводит продолжение в пул, и Revit отвечает InternalException.
+                await RevitMaterialsSyncOrchestrator.PreDownloadTask.ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -99,11 +101,17 @@ namespace SmartRemont.ExportRooms.Services
                 var manifestPath = TryGetCachedRfaPath(materialId);
                 if (string.IsNullOrWhiteSpace(manifestPath))
                 {
+                    // Фоновая загрузка уже завершилась (см. await выше) — если файла в кэше всё
+                    // же нет, это провал скачивания (403/404/сеть), а не "ещё не скачан".
+                    var lastError = RevitMaterialsDownloadService.GetLastDownloadError(materialId);
+                    var message = !string.IsNullOrWhiteSpace(lastError)
+                        ? "Не удалось скачать RFA: " + (RevitMaterialsSyncOrchestrator.HumanizeError(lastError) ?? lastError)
+                        : "RFA ещё не скачан — дождитесь загрузки или проверьте сеть";
                     issues.Add(new ProjectInitPreflightIssue
                     {
                         MaterialId = materialId,
                         MaterialName = label,
-                        Message = "RFA ещё не скачан — дождитесь загрузки или проверьте сеть"
+                        Message = message
                     });
                     continue;
                 }
@@ -130,42 +138,63 @@ namespace SmartRemont.ExportRooms.Services
 
             if (surfaceRows.Count > 0)
             {
-                var surfacesPath = await TryEnsureSurfacesCachedAsync(
+                var surfacesDownload = await TryEnsureSurfacesCachedAsync(
                     clientRequestId,
                     materialsResponse?.SurfacesFileUrl,
                     materialsResponse?.SurfacesFileHash,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken).ConfigureAwait(true);
 
-                if (string.IsNullOrWhiteSpace(surfacesPath))
+                if (!surfacesDownload.Success)
                 {
+                    // Настоящая причина (403/404/нет surfaces_file_url) вместо общей фразы.
+                    var message = RevitMaterialsSyncOrchestrator.HumanizeError(surfacesDownload.ErrorMessage)
+                                   ?? "surfaces.rvt не скачан";
                     foreach (var row in surfaceRows)
                     {
                         issues.Add(new ProjectInitPreflightIssue
                         {
                             MaterialId = row.MaterialId!.Value,
                             MaterialName = row.MaterialName ?? $"#{row.MaterialId}",
-                            Message = "surfaces.rvt не скачан"
+                            Message = message
                         });
                     }
                 }
-                else if (doc != null)
+                else
                 {
-                    var surfaceIds = surfaceRows
+                    var surfacesPath = surfacesDownload.FilePath;
+                    var surfaceIdsInProject = doc != null
+                        ? surfaceRows
+                            .Select(r => r.MaterialId!.Value)
+                            .Where(id => RevitMaterialPresenceService.LookupInIndex(srIdIndex, id).IsInProject)
+                            .ToList()
+                        : new List<int>();
+
+                    // Счётчик "готово" должен учитывать surface так же, как RFA — иначе он всегда
+                    // застревает на rfaRows.Count из (rfaRows+surfaceRows), даже когда всё в порядке.
+                    downloadReady += surfaceIdsInProject.Count;
+
+                    var surfaceIdsToValidate = surfaceRows
                         .Select(r => r.MaterialId!.Value)
-                        .Where(id => !RevitMaterialPresenceService.LookupInIndex(srIdIndex, id).IsInProject)
+                        .Where(id => !surfaceIdsInProject.Contains(id))
                         .Distinct()
                         .ToList();
 
-                    if (surfaceIds.Count > 0)
+                    if (surfaceIdsToValidate.Count > 0 && doc != null)
                     {
                         progress?.Report("Проверка SR_ID в surfaces.rvt…");
                         var validation = RevitSurfaceImportService.ValidateMaterialsInLibrary(
                             doc.Application,
                             surfacesPath,
-                            surfaceIds);
+                            surfaceIdsToValidate);
 
-                        foreach (var item in validation.Where(v => !v.Success))
+                        foreach (var item in validation)
                         {
+                            if (item.Success)
+                            {
+                                downloadReady++;
+                                continue;
+                            }
+
                             issues.Add(new ProjectInitPreflightIssue
                             {
                                 MaterialId = item.MaterialId,
@@ -174,6 +203,11 @@ namespace SmartRemont.ExportRooms.Services
                                            ?? item.ErrorMessage
                             });
                         }
+                    }
+                    else if (doc == null)
+                    {
+                        // Нет документа для проверки SR_ID — скачивание прошло, засчитываем как готово.
+                        downloadReady += surfaceIdsToValidate.Count;
                     }
                 }
             }
@@ -189,20 +223,25 @@ namespace SmartRemont.ExportRooms.Services
         static string TryGetCachedRfaPath(int materialId) =>
             RevitMaterialsDownloadService.TryGetCachedFilePath(materialId, out var path) ? path : null;
 
-        static async Task<string> TryEnsureSurfacesCachedAsync(
+        static async Task<DownloadResult> TryEnsureSurfacesCachedAsync(
             int clientRequestId,
             string surfacesFileUrl,
             string surfacesFileHash,
             CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(surfacesFileUrl))
-                return null;
+            {
+                return new DownloadResult
+                {
+                    Success = false,
+                    RevitFileType = "surface",
+                    ErrorMessage = "API не вернул surfaces_file_url"
+                };
+            }
 
-            var download = await RevitMaterialsDownloadService
+            return await RevitMaterialsDownloadService
                 .EnsureSurfacesLibraryAsync(clientRequestId, surfacesFileUrl, surfacesFileHash, cancellationToken)
-                .ConfigureAwait(false);
-
-            return download.Success ? download.FilePath : null;
+                .ConfigureAwait(true);
         }
     }
 }

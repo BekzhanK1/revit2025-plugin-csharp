@@ -41,6 +41,19 @@ namespace SmartRemont.ExportRooms.Services
 
         static string SurfacesManifestPath => Path.Combine(CacheRoot, SurfacesManifestFileName);
 
+        // Последняя ошибка скачивания RFA по material_id — preflight (превью) использует её,
+        // чтобы показать настоящую причину (403/404/сеть) вместо общего "ещё не скачан".
+        static readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> LastDownloadErrors = new();
+
+        internal static void SetLastDownloadError(int materialId, string message) =>
+            LastDownloadErrors[materialId] = message;
+
+        internal static void ClearLastDownloadError(int materialId) =>
+            LastDownloadErrors.TryRemove(materialId, out _);
+
+        internal static string GetLastDownloadError(int materialId) =>
+            LastDownloadErrors.TryGetValue(materialId, out var message) ? message : null;
+
         public static async Task<DownloadResult> EnsureSurfacesLibraryAsync(
             int remontId,
             string surfacesFileUrl,
@@ -281,8 +294,10 @@ namespace SmartRemont.ExportRooms.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     var doneBefore = Volatile.Read(ref doneCounter);
                     progress?.Report((materialId, doneBefore, total, downloading: false));
-                    return await SyncOneAsync(row, manifest, manifestLock, progress, doneBefore, total, cancellationToken)
+                    var result = await SyncOneAsync(row, manifest, manifestLock, progress, doneBefore, total, cancellationToken)
                         .ConfigureAwait(false);
+                    ClearLastDownloadError(materialId);
+                    return result;
                 }
                 catch (OperationCanceledException)
                 {
@@ -291,6 +306,7 @@ namespace SmartRemont.ExportRooms.Services
                 catch (Exception ex)
                 {
                     ExportRoomsApplication._logger?.Warning(ex, "Revit material download failed for {MaterialId}", materialId);
+                    SetLastDownloadError(materialId, ex.Message);
                     return new DownloadResult
                     {
                         MaterialId = materialId,

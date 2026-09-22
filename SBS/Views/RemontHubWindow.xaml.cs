@@ -701,14 +701,6 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var remontId = remont?.RemontId ?? 0;
-            var targetPath = ProjectFileNamingService.BuildFullPath(
-                clientRequestId,
-                remontId,
-                remont?.ResidentName,
-                remont?.FlatNum);
-            var fileExists = File.Exists(targetPath);
-
             ShowInitProgress("Загрузка списка материалов...", indeterminate: true);
 
             RevitMaterialReadResponse materialsResponse;
@@ -741,6 +733,17 @@ namespace SmartRemont.ExportRooms.Views
                     MessageBoxImage.Information);
                 return;
             }
+
+            // remont_id в списке заявок может быть null — используем тот же fallback на
+            // materialsResponse.RemontId, что и ProjectInitService, иначе preview покажет
+            // путь, отличающийся от реального места сохранения файла.
+            var remontId = remont?.RemontId ?? materialsResponse.RemontId ?? 0;
+            var targetPath = ProjectFileNamingService.BuildFullPath(
+                clientRequestId,
+                remontId,
+                remont?.ResidentName,
+                remont?.FlatNum);
+            var fileExists = File.Exists(targetPath);
 
             var preview = new ProjectInitPreviewWindow(_doc, clientRequestId, targetPath, fileExists, materialsResponse)
             {

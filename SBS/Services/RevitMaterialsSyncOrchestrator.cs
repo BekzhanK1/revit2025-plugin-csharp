@@ -581,6 +581,12 @@ namespace SmartRemont.ExportRooms.Services
 
             var msg = raw.Trim();
 
+            // Порядок важен: сообщение "не найден среди типов семейства" может содержать внутри
+            // себя фразы "пуст или не число" (детали по другим типам) — проверяем его первым,
+            // иначе более общий матч ниже съедает точный текст "не найден ни у одного типа".
+            if (msg.Contains("не найден среди типов семейства", StringComparison.OrdinalIgnoreCase))
+                return msg;
+
             if (msg.Contains("Параметр SR_ID не найден", StringComparison.OrdinalIgnoreCase)
                 || msg.Contains("SR_ID не найден в FamilyManager", StringComparison.OrdinalIgnoreCase))
                 return "В RFA нет параметра SR_ID";

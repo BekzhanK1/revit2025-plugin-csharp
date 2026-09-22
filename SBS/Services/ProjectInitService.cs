@@ -390,15 +390,22 @@ namespace SmartRemont.ExportRooms.Services
             RevitMaterialsSyncResult syncResult = null,
             bool cancelled = false)
         {
-            var rolledBack = false;
-            if (!cancelled && !string.IsNullOrWhiteSpace(copyResult?.TargetPath))
-                rolledBack = ProjectInitRollbackService.TryRollbackInitCopy(copyResult.TargetPath);
+            // SaveAs уже переключил активный документ на targetPath и записал файл на диск —
+            // это верно и при отмене, поэтому попытку отката не пропускаем для cancelled.
+            var hasCopy = !string.IsNullOrWhiteSpace(copyResult?.TargetPath);
+            var rolledBack = hasCopy && ProjectInitRollbackService.TryRollbackInitCopy(copyResult.TargetPath);
 
             var fullMessage = message;
-            if (rolledBack)
+            if (hasCopy)
             {
-                fullMessage += "\n\nКопия проекта на диске удалена. "
-                               + ProjectInitRollbackService.CloseWithoutSavingHint;
+                // Файл обычно занят Revit'ом как текущий открытый документ, поэтому File.Delete
+                // почти всегда падает — подсказку нужно показывать в обоих случаях, а не только
+                // при успешном удалении, иначе пользователь не поймёт, что делать с файлом.
+                fullMessage += rolledBack
+                    ? "\n\nКопия проекта на диске удалена. " + ProjectInitRollbackService.CloseWithoutSavingHint
+                    : $"\n\nКопия проекта осталась на диске ({copyResult.TargetPath}) — файл открыт в Revit, "
+                      + "удалить его сейчас нельзя. " + ProjectInitRollbackService.CloseWithoutSavingHint
+                      + " После закрытия удалите файл вручную, если он не нужен.";
             }
 
             return new ProjectInitResult

@@ -199,7 +199,7 @@ namespace SmartRemont.ExportRooms.Views
 
                 PreDownloadStatusTextBlock.Text =
 
-                    $"Кэш RFA: {result.DownloadReadyCount} из {RevitMaterialsSyncOrchestrator.CountSyncableMaterials(_materialsResponse?.Data)} готово";
+                    $"Кэш файлов: {result.DownloadReadyCount} из {RevitMaterialsSyncOrchestrator.CountSyncableMaterials(_materialsResponse?.Data)} готово";
 
 
 

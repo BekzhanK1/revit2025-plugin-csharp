@@ -418,7 +418,12 @@ namespace SmartRemont.ExportRooms.Services
                 srParameter.StorageType,
                 srParameter.IsInstance);
 
+            // Семейство может содержать несколько типов (вариантов) — импорт (см.
+            // LoadFamiliesIntoDocument/BuildSrIdIndex) считает материал загруженным, если SR_ID
+            // совпал хотя бы у ОДНОГО типа/элемента. Раньше эта проверка требовала валидный SR_ID
+            // у ВСЕХ типов и падала на первом пустом/несовпадающем — даже если нужный тип был верным.
             var typesChecked = 0;
+            var problems = new List<string>();
             foreach (FamilyType familyType in familyManager.Types)
             {
                 typesChecked++;
@@ -429,7 +434,8 @@ namespace SmartRemont.ExportRooms.Services
                         "SR_ID FamilyManager type {TypeName}: empty or not numeric, raw={Raw}",
                         familyType.Name,
                         rawValue ?? "—");
-                    return $"Тип «{familyType.Name}»: {SrIdParameterName} пуст или не число";
+                    problems.Add($"«{familyType.Name}»: {SrIdParameterName} пуст или не число");
+                    continue;
                 }
 
                 ExportRoomsApplication._logger?.Information(
@@ -438,18 +444,25 @@ namespace SmartRemont.ExportRooms.Services
                     rawValue,
                     srId);
 
-                if (srId != expectedMaterialId)
-                    return $"{SrIdParameterName} ({srId}) не совпадает с material_id ({expectedMaterialId})";
+                if (srId == expectedMaterialId)
+                {
+                    ExportRoomsApplication._logger?.Information(
+                        "SR_ID FamilyManager check OK: type {TypeName} matches material_id {MaterialId} ({TypeCount} type(s) total)",
+                        familyType.Name,
+                        expectedMaterialId,
+                        typesChecked);
+                    return null;
+                }
+
+                problems.Add($"«{familyType.Name}»: {SrIdParameterName} ({srId}) ≠ material_id ({expectedMaterialId})");
             }
 
             if (typesChecked == 0)
                 return "В семействе нет типов";
 
-            ExportRoomsApplication._logger?.Information(
-                "SR_ID FamilyManager check OK for {TypeCount} type(s)",
-                typesChecked);
-
-            return null;
+            return problems.Count > 0
+                ? $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства ({string.Join("; ", problems)})"
+                : $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства";
         }
 
         static string ValidateSrIdViaFamilySymbols(Document familyDoc, int expectedMaterialId)
@@ -467,6 +480,7 @@ namespace SmartRemont.ExportRooms.Services
                 symbols.Count);
 
             var typesWithSrId = 0;
+            var problems = new List<string>();
 
             foreach (var symbol in symbols)
             {
@@ -487,7 +501,8 @@ namespace SmartRemont.ExportRooms.Services
                         "SR_ID symbol {SymbolName}: parameter exists but HasValue=false, storage={StorageType}",
                         symbol.Name,
                         parameter.StorageType);
-                    return $"Тип «{symbol.Name}»: {SrIdParameterName} пуст";
+                    problems.Add($"«{symbol.Name}»: {SrIdParameterName} пуст");
+                    continue;
                 }
 
                 if (!TryReadSrId(parameter, out var srId, out var rawValue))
@@ -497,9 +512,10 @@ namespace SmartRemont.ExportRooms.Services
                         symbol.Name,
                         rawValue ?? "—",
                         parameter.StorageType);
-                    return string.IsNullOrWhiteSpace(rawValue)
-                        ? $"Тип «{symbol.Name}»: {SrIdParameterName} пуст"
-                        : $"Тип «{symbol.Name}»: {SrIdParameterName} не число ({rawValue})";
+                    problems.Add(string.IsNullOrWhiteSpace(rawValue)
+                        ? $"«{symbol.Name}»: {SrIdParameterName} пуст"
+                        : $"«{symbol.Name}»: {SrIdParameterName} не число ({rawValue})");
+                    continue;
                 }
 
                 ExportRoomsApplication._logger?.Information(
@@ -508,8 +524,18 @@ namespace SmartRemont.ExportRooms.Services
                     rawValue,
                     srId);
 
-                if (srId != expectedMaterialId)
-                    return $"{SrIdParameterName} ({srId}) не совпадает с material_id ({expectedMaterialId})";
+                // Как и в FamilyManager-проверке выше: достаточно ОДНОГО совпавшего типа —
+                // остальные типы семейства (с иным/пустым SR_ID) не блокируют импорт.
+                if (srId == expectedMaterialId)
+                {
+                    ExportRoomsApplication._logger?.Information(
+                        "SR_ID FamilySymbol check OK: symbol {SymbolName} matches material_id {MaterialId}",
+                        symbol.Name,
+                        expectedMaterialId);
+                    return null;
+                }
+
+                problems.Add($"«{symbol.Name}»: {SrIdParameterName} ({srId}) ≠ material_id ({expectedMaterialId})");
             }
 
             if (typesWithSrId == 0)
@@ -520,11 +546,9 @@ namespace SmartRemont.ExportRooms.Services
                 return $"Параметр {SrIdParameterName} не найден ни у одного типа семейства";
             }
 
-            ExportRoomsApplication._logger?.Information(
-                "SR_ID FamilySymbol check OK for {TypeCount} symbol(s)",
-                typesWithSrId);
-
-            return null;
+            return problems.Count > 0
+                ? $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства ({string.Join("; ", problems)})"
+                : $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства";
         }
 
         static FamilyParameter FindFamilyManagerParameter(FamilyManager familyManager, string parameterName)
