@@ -88,7 +88,7 @@ namespace SmartRemont.ExportRooms
                     return _s3OriginUrl;
 
                 var fromConfig = ReadAppSetting(S3OriginUrlKey);
-                _s3OriginUrl = NormalizeOrigin(
+                _s3OriginUrl = NormalizeBaseUrl(
                     string.IsNullOrWhiteSpace(fromConfig) ? DefaultS3OriginUrl : fromConfig);
                 return _s3OriginUrl;
             }
@@ -106,12 +106,11 @@ namespace SmartRemont.ExportRooms
             if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absolute)
                 && (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
             {
-                return trimmed;
+                return EnsureS3BucketPrefix(trimmed);
             }
 
-            return trimmed.StartsWith("/", StringComparison.Ordinal)
-                ? S3OriginUrl + trimmed
-                : S3OriginUrl + "/" + trimmed;
+            var relative = trimmed.StartsWith("/", StringComparison.Ordinal) ? trimmed : "/" + trimmed;
+            return EnsureS3BucketPrefix(S3OriginUrl + relative);
         }
 
         public static string PluginVersionCheckUrl(int revitYear, string clientVersion) =>
@@ -184,12 +183,9 @@ namespace SmartRemont.ExportRooms
 
         static string NormalizeOrigin(string url)
         {
-            if (string.IsNullOrWhiteSpace(url))
+            var cleaned = CleanUrl(url);
+            if (cleaned == null)
                 return url;
-
-            // Drop accidental non-ASCII (e.g. Cyrillic ё pasted into .kz) — DNS then fails with "хост неизвестен".
-            var cleaned = new string(url.Trim().Where(c => c < 127 && !char.IsControl(c)).ToArray())
-                .TrimEnd('/');
 
             if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
@@ -199,6 +195,64 @@ namespace SmartRemont.ExportRooms
             }
 
             return cleaned;
+        }
+
+        /// <summary>
+        /// Как origin, но сохраняет путь. Для S3 это бакет: https://s3.smartremont.kz/smartremont.
+        /// </summary>
+        static string NormalizeBaseUrl(string url)
+        {
+            var cleaned = CleanUrl(url);
+            if (cleaned == null)
+                return url;
+
+            if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                && !string.IsNullOrEmpty(uri.Host))
+            {
+                var path = (uri.AbsolutePath ?? string.Empty).TrimEnd('/');
+                var authority = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+                if (string.IsNullOrEmpty(path) || path == "/")
+                    return authority;
+
+                return authority + path;
+            }
+
+            return cleaned;
+        }
+
+        static string EnsureS3BucketPrefix(string absoluteUrl)
+        {
+            if (!Uri.TryCreate(absoluteUrl, UriKind.Absolute, out var uri))
+                return absoluteUrl;
+            if (!Uri.TryCreate(S3OriginUrl, UriKind.Absolute, out var s3Base))
+                return absoluteUrl;
+            if (!string.Equals(uri.Host, s3Base.Host, StringComparison.OrdinalIgnoreCase))
+                return absoluteUrl;
+
+            var bucketPath = (s3Base.AbsolutePath ?? string.Empty).TrimEnd('/');
+            if (string.IsNullOrEmpty(bucketPath) || bucketPath == "/")
+                return absoluteUrl;
+
+            var pathAndQuery = uri.PathAndQuery ?? "/";
+            if (pathAndQuery.Equals(bucketPath, StringComparison.OrdinalIgnoreCase)
+                || pathAndQuery.StartsWith(bucketPath + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return absoluteUrl;
+            }
+
+            var authority = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+            return authority + bucketPath + pathAndQuery;
+        }
+
+        static string CleanUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return null;
+
+            // Drop accidental non-ASCII (e.g. Cyrillic ё pasted into .kz) — DNS then fails with "хост неизвестен".
+            return new string(url.Trim().Where(c => c < 127 && !char.IsControl(c)).ToArray())
+                .TrimEnd('/');
         }
     }
 }
