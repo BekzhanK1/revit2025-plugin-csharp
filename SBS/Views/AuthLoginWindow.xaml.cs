@@ -42,6 +42,11 @@ namespace SmartRemont.ExportRooms.Views
             await TryLoginAsync();
         }
 
+        async void JwtLoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            await TryJwtLoginAsync();
+        }
+
         async void PasswordBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -131,6 +136,10 @@ namespace SmartRemont.ExportRooms.Views
                 PasswordBox.Password = creds.password ?? string.Empty;
             }
 
+            JwtLoginPanel.Visibility = Configs.UseTestApi && Configs.IsTestApi
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
             var animation = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
@@ -171,6 +180,35 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        async Task TryJwtLoginAsync()
+        {
+            if (!_versionCheckPassed)
+            {
+                ShowError("Сначала должна пройти проверка версии плагина.");
+                return;
+            }
+
+            SetBusy(true);
+            HideError();
+
+            try
+            {
+                await AuthService.LoginWithAccessTokenAsync(JwtTextBox.Text).ConfigureAwait(true);
+                JwtTextBox.Clear();
+                DialogResult = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex.Message);
+                ExportRoomsApplication._logger?.Warning(ex, "Ошибка входа по JWT");
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
         void ShowError(string message)
         {
             ErrorTextBlock.Text = message;
@@ -187,7 +225,10 @@ namespace SmartRemont.ExportRooms.Views
             LoginButton.IsEnabled = !isBusy;
             EmailTextBox.IsEnabled = !isBusy;
             PasswordBox.IsEnabled = !isBusy;
+            JwtTextBox.IsEnabled = !isBusy;
+            JwtLoginButton.IsEnabled = !isBusy;
             LoginButton.Content = isBusy ? "Вход..." : "Войти";
+            JwtLoginButton.Content = isBusy ? "Вход..." : "Войти по JWT";
         }
     }
 }

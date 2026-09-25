@@ -4,6 +4,7 @@ using SmartRemont.ExportRooms.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -47,27 +48,12 @@ namespace SmartRemont.ExportRooms.Services
             if (remont == null)
                 throw new ArgumentNullException(nameof(remont));
 
-            var worksharedError = ValidateWorkshared(doc);
-            if (worksharedError != null)
-                return Fail(worksharedError);
-
             var clientRequestId = remont.ClientRequestId;
             if (clientRequestId <= 0)
                 return Fail("Не указан ID заявки (client_request_id).");
 
-            if (ProjectRemontMetadataService.IsInitialized(doc)
-                && !ProjectRemontMetadataService.ValidateMatches(doc, clientRequestId))
-            {
-                var existing = ProjectRemontMetadataService.TryRead(doc);
-                return new ProjectInitResult
-                {
-                    Success = false,
-                    RemontConflict = true,
-                    ErrorMessage =
-                        $"Проект уже привязан к заявке #{existing?.ClientRequestId}. " +
-                        $"Нельзя инициализировать с заявкой #{clientRequestId}."
-                };
-            }
+            if (remont.GradeId <= 0)
+                return Fail("У заявки не указан грейд. Найдите заявку заново.");
 
             var initSw = Stopwatch.StartNew();
             materialsResponse = await EnsureMaterialsResponseAsync(
@@ -86,19 +72,80 @@ namespace SmartRemont.ExportRooms.Services
                 remont.ResidentName,
                 remont.FlatNum);
 
-            Report(progress, "Сохранение копии проекта...", indeterminate: true);
-            cancellationToken.ThrowIfCancellationRequested();
+            ProjectTemplateFile template;
+            try
+            {
+                template = await ProjectTemplateService.EnsureLocalFileAsync(
+                    remont.GradeId,
+                    new Progress<string>(message => Report(progress, message, indeterminate: true)),
+                    cancellationToken).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+                ExportRoomsApplication._logger?.Warning("Project init cancelled before the template project was created");
+                return new ProjectInitResult
+                {
+                    Success = false,
+                    Cancelled = true,
+                    ErrorMessage = "Инициализация отменена."
+                };
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project template download failed");
+                return Fail(ex.Message);
+            }
+
+            if (IsPathOpen(doc.Application, targetPath))
+            {
+                return Fail(
+                    $"Файл уже открыт в Revit: {targetPath}. Закройте его и повторите инициализацию.");
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new ProjectInitResult
+                {
+                    Success = false,
+                    Cancelled = true,
+                    ErrorMessage = "Инициализация отменена."
+                };
+            }
+
+            Report(progress, "Создание проекта из шаблона...", indeterminate: true);
+
+            Document created;
+            try
+            {
+                created = doc.Application.NewProjectDocument(template.LocalPath);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex, "NewProjectDocument failed for {Template}", template.LocalPath);
+                return Fail("Не удалось создать проект из шаблона: " + ex.Message);
+            }
+
+            if (created == null || !created.IsValidObject)
+                return Fail("Revit не создал проект из шаблона.");
+
+            if (created.IsWorkshared)
+            {
+                TryCloseWithoutSaving(created);
+                return Fail("Шаблон с worksharing не поддерживается. Нужен локальный .rte без центральной модели.");
+            }
 
             var copySw = Stopwatch.StartNew();
-            var copyResult = ProjectCopyService.SaveCopyAs(doc, targetPath, overwriteExistingFile);
+            var copyResult = ProjectCopyService.SaveCopyAs(created, targetPath, overwriteExistingFile);
             copySw.Stop();
             ExportRoomsApplication._logger?.Information(
-                "Project init phase save_copy_as: elapsed_ms={ElapsedMs}, success={Success}",
+                "Project init phase save_from_template: elapsed_ms={ElapsedMs}, success={Success}, grade_id={GradeId}",
                 copySw.ElapsedMilliseconds,
-                copyResult.Success);
+                copyResult.Success,
+                remont.GradeId);
 
             if (!copyResult.Success)
             {
+                TryCloseWithoutSaving(created);
                 return new ProjectInitResult
                 {
                     Success = false,
@@ -112,7 +159,7 @@ namespace SmartRemont.ExportRooms.Services
             try
             {
                 var syncResult = await RunMaterialsSyncAsync(
-                    doc,
+                    created,
                     clientRequestId,
                     materialsResponse,
                     progress,
@@ -121,28 +168,33 @@ namespace SmartRemont.ExportRooms.Services
 
                 if (!IsInitSyncSuccessful(syncResult, ignorePreflightValidation))
                 {
-                    return FailAfterCopy(BuildStrictSyncFailureMessage(syncResult), copyResult, syncResult);
+                    return FailAfterCopy(
+                        BuildStrictSyncFailureMessage(syncResult),
+                        copyResult,
+                        syncResult,
+                        createdDocument: created);
                 }
 
                 Report(progress, "Запись метаданных заявки...", indeterminate: true);
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var remontIdFinal = remontId;
-                ProjectRemontMetadataService.Write(doc, new ProjectRemontMetadata
+                ProjectRemontMetadataService.Write(created, new ProjectRemontMetadata
                 {
                     RemontId = remontIdFinal,
                     ClientRequestId = clientRequestId
                 });
 
                 Report(progress, "Сохранение проекта...", indeterminate: true);
-                doc.Save();
+                created.Save();
 
                 ProjectInitRollbackService.CleanupVersionBackups(copyResult.TargetPath);
 
                 initSw.Stop();
                 ExportRoomsApplication._logger?.Information(
-                    "Project init completed: client_request_id={ClientRequestId}, path={Path}, loaded={Loaded}, total_elapsed_ms={ElapsedMs}",
+                    "Project init completed: client_request_id={ClientRequestId}, grade_id={GradeId}, path={Path}, loaded={Loaded}, total_elapsed_ms={ElapsedMs}",
                     clientRequestId,
+                    remont.GradeId,
                     copyResult.TargetPath,
                     syncResult.MaterialsLoaded,
                     initSw.ElapsedMilliseconds);
@@ -161,12 +213,12 @@ namespace SmartRemont.ExportRooms.Services
             catch (OperationCanceledException)
             {
                 ExportRoomsApplication._logger?.Warning("Project init cancelled by user");
-                return FailAfterCopy("Инициализация отменена.", copyResult, cancelled: true);
+                return FailAfterCopy("Инициализация отменена.", copyResult, cancelled: true, createdDocument: created);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Error(ex, "Project init failed");
-                return FailAfterCopy(ex.Message, copyResult);
+                return FailAfterCopy(ex.Message, copyResult, createdDocument: created);
             }
         }
 
@@ -384,14 +436,68 @@ namespace SmartRemont.ExportRooms.Services
             return "Инициализация остановлена: не все материалы прошли проверку и загрузку.";
         }
 
+        static bool IsPathOpen(Autodesk.Revit.ApplicationServices.Application app, string targetPath)
+        {
+            if (app == null || string.IsNullOrWhiteSpace(targetPath))
+                return false;
+
+            string full;
+            try
+            {
+                full = Path.GetFullPath(targetPath);
+            }
+            catch
+            {
+                return false;
+            }
+
+            foreach (Document open in app.Documents)
+            {
+                if (open == null || !open.IsValidObject || string.IsNullOrWhiteSpace(open.PathName))
+                    continue;
+
+                string openFull;
+                try
+                {
+                    openFull = Path.GetFullPath(open.PathName);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (string.Equals(openFull, full, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        static void TryCloseWithoutSaving(Document document)
+        {
+            if (document == null || !document.IsValidObject)
+                return;
+
+            try
+            {
+                document.Close(false);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project init: could not close the new document");
+            }
+        }
+
         static ProjectInitResult FailAfterCopy(
             string message,
             ProjectCopyResult copyResult,
             RevitMaterialsSyncResult syncResult = null,
-            bool cancelled = false)
+            bool cancelled = false,
+            Document createdDocument = null)
         {
-            // SaveAs уже переключил активный документ на targetPath и записал файл на диск —
-            // это верно и при отмене, поэтому попытку отката не пропускаем для cancelled.
+            // Сначала закрываем новый документ, иначе файл на диске занят и откат не удалит его.
+            TryCloseWithoutSaving(createdDocument);
+
             var hasCopy = !string.IsNullOrWhiteSpace(copyResult?.TargetPath);
             var rolledBack = hasCopy && ProjectInitRollbackService.TryRollbackInitCopy(copyResult.TargetPath);
 
@@ -402,10 +508,10 @@ namespace SmartRemont.ExportRooms.Services
                 // почти всегда падает — подсказку нужно показывать в обоих случаях, а не только
                 // при успешном удалении, иначе пользователь не поймёт, что делать с файлом.
                 fullMessage += rolledBack
-                    ? "\n\nКопия проекта на диске удалена. " + ProjectInitRollbackService.CloseWithoutSavingHint
-                    : $"\n\nКопия проекта осталась на диске ({copyResult.TargetPath}) — файл открыт в Revit, "
-                      + "удалить его сейчас нельзя. " + ProjectInitRollbackService.CloseWithoutSavingHint
-                      + " После закрытия удалите файл вручную, если он не нужен.";
+                    ? "\n\nНовый проект закрыт и удалён с диска. " + ProjectInitRollbackService.CloseWithoutSavingHint
+                    : $"\n\nНовый проект остался на диске ({copyResult.TargetPath}). "
+                      + "Закройте его без сохранения и удалите файл вручную, если он не нужен. "
+                      + ProjectInitRollbackService.CloseWithoutSavingHint;
             }
 
             return new ProjectInitResult

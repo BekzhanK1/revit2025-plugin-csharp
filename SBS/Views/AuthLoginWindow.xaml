@@ -192,6 +192,30 @@
                             IsDefault="True"
                             Click="LoginButton_Click"/>
                 </Grid>
+
+                <StackPanel x:Name="JwtLoginPanel" Margin="0,28,0,0" Visibility="Collapsed">
+                    <TextBlock Text="Тест: войти по JWT"
+                               Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="Access-токен сотрудника тестового API. Пароль не сохраняется."
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+                    <TextBox x:Name="JwtTextBox"
+                             Style="{StaticResource ModernInputField}"
+                             Height="72"
+                             Padding="14,8"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             VerticalContentAlignment="Top"
+                             VerticalScrollBarVisibility="Auto"
+                             Margin="0,0,0,12"/>
+                    <Button x:Name="JwtLoginButton"
+                            Content="Войти по JWT"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            HorizontalAlignment="Stretch"
+                            Click="JwtLoginButton_Click"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </Border>

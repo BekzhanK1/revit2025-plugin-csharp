@@ -7,7 +7,7 @@ namespace SmartRemont.ExportRooms.Services
     public static class ProjectInitRollbackService
     {
         public const string CloseWithoutSavingHint =
-            "Закройте проект без сохранения (Файл → Закрыть → не сохранять), затем откройте исходный шаблон.";
+            "Открытый до инициализации файл не изменялся.";
 
         /// <summary>
         /// Удаляет файл SaveCopyAs и версионные бэкапы Revit. Метаданные и doc.Save не вызывались — откат на диске.

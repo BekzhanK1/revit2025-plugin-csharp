@@ -120,7 +120,15 @@ namespace SmartRemont.ExportRooms
 
         public static string AuthRefreshUrl => $"{ApiOriginUrl}/auth/token/refresh/";
 
-        public static string QuickSearchUrl => $"{ApiOriginUrl}/client_request/quick_search/";
+        public static string QuickSearchUrl => $"{ApiOriginUrl}/revit/plugin/client-request/search/";
+
+        public static string ProjectTemplateCheckUrl(int gradeId, string fileHash = null)
+        {
+            var url = $"{ApiOriginUrl}/revit/project-template/check/?grade_id={gradeId}";
+            if (!string.IsNullOrWhiteSpace(fileHash))
+                url += "&file_hash=" + Uri.EscapeDataString(fileHash.Trim());
+            return url;
+        }
 
         public static string MaterialValidationUrl => $"{ApiOriginUrl}/common/catalog/validate_material_ids/";
 

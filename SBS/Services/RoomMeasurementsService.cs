@@ -154,16 +154,6 @@ namespace SmartRemont.ExportRooms.Services
                 catch { }
             }
 
-            // Fallback to schedule rooms if phase filtering returns nothing
-            if (roomNames.Count == 0)
-            {
-                foreach (var r in byKey.Values)
-                {
-                    foreach (var key in r.ByRoomOrEmpty.Keys) roomNames.Add(RoomNameMatcher.GetBaseName(key));
-                    foreach (var key in r.ByRoomIntOrEmpty.Keys) roomNames.Add(RoomNameMatcher.GetBaseName(key));
-                }
-            }
-
             snapshot.Rooms = roomNames
                 .OrderBy(SortRoomKey)
                 .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
@@ -393,10 +383,9 @@ namespace SmartRemont.ExportRooms.Services
                 && r.ByRoomOrEmpty.TryGetValue(entry.FixedRoomName.Trim(), out d))
                 return d;
 
-            // Спецификация найдена, но этого помещения в ней нет → 0 (сброс в системе), а не «нет в Revit».
-            if (!string.IsNullOrWhiteSpace(r.ScheduleName) || r.HasData)
-                return 0d;
-
+            // Ведомость есть, но этой комнаты в ней нет — или ячейка пустая.
+            // Это не замер 0: ноль ушёл бы в систему и затёр значение.
+            // Явный 0 в ячейке уже лежит в словаре и вернулся выше.
             return null;
         }
 

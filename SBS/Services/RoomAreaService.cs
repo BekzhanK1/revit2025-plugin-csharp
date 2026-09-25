@@ -31,23 +31,22 @@ namespace SmartRemont.ExportRooms.Services
         public static int GetRoomSortKey(Room room) =>
             ParseRoomNumberSortKey(room?.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.AsString());
 
-        public static string GetPreferredPhaseName(Document doc)
-        {
-            var phases = GetPhases(doc);
-            var preferred = phases.FirstOrDefault(p =>
-                p.Name.Equals("После монтажных работ", StringComparison.OrdinalIgnoreCase));
-            return (preferred ?? phases.FirstOrDefault())?.Name ?? "—";
-        }
+        public const string PreferredPhaseName = "После монтажных работ";
 
+        public static string GetPreferredPhaseName(Document doc) =>
+            GetPreferredPhase(doc)?.Name;
+
+        /// <summary>
+        /// Только фаза «После монтажных работ». Другую фазу не подставляем:
+        /// иначе площади ДС читаются не из той стадии и выглядят как пустые или чужие.
+        /// </summary>
         public static Phase GetPreferredPhase(Document doc)
         {
             if (doc == null)
                 return null;
 
-            var phases = GetPhases(doc);
-            return phases.FirstOrDefault(p =>
-                p.Name.Equals("После монтажных работ", StringComparison.OrdinalIgnoreCase))
-                ?? phases.FirstOrDefault();
+            return GetPhases(doc).FirstOrDefault(p =>
+                p.Name.Equals(PreferredPhaseName, StringComparison.OrdinalIgnoreCase));
         }
 
         public static double GetWallHeightM(Room room, Document doc) =>

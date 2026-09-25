@@ -413,6 +413,12 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
+            if (RoomAreaService.GetPreferredPhase(_doc) == null)
+            {
+                StatusText.Text = $"Фаза «{RoomAreaService.PreferredPhaseName}» не найдена.";
+                return;
+            }
+
             _loading = true;
             StatusText.Text = "Сканирование SR_ID в модели и загрузка ТК…";
             UpdateDsActionButtons();

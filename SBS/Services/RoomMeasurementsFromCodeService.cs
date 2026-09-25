@@ -38,7 +38,7 @@ namespace SmartRemont.ExportRooms.Services
             if (phase == null)
             {
                 foreach (var entry in RoomMeasurementsElementMapping.All)
-                    snapshot.Sources.Add(BuildSource(entry, null, false, "В проекте нет фаз"));
+                    snapshot.Sources.Add(BuildSource(entry, null, false, $"Фаза «{RoomAreaService.PreferredPhaseName}» не найдена"));
                 return snapshot;
             }
 

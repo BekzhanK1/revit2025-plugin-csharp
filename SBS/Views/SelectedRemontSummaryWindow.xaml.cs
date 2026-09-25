@@ -80,6 +80,21 @@ namespace SmartRemont.ExportRooms.Views
         async void SelectedRemontSummaryWindow_Loaded(object sender, RoutedEventArgs e)
         {
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
+
+            var phase = RoomAreaService.GetPreferredPhase(_doc);
+            if (phase == null)
+            {
+                var message = $"Фаза «{RoomAreaService.PreferredPhaseName}» не найдена.";
+                PhaseHintText.Text = message;
+                NoRoomsTextBlock.Text = message;
+                NoRoomsTextBlock.Visibility = System.Windows.Visibility.Visible;
+                RoomsDataGrid.Visibility = System.Windows.Visibility.Collapsed;
+                SendButton.IsEnabled = false;
+                SetStatus(message, isError: true);
+                await LoaderOverlay.HideAsync();
+                return;
+            }
+
             await LoadRoomIdsAsync().ConfigureAwait(true);
 
             var rooms = RoomAreaService.CollectRooms(_doc);
@@ -397,11 +412,12 @@ namespace SmartRemont.ExportRooms.Views
                 }
             }
 
-            if (payloadRooms.Count == 0)
+            if (unresolvedRoomNames.Count > 0 || payloadRooms.Count != revitRows.Count)
             {
-                MessageBox.Show(
-                    "Не удалось сопоставить помещения Revit с системой (нет room_id). Отправка недоступна.",
-                    "Smart Remont", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var text = "Отправка остановлена. Не сопоставлены помещения:\n"
+                    + string.Join("\n", unresolvedRoomNames.Select(n => "— " + n));
+                SetStatus(text, isError: true);
+                MessageBox.Show(text, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -416,9 +432,7 @@ namespace SmartRemont.ExportRooms.Views
                     .ApplyAsync(remont.ClientRequestId, wallHeight, payloadRooms)
                     .ConfigureAwait(true);
 
-                var skippedCount = (result.Skipped?.Count ?? 0) + unresolvedRoomNames.Count;
-                var skippedSuffix = skippedCount > 0 ? $" · пропущено {skippedCount}" : "";
-                SetStatus($"Отправлено: {result.AppliedRooms} помещ.{skippedSuffix} · ДС #{result.DsId}", isError: false);
+                SetStatus($"Отправлено: {result.AppliedRooms} помещ. · ДС #{result.DsId}", isError: false);
 
                 LastSuccessMessage = $"Площади отправлены · {result.AppliedRooms} помещ. · ДС #{result.DsId}";
 
@@ -426,13 +440,6 @@ namespace SmartRemont.ExportRooms.Views
                     $"Помещений: {result.AppliedRooms}\n"
                     + $"Высота потолка: {wallHeight.ToString("0.##", CultureInfo.InvariantCulture)} м\n"
                     + $"ДС: #{result.DsId} ({(result.Created ? "создана" : "обновлена")})";
-
-                var reasons = (result.Skipped ?? new List<ApplySkippedRoomDto>())
-                    .Select(s => $"— {(string.IsNullOrWhiteSpace(s.RoomName) ? "?" : s.RoomName)}: {s.Reason}")
-                    .Concat(unresolvedRoomNames.Select(n => $"— {n}: не сопоставлено с системой (нет room_id)"))
-                    .ToList();
-                if (reasons.Count > 0)
-                    details += "\n\nПропущено:\n" + string.Join("\n", reasons);
 
                 AppMessageDialog.ShowSuccess(this, "Успешно отправлено", "Площади отправлены", details);
 

@@ -37,7 +37,8 @@ namespace SmartRemont.ExportRooms.Services
             RevitMaterialReadResponse materialsResponse,
             int clientRequestId,
             IProgress<string> progress = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool ignoreHostProject = false)
         {
             var materialList = materialsResponse?.Data ?? new List<RevitMaterialRowDto>();
             var syncableCount = CountSyncableMaterials(materialList);
@@ -92,7 +93,9 @@ namespace SmartRemont.ExportRooms.Services
                 var label = string.IsNullOrWhiteSpace(row.MaterialName) ? $"#{materialId}" : row.MaterialName.Trim();
                 progress?.Report($"Проверка SR_ID: {label}");
 
-                if (doc != null && RevitMaterialPresenceService.LookupInIndex(srIdIndex, materialId).IsInProject)
+                if (!ignoreHostProject
+                    && doc != null
+                    && RevitMaterialPresenceService.LookupInIndex(srIdIndex, materialId).IsInProject)
                 {
                     downloadReady++;
                     continue;
@@ -162,7 +165,7 @@ namespace SmartRemont.ExportRooms.Services
                 else
                 {
                     var surfacesPath = surfacesDownload.FilePath;
-                    var surfaceIdsInProject = doc != null
+                    var surfaceIdsInProject = !ignoreHostProject && doc != null
                         ? surfaceRows
                             .Select(r => r.MaterialId!.Value)
                             .Where(id => RevitMaterialPresenceService.LookupInIndex(srIdIndex, id).IsInProject)

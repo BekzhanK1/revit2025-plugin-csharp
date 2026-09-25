@@ -47,9 +47,7 @@ namespace SmartRemont.ExportRooms.Services
                 var match = FindBestMatch(results, remont);
                 if (match == null)
                 {
-                    var msg =
-                        $"Quick search не нашёл заявку #{clientRequestId} на {Configs.ApiOriginUrl}."
-                        + " Проверьте apiOriginUrl (testapi vs prod) и права OA__RemontFormQuickSearch.";
+                    var msg = $"Заявка #{clientRequestId} не найдена на {Configs.ApiOriginUrl}.";
                     ExportRoomsApplication._logger?.Warning(
                         "Enrich quick_search: no match for client_request_id={ClientRequestId}, api={Api}",
                         clientRequestId,
@@ -107,6 +105,11 @@ namespace SmartRemont.ExportRooms.Services
             target.PresetName = source.PresetName;
             target.PresetKitName = source.PresetKitName;
             target.ProjectAccepted = source.ProjectAccepted;
+            if (source.GradeId > 0)
+            {
+                target.GradeId = source.GradeId;
+                target.GradeName = source.GradeName;
+            }
             if (source.RemontId is > 0)
                 target.RemontId = source.RemontId;
             if (source.ClientRequestId > 0)

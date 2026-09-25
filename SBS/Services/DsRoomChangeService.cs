@@ -117,10 +117,12 @@ namespace SmartRemont.ExportRooms.Services
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
                 throw new InvalidOperationException("Требуется авторизация");
 
-            var payloadRooms = rooms?.Where(r => r != null && r.RoomId > 0).ToList()
+            var payloadRooms = rooms?.Where(r => r != null).ToList()
                 ?? new List<DsRoomChangeApplyRoomDto>();
             if (payloadRooms.Count == 0)
                 throw new InvalidOperationException("Нет помещений для отправки");
+            if (payloadRooms.Any(r => r.RoomId <= 0))
+                throw new InvalidOperationException("Отправка остановлена: не у всех помещений есть room_id");
 
             var requestBody = new DsRoomChangeApplyRequest
             {
@@ -154,7 +156,18 @@ namespace SmartRemont.ExportRooms.Services
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка отправки ДС" : parsed.Error);
 
-            return parsed.Data ?? new DsRoomChangeApplyDataDto();
+            var data = parsed.Data ?? new DsRoomChangeApplyDataDto();
+            if (data.Skipped != null && data.Skipped.Count > 0)
+            {
+                var lines = data.Skipped.Select(s =>
+                    "— " + (string.IsNullOrWhiteSpace(s.RoomName) ? (s.RoomId?.ToString() ?? "?") : s.RoomName)
+                    + ": " + s.Reason);
+                throw new InvalidOperationException(
+                    "Сервер принял ДС не полностью. Проверьте ДС в MySpace и отправьте снова:\n"
+                    + string.Join("\n", lines));
+            }
+
+            return data;
         }
 
         static DsRoomChangeReadResponse ParseResponse(string responseBody)

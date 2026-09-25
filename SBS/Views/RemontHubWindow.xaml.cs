@@ -18,7 +18,7 @@ namespace SmartRemont.ExportRooms.Views
     {
         readonly Document _doc;
 
-        const string InitProjectSubtitle = "Копия RVT по заявке, метаданные и материалы";
+        const string InitProjectSubtitle = "Проект из шаблона .rte по грейду, метаданные и материалы";
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
@@ -311,9 +311,15 @@ namespace SmartRemont.ExportRooms.Views
                 }
             }
 
+            var measuresConfirmed = data != null && data.Any(r => r != null && r.IsMeasureConfirm == 1);
+
             if (notInPlan > 0)
             {
                 ApplyBadge(MeasuresButton, $"• {notInPlan} комнат не в планировке", "#FEF9C3", "#A16207");
+            }
+            else if (measuresConfirmed)
+            {
+                ApplyBadge(MeasuresButton, "Уже отправлено", "#DCFCE7", "#166534", "В MySpace отмечено «Замеры подтверждены»");
             }
             else
             {
@@ -677,27 +683,27 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            if (_doc.IsWorkshared)
+            if (remont.GradeId <= 0)
             {
-                AppMessageDialog.Show(
-                    this,
-                    AppMessageKind.InDevelopment,
-                    "Worksharing не поддерживается",
-                    "Инициализация доступна только для локального шаблона без центральной модели.",
-                    ProjectCopyService.WorksharedUnsupportedMessage);
+                SetStatus("У заявки не указан грейд. Найдите заявку заново.", isSuccess: false);
                 return;
             }
 
-            if (ProjectRemontMetadataService.IsInitialized(_doc)
-                && !ProjectRemontMetadataService.ValidateMatches(_doc, clientRequestId))
+            ShowInitProgress("Проверка шаблона проекта...", indeterminate: true);
+            try
             {
-                var existing = ProjectRemontMetadataService.TryRead(_doc);
-                AppMessageDialog.Show(
-                    this,
-                    AppMessageKind.InDevelopment,
-                    "Нельзя инициализировать",
-                    $"Проект уже привязан к заявке #{existing?.ClientRequestId}.",
-                    $"Выбрана заявка #{clientRequestId}. Откройте другой файл или выберите соответствующую заявку.");
+                await ProjectTemplateService.EnsureGradeHasTemplateAsync(remont.GradeId).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project template check failed");
+                HideInitProgress();
+                SetStatus(ex.Message, isSuccess: false);
+                MessageBox.Show(
+                    ex.Message,
+                    "Шаблон проекта",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
