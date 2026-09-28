@@ -28,10 +28,9 @@ namespace SmartRemont.ExportRooms.Views
 
             StatSkipValue.Text = preview.ProjectAlertCount.ToString(CultureInfo.InvariantCulture);
             StatSkipLabel.Text = "алерт проекта ≥10%";
-            EditableColumn.Visibility = Visibility.Collapsed;
 
             FooterHintText.Text =
-                "В ДС уйдут только объёмы с полем ввода в MySpace. Расхождения состава пока не блокируют.";
+                "Все объёмы записываются вместе: если сервер отклонит хотя бы один, в ДС не запишется ничего.";
 
             if (!string.IsNullOrWhiteSpace(dsStatusDisplay))
                 StatDsValue.ToolTip = dsStatusDisplay;

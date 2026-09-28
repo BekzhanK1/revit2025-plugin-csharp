@@ -72,6 +72,13 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("tk_change_id")]
         public int? TkChangeId { get; set; }
+
+        [JsonProperty("unit_name")]
+        public string UnitName { get; set; }
+
+        /// <summary>1 — в MySpace ввод в штуках, сервер сам пересчитывает в единицы расхода.</summary>
+        [JsonProperty("is_atom_measure")]
+        public bool IsAtomMeasure { get; set; }
     }
 
     public class ClientMaterialSetItemDto
@@ -84,5 +91,8 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("material_cnt")]
         public double? MaterialCnt { get; set; }
+
+        [JsonProperty("unit_name")]
+        public string UnitName { get; set; }
     }
 }

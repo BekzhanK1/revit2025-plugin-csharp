@@ -114,6 +114,7 @@ namespace SmartRemont.ExportRooms.Services
         public string RoomName { get; init; }
         public string WorkSetName { get; init; }
         public string QtyUnit { get; init; }
+        public string MyspaceUnit { get; init; }
         public double? TkQty { get; init; }
         public double ScheduleQty { get; init; }
         public bool IsMaterialCntInput { get; init; }
@@ -150,7 +151,8 @@ namespace SmartRemont.ExportRooms.Services
             }
         }
 
-        public string MyspaceEditableDisplay => IsMaterialCntInput ? "да" : "нет";
+        public string MyspaceUnitDisplay =>
+            string.IsNullOrWhiteSpace(MyspaceUnit) ? "—" : MyspaceUnit.Trim();
     }
 
     public sealed class DsTkQtyApplyPreview
@@ -172,7 +174,7 @@ namespace SmartRemont.ExportRooms.Services
         public string ModeHint => Mode switch
         {
             DsTkQtyApplyMode.EditableOnly =>
-                "В ДС уйдут только объёмы, которые можно править в MySpace.",
+                "Из Revit в ДС уходят только объёмы. Удалить, добавить или заменить материал можно только в MySpace.",
             DsTkQtyApplyMode.All =>
                 "В ДС только позиции с полем ввода. Алерты проекта остаются в сверке.",
             _ => "Объёмы не отправляются."
@@ -181,11 +183,9 @@ namespace SmartRemont.ExportRooms.Services
 
     public sealed class DsTkQtyApplyResult
     {
-        public int Attempted { get; init; }
-        public int Succeeded { get; init; }
-        public int Failed { get; init; }
-        public int Skipped { get; init; }
-        public List<string> Errors { get; init; } = new();
+        public int Applied { get; init; }
+        /// <summary>Объём совпал с договором — сервер убрал изменение из ДС.</summary>
+        public int RevertedToContract { get; init; }
     }
 
     /// <summary>
@@ -252,14 +252,8 @@ namespace SmartRemont.ExportRooms.Services
         {
             if (item == null)
                 return false;
-            if (string.Equals(item.DsTypeCode, TkChangeTypeCode, StringComparison.OrdinalIgnoreCase))
-                return true;
-            // На случай если SP не отдал ds_type_code.
-            var name = item.DsTypeName ?? string.Empty;
-            return name.IndexOf("TK_CHANGE", StringComparison.OrdinalIgnoreCase) >= 0
-                   || name.IndexOf("текстов", StringComparison.OrdinalIgnoreCase) >= 0
-                   || (name.IndexOf("ТК", StringComparison.OrdinalIgnoreCase) >= 0
-                       && name.IndexOf("изменен", StringComparison.OrdinalIgnoreCase) >= 0);
+            // Только по коду типа: угадывание по названию подхватывало чужие ДС.
+            return string.Equals(item.DsTypeCode, TkChangeTypeCode, StringComparison.OrdinalIgnoreCase);
         }
 
         public static async Task<int> GetTkChangeTypeIdAsync()
@@ -409,6 +403,8 @@ namespace SmartRemont.ExportRooms.Services
             public bool IsMaterialCntInput { get; init; }
             public int? ActionType { get; init; }
             public int? TkChangeId { get; init; }
+            public string UnitName { get; init; }
+            public bool IsAtomMeasure { get; init; }
             public List<ClientMaterialSetItemDto> SetItems { get; init; }
         }
 
@@ -476,6 +472,9 @@ namespace SmartRemont.ExportRooms.Services
                 }
 
                 row.IsMaterialCntInput = ds.IsMaterialCntInput;
+                row.IsAtomMeasure = ds.IsAtomMeasure;
+                if (!row.IsSetMember && !string.IsNullOrWhiteSpace(ds.UnitName))
+                    row.UnitName = ds.UnitName;
                 if (ds.MaterialSetId is > 0)
                     row.MaterialSetId = ds.MaterialSetId;
                 if (ds.TkChangeId is > 0)
@@ -504,6 +503,8 @@ namespace SmartRemont.ExportRooms.Services
                     .FirstOrDefault(i => i.MaterialId == row.MaterialId);
                 if (fromSet?.MaterialCnt != null)
                     row.MaterialCnt = fromSet.MaterialCnt;
+                if (!string.IsNullOrWhiteSpace(fromSet?.UnitName))
+                    row.UnitName = fromSet.UnitName;
                 applied++;
             }
 
@@ -551,6 +552,8 @@ namespace SmartRemont.ExportRooms.Services
                     IsMaterialCntInput = ReadBool(token["is_material_cnt_input"]) == true,
                     ActionType = ReadInt(token["action_type"]),
                     TkChangeId = ReadInt(token["tk_change_id"]),
+                    UnitName = ReadString(token["unit_name"]),
+                    IsAtomMeasure = ReadBool(token["is_atom_measure"]) == true,
                     SetItems = ClientMaterialTkService.ParseSetItems(token)
                 });
             }
@@ -652,6 +655,7 @@ namespace SmartRemont.ExportRooms.Services
                         RoomName = room.RoomName,
                         WorkSetName = row.WorkSetName,
                         QtyUnit = row.QtyUnit,
+                        MyspaceUnit = row.MyspaceUnit,
                         TkQty = row.TkQty,
                         ScheduleQty = row.ScheduleQty.Value,
                         IsMaterialCntInput = true
@@ -704,317 +708,119 @@ namespace SmartRemont.ExportRooms.Services
             return null;
         }
 
+        /// <summary>
+        /// Отправляет все объёмы одним запросом. Сервер проверяет каждую позицию и пишет
+        /// их в одной транзакции: при любой ошибке в ДС не записывается ничего.
+        /// </summary>
         public static async Task<DsTkQtyApplyResult> ApplyQtyAsync(
             int clientRequestId,
             int dsId,
-            IReadOnlyList<DsTkQtyApplyCandidate> candidates,
-            DsTkCompareResult compare = null)
+            IReadOnlyList<DsTkQtyApplyCandidate> candidates)
         {
             EnsureRequest(clientRequestId);
             if (dsId <= 0)
                 throw new InvalidOperationException("Не указан ID ДС");
             if (candidates == null || candidates.Count == 0)
-            {
-                return new DsTkQtyApplyResult
-                {
-                    Attempted = 0,
-                    Succeeded = 0,
-                    Failed = 0,
-                    Skipped = 0
-                };
-            }
+                throw new InvalidOperationException("Нет объёмов к отправке");
 
             var session = RequireSession();
             if (!session.HasGrant(QtyUpdGrant))
-                throw new InvalidOperationException($"Нет права {QtyUpdGrant} — изменение объёмов в ДС недоступно.");
-
-            var url = Configs.ClientRequestDsTkChangeSetItemCntUrl(clientRequestId);
-            ExportRoomsApplication._logger?.Information(
-                "DS TK qty apply START cr={ClientRequestId} ds={DsId} count={Count} url={Url} apiOrigin={ApiOrigin}",
-                clientRequestId,
-                dsId,
-                candidates.Count,
-                url,
-                Configs.ApiOriginUrl);
-
-            var succeeded = 0;
-            var failed = 0;
-            var errors = new List<string>();
-
-            foreach (var group in candidates.GroupBy(c => c.ClientMaterialId))
-            {
-                var items = group.ToList();
-                var first = items[0];
-                try
-                {
-                    if (first.MaterialSetId is > 0)
-                    {
-                        var payload = BuildSetItemPayload(items, compare);
-                        await SetItemCntAsync(
-                                clientRequestId,
-                                dsId,
-                                first,
-                                session.AccessToken,
-                                payload)
-                            .ConfigureAwait(false);
-                        succeeded += items.Count;
-                    }
-                    else
-                    {
-                        foreach (var item in items)
-                        {
-                            await SetItemCntAsync(clientRequestId, dsId, item, session.AccessToken)
-                                .ConfigureAwait(false);
-                            succeeded++;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    failed += items.Count;
-                    var label = string.IsNullOrWhiteSpace(first.MaterialName)
-                        ? $"material_id={first.MaterialId}"
-                        : first.MaterialName.Trim();
-                    var room = first.RoomDisplay;
-                    errors.Add($"{room}: {label} — {ex.Message}");
-                    ExportRoomsApplication._logger?.Warning(
-                        ex,
-                        "DS TK set item cnt failed ds={DsId} cm={ClientMaterialId} material={MaterialId} room={Room}",
-                        dsId,
-                        first.ClientMaterialId,
-                        first.MaterialId,
-                        room);
-                }
-            }
-
-            ExportRoomsApplication._logger?.Information(
-                "DS TK qty apply END cr={ClientRequestId} ds={DsId} attempted={Attempted} ok={Succeeded} fail={Failed}",
-                clientRequestId,
-                dsId,
-                candidates.Count,
-                succeeded,
-                failed);
-
-            return new DsTkQtyApplyResult
-            {
-                Attempted = candidates.Count,
-                Succeeded = succeeded,
-                Failed = failed,
-                Skipped = 0,
-                Errors = errors
-            };
-        }
-
-        sealed class SetItemCntPayload
-        {
-            public double? HeadCnt { get; init; }
-            public List<int> MaterialIds { get; init; } = new();
-            public List<double> MaterialCnts { get; init; } = new();
-        }
-
-        static SetItemCntPayload BuildSetItemPayload(
-            IReadOnlyList<DsTkQtyApplyCandidate> group,
-            DsTkCompareResult compare)
-        {
-            var first = group[0];
-            var changed = group
-                .Where(c => c.MaterialId > 0)
-                .GroupBy(c => c.MaterialId)
-                .ToDictionary(g => g.Key, g => g.First().ScheduleQty);
-
-            var members = new List<DsTkCompareRow>();
-            DsTkCompareRow head = null;
-            foreach (var room in compare?.Rooms ?? Enumerable.Empty<DsTkCompareRoom>())
-            {
-                if (room?.Rows == null)
-                    continue;
-                foreach (var row in room.Rows)
-                {
-                    if (row.ClientMaterialId != first.ClientMaterialId)
-                        continue;
-                    if (row.IsSetMember && row.MaterialId > 0)
-                        members.Add(row);
-                    else if (!row.IsSetMember)
-                        head ??= row;
-                }
-            }
-
-            var isUpdate = first.TkChangeId is > 0;
-            var toSend = isUpdate
-                ? members.Where(m => changed.ContainsKey(m.MaterialId)).ToList()
-                : members;
-
-            var ids = new List<int>();
-            var cnts = new List<double>();
-            foreach (var row in toSend)
-            {
-                ids.Add(row.MaterialId);
-                cnts.Add(changed.TryGetValue(row.MaterialId, out var qty) ? qty : row.TkQty ?? 0);
-            }
-
-            if (ids.Count == 0)
-            {
-                foreach (var item in group)
-                {
-                    if (item.MaterialId <= 0)
-                        continue;
-                    ids.Add(item.MaterialId);
-                    cnts.Add(item.ScheduleQty);
-                }
-            }
-
-            var headCnt = first.HeadMaterialCnt ?? head?.TkQty;
-            var headChange = group.FirstOrDefault(c => !c.IsSetMember);
-            if (headChange != null)
-                headCnt = headChange.ScheduleQty;
-
-            return new SetItemCntPayload
-            {
-                HeadCnt = headCnt,
-                MaterialIds = ids,
-                MaterialCnts = cnts
-            };
-        }
-
-        static async Task SetItemCntAsync(
-            int clientRequestId,
-            int dsId,
-            DsTkQtyApplyCandidate item,
-            string accessToken,
-            SetItemCntPayload setPayload = null)
-        {
-            var url = Configs.ClientRequestDsTkChangeSetItemCntUrl(clientRequestId);
-            var idArr = new JArray();
-            var cntArr = new JArray();
-            if (setPayload != null)
-            {
-                for (var i = 0; i < setPayload.MaterialIds.Count; i++)
-                {
-                    idArr.Add(setPayload.MaterialIds[i]);
-                    cntArr.Add(setPayload.MaterialCnts[i]);
-                }
-            }
-            else if (item.IsSetMember && item.MaterialId > 0)
-            {
-                idArr.Add(item.MaterialId);
-                cntArr.Add(item.ScheduleQty);
-            }
-
-            var headCnt = setPayload?.HeadCnt
-                ?? item.HeadMaterialCnt
-                ?? (item.IsSetMember ? (double?)null : item.ScheduleQty)
-                ?? item.ScheduleQty;
+                throw new InvalidOperationException("Нет права менять объёмы в ДС на изменение ТК.");
 
             var payload = new JObject
             {
+                ["client_request_id"] = clientRequestId,
                 ["ds_id"] = dsId,
-                ["client_material_id"] = item.ClientMaterialId,
-                ["cnt_material_cnt"] = headCnt,
-                ["cnt_material_set_id"] = item.MaterialSetId,
-                ["cnt_action_type"] = null,
-                ["cnt_tk_change_id"] = item.TkChangeId,
-                ["cnt_material_id_arr"] = idArr,
-                ["cnt_material_cnt_arr"] = cntArr
+                ["items"] = BuildApplyItems(candidates)
             };
-
             var payloadJson = payload.ToString(Formatting.None);
+            var url = Configs.DsTkChangeApplyUrl;
+
             ExportRoomsApplication._logger?.Information(
-                "DS TK qty REQUEST POST {Url} cm={ClientMaterialId} material={MaterialId} room={Room} tk={TkQty} schedule={ScheduleQty} unit={Unit} set={MaterialSetId} body={Body}",
+                "DS TK qty apply REQUEST cr={ClientRequestId} ds={DsId} count={Count} url={Url} body={Body}",
+                clientRequestId,
+                dsId,
+                candidates.Count,
                 url,
-                item.ClientMaterialId,
-                item.MaterialId,
-                item.RoomDisplay,
-                item.TkQty,
-                item.ScheduleQty,
-                item.QtyUnitDisplay,
-                item.MaterialSetId,
-                payloadJson);
+                TruncateForLog(payloadJson, 6000));
 
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
-            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
             httpRequest.Content = new StringContent(payloadJson, Encoding.UTF8, "application/json");
 
             using var response = await ApplyHttp.SendAsync(httpRequest).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var bodyForLog = TruncateForLog(body, 6000);
 
             ExportRoomsApplication._logger?.Information(
-                "DS TK qty RESPONSE HTTP {StatusCode} cm={ClientMaterialId} bytes={Bytes} body={Body}",
+                "DS TK qty apply RESPONSE HTTP {StatusCode} ds={DsId} body={Body}",
                 (int)response.StatusCode,
-                item.ClientMaterialId,
-                body?.Length ?? 0,
-                bodyForLog);
+                dsId,
+                TruncateForLog(body, 6000));
 
-            EnsureSuccess(response, body, "изменения объёма в ДС");
+            EnsureSuccess(response, body, "изменения объёмов в ДС");
 
-            if (string.IsNullOrWhiteSpace(body))
-            {
-                ExportRoomsApplication._logger?.Warning(
-                    "DS TK qty RESPONSE empty body cm={ClientMaterialId}",
-                    item.ClientMaterialId);
-                return;
-            }
-
+            JObject root;
             try
             {
-                var root = JObject.Parse(body);
-                if (root["status"]?.Value<bool>() == false)
-                    throw new InvalidOperationException(ReadError(root) ?? "Ошибка изменения объёма");
-
-                var echo = TrySummarizeMaterialEcho(root, item.ClientMaterialId);
-                if (!string.IsNullOrWhiteSpace(echo))
-                {
-                    ExportRoomsApplication._logger?.Information(
-                        "DS TK qty RESPONSE echo cm={ClientMaterialId}: {Echo}",
-                        item.ClientMaterialId,
-                        echo);
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                throw;
+                root = JObject.Parse(body ?? string.Empty);
             }
             catch (Exception ex)
             {
-                ExportRoomsApplication._logger?.Warning(
-                    ex,
-                    "DS TK qty RESPONSE parse warning cm={ClientMaterialId}",
-                    item.ClientMaterialId);
+                throw new InvalidOperationException(
+                    "Сервер вернул непонятный ответ. Проверьте ДС в MySpace: " + ex.Message);
             }
+
+            if (root["status"]?.Value<bool>() == false)
+                throw new InvalidOperationException(ReadError(root) ?? "Ошибка изменения объёмов в ДС");
+
+            var data = root["data"] as JObject;
+            var applied = ReadInt(data?["applied"]);
+            if (applied == null)
+                throw new InvalidOperationException(
+                    "Сервер не подтвердил запись объёмов. Проверьте ДС в MySpace.");
+
+            return new DsTkQtyApplyResult
+            {
+                Applied = applied.Value,
+                RevertedToContract = ReadInt(data["reverted_to_contract"]) ?? 0
+            };
         }
 
-        static string TrySummarizeMaterialEcho(JObject root, int clientMaterialId)
+        /// <summary>
+        /// Одна позиция client_material_id → один элемент. Для набора: шапка — material_cnt,
+        /// материалы набора — set_items. Остальной состав набора сервер берёт из ДС сам.
+        /// </summary>
+        static JArray BuildApplyItems(IReadOnlyList<DsTkQtyApplyCandidate> candidates)
         {
-            if (root == null || clientMaterialId <= 0)
-                return null;
-
-            JArray rows = null;
-            if (root["data"] is JArray direct)
-                rows = direct;
-            else if (root["data"] is JObject dataObj && dataObj["data"] is JArray nested)
-                rows = nested;
-
-            if (rows == null)
-                return null;
-
-            foreach (var token in rows.OfType<JObject>())
+            var items = new JArray();
+            foreach (var group in candidates.GroupBy(c => c.ClientMaterialId))
             {
-                var cm = ReadInt(token["client_material_id"]);
-                if (cm != clientMaterialId)
-                    continue;
+                var head = group.FirstOrDefault(c => !c.IsSetMember);
+                var members = group.Where(c => c.IsSetMember && c.MaterialId > 0).ToList();
 
-                var parts = new List<string>
+                var item = new JObject
                 {
-                    $"material_cnt={ReadString(token["material_cnt"]) ?? "null"}",
-                    $"material_new_cnt={ReadString(token["material_new_cnt"]) ?? "null"}",
-                    $"action_type={ReadString(token["action_type"]) ?? "null"}",
-                    $"tk_change_id={ReadString(token["tk_change_id"]) ?? "null"}",
-                    $"is_material_cnt_input={ReadString(token["is_material_cnt_input"]) ?? "null"}"
+                    ["client_material_id"] = group.Key,
+                    ["material_cnt"] = head != null ? new JValue(head.ScheduleQty) : JValue.CreateNull(),
+                    ["expected_material_cnt"] = head?.TkQty,
+                    ["unit"] = head?.QtyUnit
                 };
-                return string.Join(", ", parts);
+
+                if (members.Count > 0)
+                {
+                    item["set_items"] = new JArray(members.Select(m => new JObject
+                    {
+                        ["material_id"] = m.MaterialId,
+                        ["material_cnt"] = m.ScheduleQty,
+                        ["expected_material_cnt"] = m.TkQty,
+                        ["unit"] = m.QtyUnit
+                    }));
+                }
+
+                items.Add(item);
             }
 
-            return $"client_material_id={clientMaterialId} not found in response data";
+            return items;
         }
 
         static string TruncateForLog(string value, int maxChars)

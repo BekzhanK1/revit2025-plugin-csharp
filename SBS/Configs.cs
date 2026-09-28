@@ -159,8 +159,8 @@ namespace SmartRemont.ExportRooms
         public static string ClientRequestDsUrl(int clientRequestId, int dsId) =>
             $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/{dsId}/";
 
-        public static string ClientRequestDsTkChangeSetItemCntUrl(int clientRequestId) =>
-            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/tk_change_set_item_cnt/";
+        // Все объёмы ДС ТК одной транзакцией: либо записано всё, либо ничего.
+        public static string DsTkChangeApplyUrl => $"{ApiOriginUrl}/revit/plugin/ds/tk-change/apply/";
 
         public static string ClientRequestDsTkMaterialUrl(int clientRequestId, int dsId) =>
             $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/{dsId}/tk_material/";

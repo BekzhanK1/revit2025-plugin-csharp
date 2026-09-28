@@ -63,7 +63,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 MessageBox.Show(
                     this,
-                    "Нет права OA__RemontFormDSAdd — создание ДС недоступно.",
+                    "Нет права создавать ДС.",
                     "Smart Remont",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -500,7 +500,7 @@ namespace SmartRemont.ExportRooms.Views
 
             MismatchWarningText.Text =
                 $"Проект не совпадает с договором: нет в проекте {missing}, лишнее {extra}. "
-                + "Сейчас это не блокирует отправку. Дальше без совпадения состава отправка будет ограничена.";
+                + "Пока состав не совпадёт, объёмы в ДС не отправляются.";
             MismatchWarningPanel.Visibility = System.Windows.Visibility.Visible;
         }
 
@@ -532,11 +532,20 @@ namespace SmartRemont.ExportRooms.Views
                 }
                 catch (Exception ex)
                 {
+                    // Не сравниваем с договором вместо ДС: кандидаты посчитались бы от чужого эталона.
                     ExportRoomsApplication._logger?.Warning(
                         ex,
                         "DS TK materials overlay failed ds={DsId}",
                         _boundDs.DsId);
-                    fromDs = false;
+                    _result = null;
+                    _tkFlattened = null;
+                    UpdateStats();
+                    BindRooms();
+                    UpdateDsActionButtons();
+                    HideMismatchWarning();
+                    StatusText.Text = $"Не удалось прочитать материалы ДС №{_boundDs.DsId}: {ex.Message}. "
+                        + "Сверка остановлена, отправка недоступна. Нажмите «Обновить».";
+                    return;
                 }
             }
 
@@ -701,7 +710,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 MessageBox.Show(
                     this,
-                    $"Нет права {DsTkChangeService.QtyUpdGrant} — изменение объёмов в ДС недоступно.",
+                    "Нет права менять объёмы в ДС на изменение ТК.",
                     "Smart Remont",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -724,7 +733,9 @@ namespace SmartRemont.ExportRooms.Views
             {
                 MessageBox.Show(
                     this,
-                    "Нет объёмов к отправке: в MySpace нет поля ввода или объём ведомости совпадает.",
+                    _result.QtyBlockedCount > 0
+                        ? $"Нет объёмов, которые можно отправить. Расхождений, которые нельзя отправить из Revit: {_result.QtyBlockedCount} — причина в колонке «Объём»."
+                        : "Нет объёмов к отправке: объёмы ведомостей совпадают с ДС или в MySpace их нельзя править.",
                     "Объёмы",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -748,48 +759,33 @@ namespace SmartRemont.ExportRooms.Views
             {
                 StatusText.Text = $"Отправка объёмов в ДС №{_boundDs.DsId}…";
                 var apply = await DsTkChangeService
-                    .ApplyQtyAsync(_clientRequestId, _boundDs.DsId, candidates, _result)
+                    .ApplyQtyAsync(_clientRequestId, _boundDs.DsId, candidates)
                     .ConfigureAwait(true);
 
-                var msg = $"Объёмы: отправлено {apply.Succeeded} из {apply.Attempted}.";
-                if (apply.Failed > 0)
-                    msg += $" Ошибок: {apply.Failed}.";
+                var msg = $"В ДС №{_boundDs.DsId} записано объёмов: {apply.Applied}.";
+                if (apply.RevertedToContract > 0)
+                    msg += $"\nСовпали с договором, изменение из ДС убрано: {apply.RevertedToContract}.";
 
                 await RebuildCompareAsync().ConfigureAwait(true);
-                StatusText.Text = msg + $" ДС №{_boundDs.DsId}."
-                    + (_result?.QtyBaselineFromDs == true
-                        ? $" Сверка обновлена по ДС (qty≠ {_result.QtyMismatchCount})."
-                        : string.Empty);
+                StatusText.Text = msg.Replace("\n", " ");
 
-                var logHint = "\n\nЛоги: %LocalAppData%\\SmartRemont\\logs\nИщите: DS TK qty";
-
-                if (apply.Failed > 0)
-                {
-                    var errText = string.Join("\n", apply.Errors.Take(12));
-                    if (apply.Errors.Count > 12)
-                        errText += $"\n… и ещё {apply.Errors.Count - 12}";
-                    MessageBox.Show(
-                        this,
-                        msg + "\n\n" + errText + logHint,
-                        "Частичная отправка",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-                else
-                {
-                    MessageBox.Show(
-                        this,
-                        msg + "\nПроверьте черновик ДС." + logHint
-                            + $"\napiOrigin: {Configs.ApiOriginUrl}",
-                        "Объёмы отправлены",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
+                MessageBox.Show(
+                    this,
+                    msg,
+                    "Объёмы отправлены",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK apply qty failed");
-                MessageBox.Show(this, ex.Message, "Ошибка отправки объёмов", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusText.Text = "Объёмы не отправлены, в ДС ничего не записано.";
+                MessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Объёмы не отправлены",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             finally
             {
@@ -819,7 +815,7 @@ namespace SmartRemont.ExportRooms.Views
             CreateDsButton.IsEnabled = hasRequest && hasAdd && !busy && !hasAny;
             PickDsButton.IsEnabled = hasRequest && !busy && hasAny;
             CreateDsButton.ToolTip = !hasAdd
-                ? "Нет права OA__RemontFormDSAdd"
+                ? "Нет права создавать ДС"
                 : hasLocked
                     ? "Уже есть ДС на согласовании/утверждённая — новую нельзя"
                     : hasAny
@@ -836,17 +832,24 @@ namespace SmartRemont.ExportRooms.Views
                     : candidates == 1 ? "1 уйдёт" : $"{candidates} уйдёт";
             }
 
+            // Состав проекта не совпадает с договором — объёмы из такого проекта не отправляем.
+            var compositionMismatch = _result != null
+                && (_result.MissingInRevitCount > 0 || _result.ExtraInRevitCount > 0);
+
             if (ApplyQtyButton != null)
             {
-                ApplyQtyButton.IsEnabled = hasRequest && canEditBound && hasQtyUpd && !busy && candidates > 0;
+                ApplyQtyButton.IsEnabled = hasRequest && canEditBound && hasQtyUpd && !busy
+                    && !compositionMismatch && candidates > 0;
                 ApplyQtyButton.Content = "Проверить и отправить";
                 ApplyQtyButton.ToolTip = !hasQtyUpd
-                    ? $"Нет права {DsTkChangeService.QtyUpdGrant}"
+                    ? "Нет права менять объёмы в ДС на изменение ТК"
                     : !canEditBound
-                        ? "Нужен редактируемый черновик ДС"
-                        : candidates == 0
-                            ? "Нет объёмов MySpace к отправке"
-                            : $"Открыть превью: {candidates} позиций → ДС №{_boundDs.DsId}";
+                        ? "Нужен черновик ДС: создайте его или выберите"
+                        : compositionMismatch
+                            ? "Состав проекта не совпадает с договором — сначала исправьте проект"
+                            : candidates == 0
+                                ? "Нет объёмов, которые можно отправить"
+                                : $"Проверить {candidates} поз. перед отправкой в ДС №{_boundDs.DsId}";
             }
         }
         static Dictionary<int, RevitMaterialRowDto> BuildMaterialMeta(RevitMaterialReadResponse materials)

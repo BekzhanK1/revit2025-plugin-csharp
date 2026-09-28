@@ -38,6 +38,8 @@ namespace SmartRemont.ExportRooms.Services
         public double? TkQty { get; init; }
         public double? ScheduleQty { get; init; }
         public string QtyUnit { get; init; }
+        /// <summary>Единица позиции в MySpace (unit_name).</summary>
+        public string MyspaceUnit { get; init; }
         public string QtyStatusKey { get; init; }
         public string QtyStatusDisplay { get; init; }
         /// <summary>true — колонка эталона взята из привязанной ДС, не из исходного ТК.</summary>
@@ -82,6 +84,9 @@ namespace SmartRemont.ExportRooms.Services
 
         /// <summary>Сильный % у позиции без ввода в MySpace — сигнал, что проект неверный.</summary>
         public bool IsProjectQtyAlert => QtyStatusKey == "qty_project_alert";
+
+        /// <summary>Объём расходится, но из Revit его отправить нельзя — причина в QtyStatusDisplay.</summary>
+        public bool IsQtyBlocked => QtyStatusKey == "qty_blocked";
     }
 
     public sealed class DsTkCompareRoom
@@ -116,6 +121,7 @@ namespace SmartRemont.ExportRooms.Services
         public int ExtraInRevitCount { get; init; }
         public int QtyMismatchCount { get; init; }
         public int QtyProjectAlertCount { get; init; }
+        public int QtyBlockedCount { get; init; }
         public int TotalRows => MatchCount + MissingInRevitCount + NotExpectedInModelCount + ExtraInRevitCount;
         public string Note { get; init; }
         public bool QtyBaselineFromDs { get; init; }
@@ -166,6 +172,7 @@ namespace SmartRemont.ExportRooms.Services
             var extra = 0;
             var qtyMismatch = 0;
             var qtyProjectAlert = 0;
+            var qtyBlocked = 0;
 
             foreach (var roomKey in roomKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
             {
@@ -223,19 +230,9 @@ namespace SmartRemont.ExportRooms.Services
                     if (status == DsTkCompareStatus.MissingInRevit && hasTk && !hasPositiveTkQty)
                         status = DsTkCompareStatus.NotExpectedInModel;
 
+                    // Строки ведомости без комнаты сюда не попадают: угадывать комнату не будем.
                     scheduleByMat.TryGetValue(materialId, out var scheduleQtyValue);
                     var hasScheduleQty = scheduleByMat.ContainsKey(materialId);
-                    if (!hasScheduleQty
-                        && TryUngroupedScheduleQty(
-                            scheduleQty,
-                            materialId,
-                            roomKey,
-                            revitByRoom,
-                            out var ungroupedQty))
-                    {
-                        hasScheduleQty = true;
-                        scheduleQtyValue = ungroupedQty;
-                    }
                     var tkRow = PreferTkRowForApply(tkGroup);
                     var canEditQty = tkRow?.IsMaterialCntInput == true;
                     var (qtyKey, qtyDisplay) = ResolveQtyStatus(
@@ -248,6 +245,16 @@ namespace SmartRemont.ExportRooms.Services
 
                     var revitItem = revitGroup?.FirstOrDefault();
                     var qtyUnit = ResolveQtyUnit(materialId, roomKey, scheduleQty);
+
+                    if (qtyKey == "qty_mismatch")
+                    {
+                        var blockReason = ResolveQtyBlockReason(tkGroup, tkRow, qtyUnit, qtyBaselineFromDs);
+                        if (blockReason != null)
+                        {
+                            qtyKey = "qty_blocked";
+                            qtyDisplay = $"{qtyDisplay} — не отправляется: {blockReason}";
+                        }
+                    }
 
                     var row = new DsTkCompareRow
                     {
@@ -274,6 +281,7 @@ namespace SmartRemont.ExportRooms.Services
                         TkQty = tkQty,
                         ScheduleQty = hasScheduleQty ? scheduleQtyValue : null,
                         QtyUnit = qtyUnit,
+                        MyspaceUnit = string.IsNullOrWhiteSpace(tkRow?.UnitName) ? null : tkRow.UnitName.Trim(),
                         QtyStatusKey = qtyKey,
                         QtyStatusDisplay = FormatQtyStatusDisplay(qtyDisplay, qtyUnit),
                         QtyBaselineFromDs = qtyBaselineFromDs,
@@ -286,6 +294,8 @@ namespace SmartRemont.ExportRooms.Services
                         qtyMismatch++;
                     else if (qtyKey == "qty_project_alert")
                         qtyProjectAlert++;
+                    else if (qtyKey == "qty_blocked")
+                        qtyBlocked++;
                 }
 
                 // Наборы без material_id — в модели по SR_ID не ожидаются.
@@ -329,8 +339,8 @@ namespace SmartRemont.ExportRooms.Services
                 : $"Эталон presence — договор (ТК). Совпадает: {match}, нет в проекте: {missing}, лишнее в проекте: {extra}, не ожидается в модели: {notExpected}."
                   + (scheduleLineCount > 0
                       ? (qtyBaselineFromDs
-                          ? $" Объёмы vs ДС: править {qtyMismatch}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}."
-                          : $" Объёмы vs договор: править {qtyMismatch}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}.")
+                          ? $" Объёмы vs ДС: к отправке {qtyMismatch}, нельзя отправить {qtyBlocked}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}."
+                          : $" Объёмы vs договор: к отправке {qtyMismatch}, нельзя отправить {qtyBlocked}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}.")
                       : string.Empty);
 
             return new DsTkCompareResult
@@ -342,6 +352,7 @@ namespace SmartRemont.ExportRooms.Services
                 ExtraInRevitCount = extra,
                 QtyMismatchCount = qtyMismatch,
                 QtyProjectAlertCount = qtyProjectAlert,
+                QtyBlockedCount = qtyBlocked,
                 Note = note,
                 QtyBaselineFromDs = qtyBaselineFromDs,
                 ScheduleSources = scheduleQty?.Sources ?? new List<TkQtyScheduleSourceInfo>()
@@ -435,29 +446,42 @@ namespace SmartRemont.ExportRooms.Services
             return scale > 0 && abs <= scale * QtyRelTolerance;
         }
 
-        static bool TryUngroupedScheduleQty(
-            TkQtyScheduleSnapshot scheduleQty,
-            int materialId,
-            string roomKey,
-            IReadOnlyDictionary<string, List<RoomSrIdItem>> revitByRoom,
-            out double qty)
+        /// <summary>
+        /// Почему расхождение объёма нельзя отправить из Revit; null — можно.
+        /// Те же правила проверяет сервер (/revit/plugin/ds/tk-change/apply/).
+        /// </summary>
+        static string ResolveQtyBlockReason(
+            List<ClientMaterialRowDto> tkGroup,
+            ClientMaterialRowDto tkRow,
+            string scheduleUnit,
+            bool qtyBaselineFromDs)
         {
-            qty = 0;
-            if (scheduleQty?.SumByMaterialUngrouped == null
-                || !scheduleQty.SumByMaterialUngrouped.TryGetValue(materialId, out qty))
-                return false;
+            var positions = tkGroup?
+                .Where(r => r?.ClientMaterialId is > 0)
+                .Select(r => r.ClientMaterialId.Value)
+                .Distinct()
+                .Count() ?? 0;
+            if (positions > 1)
+                return $"материал стоит в {positions} позициях договора этой комнаты, объём правьте в MySpace";
 
-            var rooms = new List<string>();
-            foreach (var kv in revitByRoom ?? new Dictionary<string, List<RoomSrIdItem>>())
-            {
-                if (kv.Value == null || kv.Value.All(i => i.SrId != materialId))
-                    continue;
-                if (!rooms.Exists(r => string.Equals(r, kv.Key, StringComparison.OrdinalIgnoreCase)))
-                    rooms.Add(kv.Key);
-            }
+            if (tkRow?.IsAtomMeasure == true)
+                return "штучный материал, объём правьте в MySpace";
 
-            return rooms.Count == 1
-                   && string.Equals(rooms[0], roomKey, StringComparison.OrdinalIgnoreCase);
+            var revitUnit = QtyUnits.Normalize(scheduleUnit);
+            if (revitUnit == null)
+                return "в ведомости Revit не задана единица";
+
+            // Единицу MySpace отдаёт чтение ДС; без привязанной ДС отправка всё равно выключена.
+            if (!qtyBaselineFromDs && string.IsNullOrWhiteSpace(tkRow?.UnitName))
+                return null;
+
+            var myspaceUnit = QtyUnits.Normalize(tkRow?.UnitName);
+            if (myspaceUnit == null)
+                return "у материала нет единицы в MySpace";
+            if (!string.Equals(revitUnit, myspaceUnit, StringComparison.Ordinal))
+                return $"единица ведомости «{scheduleUnit.Trim()}» не совпадает с MySpace «{tkRow.UnitName.Trim()}»";
+
+            return null;
         }
 
         static string FormatQty(double? value) =>
@@ -680,6 +704,33 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             return "—";
+        }
+    }
+
+    /// <summary>
+    /// Единицы для сравнения ведомости Revit и MySpace. Синонимы совпадают
+    /// с _UNIT_ALIASES в office_api revit_ds_tk_apply_services.py.
+    /// </summary>
+    public static class QtyUnits
+    {
+        static readonly Dictionary<string, string> Aliases = new(StringComparer.Ordinal)
+        {
+            ["м2"] = "м2", ["м²"] = "м2", ["квм"] = "м2", ["m2"] = "м2",
+            ["м"] = "м", ["пм"] = "м", ["мп"] = "м", ["погм"] = "м", ["m"] = "м",
+            ["м3"] = "м3", ["м³"] = "м3", ["кубм"] = "м3",
+            ["шт"] = "шт", ["штук"] = "шт", ["штука"] = "шт",
+            ["л"] = "л", ["литр"] = "л",
+            ["кг"] = "кг"
+        };
+
+        public static string Normalize(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Trim() is "—" or "-")
+                return null;
+            var raw = value.Trim().ToLowerInvariant().Replace(" ", string.Empty).Replace(".", string.Empty);
+            if (raw.Length == 0)
+                return null;
+            return Aliases.TryGetValue(raw, out var unit) ? unit : raw;
         }
     }
 }
