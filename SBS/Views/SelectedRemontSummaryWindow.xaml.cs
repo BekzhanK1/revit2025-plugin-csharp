@@ -308,7 +308,7 @@ namespace SmartRemont.ExportRooms.Views
             // Update statistics text below the table
             if (StatsCountText != null)
                 StatsCountText.Text =
-                    $"Помещений: {compared.Count}  |  Совпадает: {match}  |  Изменено: {mismatch}  |  Только система: {systemOnly}  |  Только Revit: {revitOnly}";
+                    $"Помещений: {compared.Count}  |  Совпадает: {match}  |  Изменено: {mismatch}  |  Нет в проекте: {systemOnly}  |  Только Revit: {revitOnly}";
         }
 
         void DifferencesOnlyCheckBox_Changed(object sender, RoutedEventArgs e)

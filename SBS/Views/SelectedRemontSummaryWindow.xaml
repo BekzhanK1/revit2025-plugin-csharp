@@ -172,7 +172,7 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                                 <Border Width="12" Height="12" CornerRadius="3" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" Margin="0,0,6,0"/>
-                                <TextBlock Text="Только система" FontSize="12" Foreground="#475569"/>
+                                <TextBlock Text="Нет в проекте" FontSize="12" Foreground="#475569"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                                 <Border Width="12" Height="12" CornerRadius="3" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Margin="0,0,6,0"/>
@@ -290,7 +290,7 @@
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
-                        <DataGridTemplateColumn Header="Статус" Width="110">
+                        <DataGridTemplateColumn Header="Статус" Width="140">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Border x:Name="ActionBadge"
@@ -322,7 +322,7 @@
                                             <Setter TargetName="ActionBadge" Property="Background" Value="#FEE2E2"/>
                                             <Setter TargetName="ActionBadge" Property="BorderBrush" Value="#FECACA"/>
                                             <Setter TargetName="ActionBadge" Property="BorderThickness" Value="1"/>
-                                            <Setter TargetName="ActionText" Property="Text" Value="УДАЛЁН"/>
+                                            <Setter TargetName="ActionText" Property="Text" Value="НЕТ В ПРОЕКТЕ"/>
                                             <Setter TargetName="ActionText" Property="Foreground" Value="#991B1B"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
