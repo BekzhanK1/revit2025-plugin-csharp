@@ -75,6 +75,7 @@
                         Click="OpenSettingsButton_Click"
                         Style="{StaticResource HeaderIconButton}"
                         VerticalAlignment="Center"
+                        Visibility="Collapsed"
                         ToolTip="Указать, из каких спецификаций Revit брать каждый параметр">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE713;"
