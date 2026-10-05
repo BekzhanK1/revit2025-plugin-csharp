@@ -3,11 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont — Площади (ДС)"
-        MinWidth="700"
+        MinWidth="760"
         WindowStartupLocation="Manual"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
@@ -16,40 +18,42 @@
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="CompareRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Opacity" Value="0"/>
+            <Style x:Key="CompareRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}">
                 <Style.Triggers>
-                    <!-- Fade-in animation for rows -->
-                    <EventTrigger RoutedEvent="Loaded">
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.4">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut"/>
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </EventTrigger>
-
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Background" Value="#F8FAFC"/>
-                    </Trigger>
-                    
-                    <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Match">
-                        <Setter Property="Background" Value="#F0FDF4"/>
-                    </DataTrigger>
                     <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Mismatch">
-                        <Setter Property="Background" Value="#FEF2F2"/>
+                        <Setter Property="Background" Value="{StaticResource WarningSoftBrush}"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
-                        <Setter Property="Background" Value="#FFFBEB"/>
+                        <Setter Property="Background" Value="{StaticResource ErrorBackgroundBrush}"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
-                        <Setter Property="Background" Value="#EFF6FF"/>
+                        <Setter Property="Background" Value="{StaticResource InfoSoftBrush}"/>
                     </DataTrigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{StaticResource SelectionBrush}"/>
+                    </Trigger>
                 </Style.Triggers>
+            </Style>
+
+            <Style x:Key="NumericCell" TargetType="TextBlock" BasedOn="{StaticResource NumericCellText}"/>
+
+            <Style x:Key="LegendDot" TargetType="Border">
+                <Setter Property="Width" Value="10"/>
+                <Setter Property="Height" Value="10"/>
+                <Setter Property="CornerRadius" Value="5"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Margin" Value="0,0,6,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="LegendText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="FinLabel" TargetType="TextBlock" BasedOn="{StaticResource SectionLabel}">
+                <Setter Property="Margin" Value="0,0,0,4"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -62,359 +66,345 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Grid.Row="0" 
-                Background="{StaticResource CardBackgroundBrush}" 
-                BorderBrush="{StaticResource CardBorderBrush}" 
-                BorderThickness="0,0,0,1" 
-                Padding="24,20">
-            <StackPanel>
-                <TextBlock Text="Сверка площадей: Система и Revit"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           Margin="0,0,0,8"/>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                    <Border Background="#EFF6FF"
-                            BorderBrush="#BFDBFE"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="8,4"
-                            Margin="0,0,12,0">
-                        <TextBlock x:Name="RemontIdHeroText"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="#1D4ED8"/>
-                    </Border>
-                    <TextBlock x:Name="ClientRequestIdHeroText"
-                               FontSize="14"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-                
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" 
-                               x:Name="SystemDsInfoText"
-                               FontSize="13"
-                               Foreground="#475569"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1" 
-                               x:Name="PhaseHintText"
-                               FontSize="13"
-                               Foreground="#94A3B8"
-                               VerticalAlignment="Center"/>
-                </Grid>
-                <!-- Financial Summary (from DS sum data) -->
-                <Border x:Name="FinancialSummaryPanel" 
-                        Background="#F0F9FF" 
-                        BorderBrush="#BFDBFE" 
-                        BorderThickness="1" 
-                        CornerRadius="8" 
-                        Padding="16,12" 
-                        Margin="0,12,0,0"
-                        Visibility="Collapsed">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="ПО МАТЕРИАЛАМ" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="MaterialDiffText" FontSize="14" FontWeight="SemiBold" Foreground="#334155"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="В РАБОТАХ" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="WorkDiffText" FontSize="14" FontWeight="SemiBold" Foreground="#334155"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="В УСЛУГАХ" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="ServiceDiffText" FontSize="14" FontWeight="SemiBold" Foreground="#334155"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="3">
-                            <TextBlock Text="ИТОГО ДС" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="DsSumText" FontSize="16" FontWeight="Bold" Foreground="#1D4ED8"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-            </StackPanel>
-        </Border>
-
-        <!-- MAIN CONTENT (Table) -->
-        <Border Grid.Row="1" Margin="24,20,24,0" 
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12">
+        <Border Grid.Row="0" Style="{StaticResource PageHeader}">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                <Border Grid.Row="0" Padding="16" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1">
-                    <Grid>
-                        <!-- Legend -->
-                        <WrapPanel VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="3" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" Margin="0,0,6,0"/>
-                                <TextBlock Text="Совпадает" FontSize="12" Foreground="#475569"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="3" Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1" Margin="0,0,6,0"/>
-                                <TextBlock Text="Расхождение" FontSize="12" Foreground="#475569"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="3" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" Margin="0,0,6,0"/>
-                                <TextBlock Text="Нет в проекте" FontSize="12" Foreground="#475569"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                                <Border Width="12" Height="12" CornerRadius="3" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Margin="0,0,6,0"/>
-                                <TextBlock Text="Только Revit" FontSize="12" Foreground="#475569"/>
-                            </StackPanel>
-                        </WrapPanel>
-                        
-                        <CheckBox x:Name="DifferencesOnlyCheckBox"
-                                  Content="Показать только разницу"
-                                  FontSize="13"
-                                  Foreground="#334155"
-                                  HorizontalAlignment="Right"
-                                  VerticalAlignment="Center"
-                                  Checked="DifferencesOnlyCheckBox_Changed"
-                                  Unchecked="DifferencesOnlyCheckBox_Changed"/>
-                    </Grid>
+                <Border Style="{StaticResource HeaderIconTile}">
+                    <TextBlock Text="&#xE8EF;" Style="{StaticResource HeaderIconGlyph}"/>
                 </Border>
 
-                <!-- DataGrid without borders to blend smoothly -->
-                <DataGrid Grid.Row="1"
-                          x:Name="RoomsDataGrid"
-                          RowStyle="{StaticResource CompareRowStyle}"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          HeadersVisibility="Column"
-                          GridLinesVisibility="None"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          CanUserDeleteRows="False"
-                          IsReadOnly="True"
-                          SelectionMode="Single"
-                          SelectionUnit="FullRow"
-                          RowHeight="44"
-                          Margin="0,0,0,0">
-                    <DataGrid.ColumnHeaderStyle>
-                        <Style TargetType="DataGridColumnHeader">
-                            <Setter Property="Background" Value="#F8FAFC"/>
-                            <Setter Property="Foreground" Value="#64748B"/>
-                            <Setter Property="FontWeight" Value="SemiBold"/>
-                            <Setter Property="FontSize" Value="12"/>
-                            <Setter Property="Padding" Value="12,10"/>
-                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-                        </Style>
-                    </DataGrid.ColumnHeaderStyle>
-                    <DataGrid.CellStyle>
-                        <Style TargetType="DataGridCell">
-                            <Setter Property="Padding" Value="12,0"/>
-                            <Setter Property="BorderThickness" Value="0"/>
-                            <Setter Property="VerticalContentAlignment" Value="Center"/>
-                            <Setter Property="Foreground" Value="#334155"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#E0E7FF"/>
-                                    <Setter Property="Foreground" Value="#1E3A8A"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.CellStyle>
-                    
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Помещение" Binding="{Binding RoomName}" Width="*"/>
-                        
-                        <DataGridTextColumn Header="Система, м²" Binding="{Binding SystemAreaDisplay}" Width="110">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                    <Setter Property="Margin" Value="0,0,12,0"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <DataGridTextColumn Header="Revit, м²" Binding="{Binding AreaDisplay}" Width="100">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                    <Setter Property="Margin" Value="0,0,12,0"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <DataGridTemplateColumn Header="Δ, м²" Width="90">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,12,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="{Binding AreaDeltaDisplay}"/>
-                                                <Setter Property="Foreground" Value="#94A3B8"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsAreaDifference}" Value="True">
-                                                        <Setter Property="Foreground" Value="#DC2626"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-
-                        <DataGridTextColumn Header="Выс. Revit, м" Binding="{Binding HeightDisplay}" Width="110">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                    <Setter Property="Margin" Value="0,0,16,0"/>
-                                    <Setter Property="FontWeight" Value="Normal"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsPayloadHeight}" Value="True">
-                                            <Setter Property="FontWeight" Value="SemiBold"/>
-                                            <Setter Property="Foreground" Value="#2563EB"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <DataGridTemplateColumn Header="Статус" Width="140">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Border x:Name="ActionBadge"
-                                            CornerRadius="4"
-                                            Padding="8,3"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center">
-                                        <TextBlock x:Name="ActionText"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center"/>
-                                    </Border>
-                                    <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Match">
-                                            <Setter TargetName="ActionBadge" Property="Background" Value="#D1FAE5"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderBrush" Value="#A7F3D0"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderThickness" Value="1"/>
-                                            <Setter TargetName="ActionText" Property="Text" Value="СОВПАД."/>
-                                            <Setter TargetName="ActionText" Property="Foreground" Value="#065F46"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Mismatch">
-                                            <Setter TargetName="ActionBadge" Property="Background" Value="#FEF3C7"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderBrush" Value="#FDE68A"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderThickness" Value="1"/>
-                                            <Setter TargetName="ActionText" Property="Text" Value="ИЗМЕНЕН"/>
-                                            <Setter TargetName="ActionText" Property="Foreground" Value="#92400E"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
-                                            <Setter TargetName="ActionBadge" Property="Background" Value="#FEE2E2"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderBrush" Value="#FECACA"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderThickness" Value="1"/>
-                                            <Setter TargetName="ActionText" Property="Text" Value="НЕТ В ПРОЕКТЕ"/>
-                                            <Setter TargetName="ActionText" Property="Foreground" Value="#991B1B"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
-                                            <Setter TargetName="ActionBadge" Property="Background" Value="#DBEAFE"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderBrush" Value="#BFDBFE"/>
-                                            <Setter TargetName="ActionBadge" Property="BorderThickness" Value="1"/>
-                                            <Setter TargetName="ActionText" Property="Text" Value="НОВОЕ"/>
-                                            <Setter TargetName="ActionText" Property="Foreground" Value="#1E40AF"/>
-                                        </DataTrigger>
-                                    </DataTemplate.Triggers>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                <TextBlock x:Name="NoRoomsTextBlock"
-                           Text="В модели нет размещённых помещений для выбранной фазы."
-                           FontSize="14"
-                           Foreground="#94A3B8"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Grid.Row="1"
-                           Visibility="Collapsed"/>
-
-                <Border Grid.Row="2" 
-                        Background="#F8FAFC" 
-                        BorderBrush="{StaticResource CardBorderBrush}" 
-                        BorderThickness="0,1,0,0" 
-                        Padding="16,10">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="StatsCountText" 
-                                   FontSize="12" 
-                                   Foreground="#64748B"
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="Сверка площадей: система и Revit" Style="{StaticResource PageTitle}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Border Style="{StaticResource ChipInfo}" Margin="0,0,10,0">
+                            <TextBlock x:Name="RemontIdHeroText"
+                                       Style="{StaticResource ChipText}"
+                                       Foreground="{StaticResource InfoTextBrush}"/>
+                        </Border>
+                        <TextBlock x:Name="ClientRequestIdHeroText"
+                                   FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Column="2" Style="{StaticResource Chip}" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE823;" Style="{StaticResource IconGlyph}" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="PhaseHintText" Style="{StaticResource ChipText}"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
+        <!-- BODY -->
+        <Grid Grid.Row="1" Margin="28,20,28,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Данные ДС в системе -->
+            <Grid Grid.Row="0" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="&#xE946;" Style="{StaticResource IconGlyph}" FontSize="14" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Top" Margin="0,2,8,0"/>
+                <TextBlock Grid.Column="1"
+                           x:Name="SystemDsInfoText"
+                           FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"/>
+            </Grid>
+
+            <!-- Финансы по ДС -->
+            <Border Grid.Row="1"
+                    x:Name="FinancialSummaryPanel"
+                    Style="{StaticResource ModernCard}"
+                    Padding="20,14"
+                    Margin="0,0,0,16"
+                    Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="ПО МАТЕРИАЛАМ" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="MaterialDiffText" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource VerticalDivider}" Margin="16,2"/>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="В РАБОТАХ" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="WorkDiffText" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                    <Border Grid.Column="3" Style="{StaticResource VerticalDivider}" Margin="16,2"/>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="В УСЛУГАХ" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="ServiceDiffText" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                    <Border Grid.Column="5" Style="{StaticResource VerticalDivider}" Margin="16,2"/>
+                    <StackPanel Grid.Column="6">
+                        <TextBlock Text="ИТОГО ДС" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="DsSumText" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Таблица -->
+            <Border Grid.Row="2" Style="{StaticResource ModernCard}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Padding="18,12"
+                            BorderBrush="{StaticResource DividerBrush}"
+                            BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                                    <Border Style="{StaticResource LegendDot}" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderStrongBrush}"/>
+                                    <TextBlock Text="Совпадает" Style="{StaticResource LegendText}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                                    <Border Style="{StaticResource LegendDot}" Background="{StaticResource WarningSoftBrush}" BorderBrush="{StaticResource WarningBrush}"/>
+                                    <TextBlock Text="Расхождение" Style="{StaticResource LegendText}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                                    <Border Style="{StaticResource LegendDot}" Background="{StaticResource ErrorBackgroundBrush}" BorderBrush="{StaticResource ErrorBrush}"/>
+                                    <TextBlock Text="Нет в проекте" Style="{StaticResource LegendText}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                                    <Border Style="{StaticResource LegendDot}" Background="{StaticResource InfoSoftBrush}" BorderBrush="{StaticResource InfoBrush}"/>
+                                    <TextBlock Text="Только в Revit" Style="{StaticResource LegendText}"/>
+                                </StackPanel>
+                            </WrapPanel>
+
+                            <CheckBox x:Name="DifferencesOnlyCheckBox"
+                                      Grid.Column="1"
+                                      Content="Только расхождения"
+                                      VerticalAlignment="Center"
+                                      Checked="DifferencesOnlyCheckBox_Changed"
+                                      Unchecked="DifferencesOnlyCheckBox_Changed"/>
+                        </Grid>
+                    </Border>
+
+                    <DataGrid Grid.Row="1"
+                              x:Name="RoomsDataGrid"
+                              RowStyle="{StaticResource CompareRowStyle}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow"
+                              RowHeight="42">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Помещение" Binding="{Binding RoomName}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Система, м²" Binding="{Binding SystemAreaDisplay}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCell}">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Revit, м²" Binding="{Binding AreaDisplay}" Width="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCell}">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Header="Δ, м²" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,4,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding AreaDeltaDisplay}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsAreaDifference}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Выс. Revit, м" Binding="{Binding HeightDisplay}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCell}">
+                                        <Setter Property="Margin" Value="0,0,8,0"/>
+                                        <Setter Property="FontWeight" Value="Normal"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPayloadHeight}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                <Setter Property="Foreground" Value="{StaticResource InfoBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Header="Статус" Width="140">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border x:Name="ActionBadge"
+                                                CornerRadius="999"
+                                                BorderThickness="1"
+                                                Padding="9,2"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center">
+                                            <TextBlock x:Name="ActionText"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Match">
+                                                <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource SuccessSoftBrush}"/>
+                                                <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource SuccessBorderBrush}"/>
+                                                <Setter TargetName="ActionText" Property="Text" Value="Совпадает"/>
+                                                <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding AreaCompareStatus}" Value="Mismatch">
+                                                <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource WarningSoftBrush}"/>
+                                                <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource WarningBorderBrush}"/>
+                                                <Setter TargetName="ActionText" Property="Text" Value="Изменено"/>
+                                                <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
+                                                <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource ErrorBackgroundBrush}"/>
+                                                <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource ErrorBorderBrush}"/>
+                                                <Setter TargetName="ActionText" Property="Text" Value="Нет в проекте"/>
+                                                <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
+                                                <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource InfoSoftBrush}"/>
+                                                <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource InfoBorderBrush}"/>
+                                                <Setter TargetName="ActionText" Property="Text" Value="Новое"/>
+                                                <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource InfoTextBrush}"/>
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock x:Name="NoRoomsTextBlock"
+                               Grid.Row="1"
+                               Text="В модели нет размещённых помещений для выбранной фазы."
+                               Style="{StaticResource EmptyStateText}"
+                               Visibility="Collapsed"/>
+
+                    <Border Grid.Row="2"
+                            Background="{StaticResource SurfaceAltBrush}"
+                            BorderBrush="{StaticResource DividerBrush}"
+                            BorderThickness="0,1,0,0"
+                            CornerRadius="0,0,12,12"
+                            Padding="18,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="StatsCountText"
+                                       Style="{StaticResource CaptionText}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TotalAreaText"
+                                       Grid.Column="1"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="16,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
         <!-- FOOTER -->
-        <Border Grid.Row="2" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="24,16" Margin="0,16,0,0">
+        <Border Grid.Row="2" Style="{StaticResource PageFooter}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Wall Height Payload & Status Info -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
                     <TextBlock x:Name="StatusTextBlock"
                                FontSize="13"
-                               Foreground="#64748B"
-                               FontWeight="Medium"
-                               TextTrimming="CharacterEllipsis"
-                               Margin="0,0,0,4"/>
-                    
-                    <StackPanel x:Name="PayloadWallHeightPanel" Orientation="Horizontal" Visibility="Collapsed">
-                        <TextBlock Text="Отправка высоты:" FontSize="12" Foreground="#94A3B8" Margin="0,0,6,0"/>
-                        <TextBlock x:Name="PayloadWallHeightText" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB"/>
-                        <TextBlock Text=" м" FontSize="12" Foreground="#2563EB"/>
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+
+                    <StackPanel x:Name="PayloadWallHeightPanel"
+                                Orientation="Horizontal"
+                                Margin="0,4,0,0"
+                                Visibility="Collapsed">
+                        <TextBlock Text="Высота стен к отправке:" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="PayloadWallHeightText" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource InfoBrush}"/>
+                        <TextBlock Text=" м" FontSize="12" Foreground="{StaticResource InfoBrush}"/>
                         <TextBlock x:Name="WallHeightCompareText" FontSize="12" Margin="8,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Actions -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="TotalAreaText"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Foreground="#334155"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"/>
-                    
                     <Button x:Name="CloseButton"
                             Content="Закрыть"
                             Style="{StaticResource ModernSecondaryButton}"
-                            Margin="0,0,12,0"
-                            Padding="20,0"
+                            MinWidth="110"
+                            Margin="0,0,10,0"
                             IsCancel="True"
                             Click="CloseButton_Click"/>
                     <Button x:Name="SendButton"
                             Content="Отправить"
                             Style="{StaticResource ModernPrimaryButton}"
+                            MinWidth="140"
                             IsDefault="True"
                             IsEnabled="False"
-                            Padding="24,0"
                             Click="SendButton_Click"/>
                 </StackPanel>
             </Grid>
         </Border>
-        
+
         <local:LoadingOverlay x:Name="LoaderOverlay" Grid.RowSpan="3" Panel.ZIndex="1000"/>
     </Grid>
 </Window>

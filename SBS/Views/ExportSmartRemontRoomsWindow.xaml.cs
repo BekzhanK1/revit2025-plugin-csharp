@@ -184,7 +184,7 @@ namespace SmartRemont.ExportRooms.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     $"Ошибка инициализации окна:\n\n{ex.GetType().Name}: {ex.Message}\n\nStackTrace:\n{ex.StackTrace}",
                     "Диагностика",
                     MessageBoxButton.OK,
@@ -606,7 +606,7 @@ namespace SmartRemont.ExportRooms.Views
                 if (workItems.Count > 0) msg += $"\nМатериалов/работ (строк): {workItems.Count}";
                 msg += $"\n\n{TxtOutputPath.Text}";
 
-                MessageBox.Show(msg, "SmartRemont — готово", MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(msg, "SmartRemont — готово", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 DialogResult = true;
                 Close();
@@ -615,7 +615,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 TxtStatus.Text      = $"Ошибка: {ex.Message}";
                 BtnExport.IsEnabled = _filteredRooms.Count > 0;
-                MessageBox.Show(ex.Message, "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(ex.Message, "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

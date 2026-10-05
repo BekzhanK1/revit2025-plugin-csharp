@@ -8,6 +8,8 @@
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
@@ -23,11 +25,11 @@
             </ObjectDataProvider>
 
             <Style x:Key="ChipBorder" TargetType="Border">
-                <Setter Property="Background" Value="#EEF2FF"/>
-                <Setter Property="BorderBrush" Value="#C7D2FE"/>
+                <Setter Property="Background" Value="{StaticResource InfoSoftBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource InfoBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="CornerRadius" Value="14"/>
-                <Setter Property="Padding" Value="10,4"/>
+                <Setter Property="CornerRadius" Value="999"/>
+                <Setter Property="Padding" Value="10,3,6,3"/>
                 <Setter Property="Margin" Value="0,0,6,6"/>
             </Style>
 
@@ -43,53 +45,67 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <TextBlock Text="✕" Foreground="{TemplateBinding Foreground}" FontSize="11" VerticalAlignment="Center"/>
+                            <Border x:Name="Bd" Width="18" Height="18" CornerRadius="9" Background="Transparent" Margin="4,0,0,0">
+                                <TextBlock Text="&#xE711;" Style="{StaticResource IconGlyph}" FontSize="9" Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#1A0F172A"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
             </Style>
 
             <Style x:Key="EmptyHint" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#94A3B8"/>
+                <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
                 <Setter Property="FontSize" Value="12"/>
                 <Setter Property="FontStyle" Value="Italic"/>
                 <Setter Property="Margin" Value="0,2,0,8"/>
             </Style>
 
-            <Style x:Key="PickerCard" TargetType="Border">
-                <Setter Property="Background" Value="#F8FAFC"/>
-                <Setter Property="BorderBrush" Value="#E2E8F0"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="CornerRadius" Value="8"/>
+            <Style x:Key="PickerCard" TargetType="Border" BasedOn="{StaticResource InsetPanel}">
                 <Setter Property="Padding" Value="14"/>
-                <Setter Property="Margin" Value="0,0,0,16"/>
+                <Setter Property="Margin" Value="0,0,0,14"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Grid Margin="24">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Откуда брать замеры" Style="{StaticResource Heading1}"/>
-            <TextBlock Text="Для каждого параметра системы выберите спецификацию и колонки из открытого проекта Revit. Только выбор из списков — без ручного ввода."
-                       Style="{StaticResource BodyText}" TextWrapping="Wrap"/>
-        </StackPanel>
+        <!-- HEADER -->
+        <Border Grid.Row="0" Style="{StaticResource PageHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource HeaderIconTile}">
+                    <TextBlock Text="&#xE713;" Style="{StaticResource HeaderIconGlyph}"/>
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="Откуда брать замеры" Style="{StaticResource PageTitle}"/>
+                    <TextBlock Text="Для каждого параметра системы выберите спецификацию и колонки из открытого проекта Revit — только выбор из списков, без ручного ввода."
+                               Style="{StaticResource PageSubtitle}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" Margin="28,20,28,20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="280"/>
-                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: params -->
-            <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10">
+            <Border Grid.Column="0" Style="{StaticResource ModernCard}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -97,63 +113,46 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="ПАРАМЕТРЫ" Style="{StaticResource SectionLabel}" Margin="16,16,16,8"/>
+                    <Border Grid.Row="0" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="18,14">
+                        <TextBlock Text="Параметры" Style="{StaticResource CardTitle}"/>
+                    </Border>
 
                     <ListBox x:Name="EntriesListBox" Grid.Row="1"
                              ItemsSource="{Binding Entries}"
                              SelectedItem="{Binding SelectedEntry}"
                              BorderThickness="0"
                              Background="Transparent"
+                             Padding="8,6"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="Bd" Background="Transparent" Padding="14,10" BorderThickness="0,0,0,1" BorderBrush="#F1F5F9">
-                                                <ContentPresenter/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC"/>
-                                                </Trigger>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="#EEF2FF"/>
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#C7D2FE"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel>
-                                    <TextBlock Text="{Binding ParamName}" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="#0F172A"/>
-                                    <TextBlock Text="{Binding ParamCode}" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding ParamName}" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding ParamCode}" FontSize="11" FontFamily="Consolas, Segoe UI" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <Button Grid.Row="2" Content="+ Добавить параметр"
-                            Command="{Binding AddEntryCommand}"
-                            Style="{StaticResource SecondaryButton}" Margin="12"/>
+                    <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="12">
+                        <Button Command="{Binding AddEntryCommand}"
+                                Style="{StaticResource ModernSecondaryButton}"
+                                HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE710;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,8,0"/>
+                                <TextBlock Text="Добавить параметр" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Border>
                 </Grid>
             </Border>
 
             <!-- RIGHT: editor -->
-            <Border Grid.Column="2" Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="22">
+            <Border Grid.Column="2" Style="{StaticResource ModernCard}" Padding="24,8,24,20">
                 <Grid>
-                    <TextBlock Text="Выберите параметр слева"
-                               Foreground="#94A3B8" FontStyle="Italic"
-                               HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="Выберите параметр слева">
                         <TextBlock.Style>
-                            <Style TargetType="TextBlock">
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedEntry}" Value="{x:Null}">
@@ -214,7 +213,7 @@
                             <TextBlock Text="ВЕДОМОСТИ REVIT" Style="{StaticResource SectionGroupHeader}"/>
                             <Border Style="{StaticResource PickerCard}">
                                 <StackPanel>
-                                    <TextBlock Text="Добавить спецификацию из проекта" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Добавить спецификацию из проекта" Style="{StaticResource CardTitle}" FontSize="13" Margin="0,0,0,8"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -226,7 +225,7 @@
                                                   Style="{StaticResource FilterComboBox}"/>
                                         <Button Grid.Column="2" Content="Добавить"
                                                 Command="{Binding DataContext.PickScheduleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Style="{StaticResource SecondaryButton}" Padding="14,0"/>
+                                                Style="{StaticResource ModernSecondaryButton}" MinWidth="0" Padding="14,0"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -242,7 +241,7 @@
                                     <DataTemplate>
                                         <Border Style="{StaticResource ChipBorder}">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding}" FontSize="12" Foreground="#312E81" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource InfoTextBrush}" VerticalAlignment="Center"/>
                                                 <Button Style="{StaticResource ChipRemoveButton}"
                                                         Command="{Binding DataContext.RemoveScheduleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"
@@ -269,10 +268,9 @@
                             <TextBlock Text="КОЛОНКИ ВЕДОМОСТИ" Style="{StaticResource SectionGroupHeader}" Margin="0,8,0,0"/>
                             <Border Style="{StaticResource PickerCard}">
                                 <StackPanel>
-                                    <TextBlock Text="Колонка из выбранной спецификации" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Колонка из выбранной спецификации" Style="{StaticResource CardTitle}" FontSize="13" Margin="0,0,0,8"/>
                                     <TextBlock Text="Сначала выберите ведомость в списке выше — подтянутся её заголовки."
-                                               FontSize="11" Foreground="#94A3B8" Margin="0,0,0,8"
-                                               TextWrapping="Wrap"/>
+                                               Style="{StaticResource CaptionText}" Margin="0,0,0,10"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -286,11 +284,11 @@
                                                   Style="{StaticResource FilterComboBox}"/>
                                         <Button Grid.Column="2" Content="+ Значения"
                                                 Command="{Binding DataContext.PickValueColumnCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Style="{StaticResource SecondaryButton}" Padding="10,0"
+                                                Style="{StaticResource ModernSecondaryButton}" MinWidth="0" Padding="12,0"
                                                 ToolTip="Колонка с числовым значением"/>
                                         <Button Grid.Column="4" Content="+ Помещение"
                                                 Command="{Binding DataContext.PickRoomColumnCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Style="{StaticResource SecondaryButton}" Padding="10,0"
+                                                Style="{StaticResource ModernSecondaryButton}" MinWidth="0" Padding="12,0"
                                                 ToolTip="Колонка с именем комнаты"/>
                                     </Grid>
                                 </StackPanel>
@@ -313,10 +311,10 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Style="{StaticResource ChipBorder}" Background="#ECFDF5" BorderBrush="#A7F3D0">
+                                                <Border Style="{StaticResource ChipBorder}" Background="{StaticResource SuccessSoftBrush}" BorderBrush="{StaticResource SuccessBorderBrush}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="#065F46" VerticalAlignment="Center"/>
-                                                        <Button Style="{StaticResource ChipRemoveButton}" Foreground="#059669"
+                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource SuccessTextBrush}" VerticalAlignment="Center"/>
+                                                        <Button Style="{StaticResource ChipRemoveButton}" Foreground="{StaticResource SuccessTextBrush}"
                                                                 Command="{Binding DataContext.RemoveValueColumnCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"/>
                                                     </StackPanel>
@@ -336,10 +334,10 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Style="{StaticResource ChipBorder}" Background="#FFF7ED" BorderBrush="#FED7AA">
+                                                <Border Style="{StaticResource ChipBorder}" Background="{StaticResource WarningSoftBrush}" BorderBrush="{StaticResource WarningBorderBrush}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="#9A3412" VerticalAlignment="Center"/>
-                                                        <Button Style="{StaticResource ChipRemoveButton}" Foreground="#C2410C"
+                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource WarningTextBrush}" VerticalAlignment="Center"/>
+                                                        <Button Style="{StaticResource ChipRemoveButton}" Foreground="{StaticResource WarningTextBrush}"
                                                                 Command="{Binding DataContext.RemoveRoomColumnCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"/>
                                                     </StackPanel>
@@ -354,7 +352,7 @@
                             <TextBlock Text="ФИЛЬТР КОМНАТ" Style="{StaticResource SectionGroupHeader}" Margin="0,8,0,0"/>
                             <Border Style="{StaticResource PickerCard}">
                                 <StackPanel>
-                                    <TextBlock Text="Комната из модели Revit" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Комната из модели Revit" Style="{StaticResource CardTitle}" FontSize="13" Margin="0,0,0,8"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -368,10 +366,10 @@
                                                   Style="{StaticResource FilterComboBox}"/>
                                         <Button Grid.Column="2" Content="+ Включать"
                                                 Command="{Binding DataContext.PickFilterRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Style="{StaticResource SecondaryButton}" Padding="10,0"/>
+                                                Style="{StaticResource ModernSecondaryButton}" MinWidth="0" Padding="12,0"/>
                                         <Button Grid.Column="4" Content="+ Исключать"
                                                 Command="{Binding DataContext.PickExcludeRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Style="{StaticResource SecondaryButton}" Padding="10,0"/>
+                                                Style="{StaticResource ModernSecondaryButton}" MinWidth="0" Padding="12,0"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -394,7 +392,7 @@
                                             <DataTemplate>
                                                 <Border Style="{StaticResource ChipBorder}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="#312E81" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource InfoTextBrush}" VerticalAlignment="Center"/>
                                                         <Button Style="{StaticResource ChipRemoveButton}"
                                                                 Command="{Binding DataContext.RemoveIncludeRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"/>
@@ -414,10 +412,10 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Style="{StaticResource ChipBorder}" Background="#FEF2F2" BorderBrush="#FECACA">
+                                                <Border Style="{StaticResource ChipBorder}" Background="{StaticResource ErrorBackgroundBrush}" BorderBrush="{StaticResource ErrorBorderBrush}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="#991B1B" VerticalAlignment="Center"/>
-                                                        <Button Style="{StaticResource ChipRemoveButton}" Foreground="#DC2626"
+                                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource ErrorTextBrush}" VerticalAlignment="Center"/>
+                                                        <Button Style="{StaticResource ChipRemoveButton}" Foreground="{StaticResource ErrorTextBrush}"
                                                                 Command="{Binding DataContext.RemoveExcludeRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"/>
                                                     </StackPanel>
@@ -441,23 +439,36 @@
                                       IsChecked="{Binding IsMergedParameter}" Margin="0,0,0,8"
                                       ToolTip="Например WALL_AREA_MINUS из нескольких ведомостей"/>
 
-                            <Button Content="Удалить параметр"
-                                    Command="{Binding DataContext.RemoveEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding}"
-                                    Foreground="#DC2626" Background="Transparent" BorderThickness="0"
-                                    HorizontalAlignment="Right" Margin="0,20,0,0" Cursor="Hand"/>
+                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,20,0,0" Padding="0,14,0,0">
+                                <Button Command="{Binding DataContext.RemoveEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Style="{StaticResource DangerGhostButton}"
+                                        HorizontalAlignment="Right">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE74D;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Удалить параметр" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>
 
-        <Grid Grid.Row="2" Margin="0,20,0,0">
-            <Button Content="Сброс по умолчанию" Click="ResetButton_Click" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Отмена" Click="CancelButton_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,12,0"/>
-                <Button Content="Сохранить" Click="SaveButton_Click" Style="{StaticResource PrimaryButton}"/>
-            </StackPanel>
-        </Grid>
+        <Border Grid.Row="2" Style="{StaticResource PageFooter}">
+            <Grid>
+                <Button Click="ResetButton_Click" Style="{StaticResource GhostButton}" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE777;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
+                        <TextBlock Text="Сброс по умолчанию" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Отмена" Click="CancelButton_Click" Style="{StaticResource ModernSecondaryButton}" MinWidth="110" Margin="0,0,10,0"/>
+                    <Button Content="Сохранить" Click="SaveButton_Click" Style="{StaticResource ModernPrimaryButton}" MinWidth="130"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

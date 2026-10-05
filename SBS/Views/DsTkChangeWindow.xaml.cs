@@ -61,7 +61,7 @@ namespace SmartRemont.ExportRooms.Views
             var session = ExportRoomsApplication.CurrentSession;
             if (session?.HasGrant("OA__RemontFormDSAdd") != true)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     "Нет права создавать ДС.",
                     "Smart Remont",
@@ -76,7 +76,7 @@ namespace SmartRemont.ExportRooms.Views
             var existingLocked = _dsItems.FirstOrDefault(i => i.IsLocked);
             if (existingLocked != null)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     $"Уже есть ДС №{existingLocked.DsId} ({existingLocked.StatusDisplay}).\n\n"
                     + "Новую TK_CHANGE создавать нельзя, пока эта не разсогласована / не закрыта.\n"
@@ -92,7 +92,7 @@ namespace SmartRemont.ExportRooms.Views
             var existingDraft = _dsItems.FirstOrDefault(i => i.CanEdit);
             if (existingDraft != null)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     $"Уже есть черновик ДС №{existingDraft.DsId}.\nВыберите его кнопкой «Выбрать…», а не создавайте второй.",
                     "Черновик уже есть",
@@ -104,7 +104,7 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var confirm = MessageBox.Show(
+            var confirm = AppMessageBox.Show(
                 this,
                 "Создать пустую ДС на изменение ТК (черновик) для этой заявки?",
                 "Создать ДС",
@@ -125,7 +125,7 @@ namespace SmartRemont.ExportRooms.Views
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK create failed");
-                MessageBox.Show(this, ex.Message, "Ошибка создания ДС", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(this, ex.Message, "Ошибка создания ДС", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -146,7 +146,7 @@ namespace SmartRemont.ExportRooms.Views
 
                 if (_dsItems.Count == 0)
                 {
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         this,
                         "ДС на изменение ТК пока нет. Нажмите «Создать ДС».",
                         "Smart Remont",
@@ -168,7 +168,7 @@ namespace SmartRemont.ExportRooms.Views
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK pick failed");
-                MessageBox.Show(this, ex.Message, "Ошибка выбора ДС", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(this, ex.Message, "Ошибка выбора ДС", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         void ExportJsonButton_Click(object sender, RoutedEventArgs e)
@@ -696,7 +696,7 @@ namespace SmartRemont.ExportRooms.Views
 
             if (_boundDs == null || !_boundDs.CanEdit)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     "Нужен редактируемый черновик ДС. Создайте ДС или выберите черновик.",
                     "Smart Remont",
@@ -708,7 +708,7 @@ namespace SmartRemont.ExportRooms.Views
             var session = ExportRoomsApplication.CurrentSession;
             if (session?.HasGrant(DsTkChangeService.QtyUpdGrant) != true)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     "Нет права менять объёмы в ДС на изменение ТК.",
                     "Smart Remont",
@@ -719,7 +719,7 @@ namespace SmartRemont.ExportRooms.Views
 
             if (_result == null)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     "Сначала дождитесь сверки.",
                     "Smart Remont",
@@ -731,7 +731,7 @@ namespace SmartRemont.ExportRooms.Views
             var preview = DsTkChangeService.BuildQtyApplyPreview(_result, DsTkQtyApplyMode.EditableOnly);
             if (preview.Candidates.Count == 0)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     _result.QtyBlockedCount > 0
                         ? $"Нет объёмов, которые можно отправить. Расхождений, которые нельзя отправить из Revit: {_result.QtyBlockedCount} — причина в колонке «Объём»."
@@ -769,7 +769,7 @@ namespace SmartRemont.ExportRooms.Views
                 await RebuildCompareAsync().ConfigureAwait(true);
                 StatusText.Text = msg.Replace("\n", " ");
 
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     msg,
                     "Объёмы отправлены",
@@ -780,7 +780,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK apply qty failed");
                 StatusText.Text = "Объёмы не отправлены, в ДС ничего не записано.";
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     ex.Message,
                     "Объёмы не отправлены",

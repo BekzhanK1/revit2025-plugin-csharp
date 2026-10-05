@@ -123,7 +123,7 @@ namespace SmartRemont.ExportRooms.Views
 
                 if (problems.Count > 0)
                 {
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         this,
                         string.Join("\n\n", problems) + $"\n\nAPI: {Configs.ApiOriginUrl}",
                         "Smart Remont — проблемы загрузки",
@@ -137,7 +137,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ExportRoomsApplication._logger?.Warning(ex, "Hub FetchAsyncStates failed");
                 SetStatus("Ошибка обновления статусов: " + ex.Message, true);
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     ex.Message + $"\n\nAPI: {Configs.ApiOriginUrl}",
                     "Ошибка обновления статусов",
@@ -438,7 +438,7 @@ namespace SmartRemont.ExportRooms.Views
 
             if (!ok)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     error ?? "Не удалось загрузить карточку заявки.",
                     "Ошибка загрузки заявки",
@@ -699,7 +699,7 @@ namespace SmartRemont.ExportRooms.Views
                 ExportRoomsApplication._logger?.Warning(ex, "Project template check failed");
                 HideInitProgress();
                 SetStatus(ex.Message, isSuccess: false);
-                MessageBox.Show(
+                AppMessageBox.Show(
                     ex.Message,
                     "Шаблон проекта",
                     MessageBoxButton.OK,
@@ -719,7 +719,7 @@ namespace SmartRemont.ExportRooms.Views
                 ExportRoomsApplication._logger?.Warning(ex, "Project init preview: materials read failed");
                 HideInitProgress();
                 SetStatus("Не удалось загрузить материалы: " + ex.Message, isSuccess: false);
-                MessageBox.Show(
+                AppMessageBox.Show(
                     ex.Message,
                     "Ошибка загрузки материалов",
                     MessageBoxButton.OK,
@@ -732,7 +732,7 @@ namespace SmartRemont.ExportRooms.Views
             if (ProjectInitMaterialsPreflightService.CountSyncableMaterials(materialsResponse.Data) <= 0)
             {
                 SetStatus(ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage(), isSuccess: false);
-                MessageBox.Show(
+                AppMessageBox.Show(
                     ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage(),
                     "Нет материалов для init",
                     MessageBoxButton.OK,
@@ -826,7 +826,7 @@ namespace SmartRemont.ExportRooms.Views
                 SetStatus(result.ErrorMessage ?? "Инициализация не удалась", isSuccess: false);
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         this,
                         result.ErrorMessage,
                         "Ошибка инициализации",
@@ -948,7 +948,7 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var confirm = MessageBox.Show(
+            var confirm = AppMessageBox.Show(
                 this,
                 "Повторная strict-синхронизация материалов без SaveCopyAs. Продолжить?",
                 "Re-sync материалов",
@@ -992,7 +992,7 @@ namespace SmartRemont.ExportRooms.Views
                 SetStatus(result.ErrorMessage ?? "Re-sync не удался", isSuccess: false);
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         this,
                         result.ErrorMessage,
                         result.Cancelled ? "Re-sync отменён" : "Ошибка re-sync",

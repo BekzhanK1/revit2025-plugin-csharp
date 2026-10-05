@@ -3,11 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont — Синхронизация материалов"
-        MinWidth="880"
+        MinWidth="900"
         WindowStartupLocation="Manual"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
@@ -16,53 +18,72 @@
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="WrapCellText" TargetType="TextBlock">
-                <Setter Property="TextWrapping" Value="Wrap"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-            </Style>
+            <Style x:Key="WrapCellText" TargetType="TextBlock" BasedOn="{StaticResource WrapCellTextBase}"/>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource ModernCard}" Margin="24">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                <TextBlock Text="Синхронизация материалов из Revit" Style="{StaticResource Heading1}"/>
-                <TextBlock Text="Загрузка RFA и surface-типов по SR_ID." Style="{StaticResource BodyText}"/>
-            </StackPanel>
+        <!-- HEADER -->
+        <Border Grid.Row="0" Style="{StaticResource PageHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource HeaderIconTile}">
+                    <TextBlock Text="&#xE7B8;" Style="{StaticResource HeaderIconGlyph}"/>
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="Синхронизация материалов из Revit" Style="{StaticResource PageTitle}"/>
+                    <TextBlock Text="Загрузка RFA-семейств и surface-типов по SR_ID из Smart Remont." Style="{StaticResource PageSubtitle}"/>
+                </StackPanel>
+                <Border Grid.Column="2"
+                        Style="{StaticResource ChipInfo}"
+                        Margin="16,0,0,0"
+                        Visibility="{Binding Visibility, ElementName=ClientRequestTextBlock}">
+                    <TextBlock x:Name="ClientRequestTextBlock"
+                               Style="{StaticResource ChipText}"
+                               Foreground="{StaticResource InfoTextBrush}"
+                               Visibility="Collapsed"/>
+                </Border>
+            </Grid>
+        </Border>
 
-            <TextBlock x:Name="ClientRequestTextBlock"
-                       Grid.Row="1"
-                       FontSize="13"
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       Margin="0,0,0,16"
-                       Visibility="Collapsed"/>
+        <!-- BODY -->
+        <Border Grid.Row="1" Style="{StaticResource ModernCard}" Margin="28,20,28,20">
+            <Grid MinHeight="300">
+                <StackPanel x:Name="LoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
+                    <ProgressBar Width="200" Height="4" IsIndeterminate="True" Margin="0,0,0,14"/>
+                    <TextBlock Text="Загрузка списка материалов…" Style="{StaticResource EmptyStateText}"/>
+                </StackPanel>
 
-            <Border Grid.Row="2"
-                    BorderBrush="{StaticResource CardBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Background="#F8FAFC">
-                <Grid MinHeight="300">
-                    <StackPanel x:Name="LoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
-                        <ProgressBar Width="160" Height="4" IsIndeterminate="True" Margin="0,0,0,16"/>
-                        <TextBlock Text="Загрузка списка материалов..." FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
-                    </StackPanel>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding Visibility, ElementName=EmptyTextBlock}">
+                    <TextBlock Text="&#xE7B8;" Style="{StaticResource IconGlyph}" FontSize="28" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="EmptyTextBlock" Text="Нет материалов для синхронизации." Style="{StaticResource EmptyStateText}" Visibility="Collapsed"/>
+                </StackPanel>
 
-                    <TextBlock x:Name="EmptyTextBlock" Text="Нет материалов для синхронизации." FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                <StackPanel x:Name="ErrorPanel" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Visibility="Collapsed">
+                    <Border Width="48" Height="48" CornerRadius="24" Background="{StaticResource ErrorBackgroundBrush}" Margin="0,0,0,14">
+                        <TextBlock Text="&#xE783;" Style="{StaticResource IconGlyph}" FontSize="22" Foreground="{StaticResource ErrorBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="ErrorTextBlock" FontSize="13" Foreground="{StaticResource ErrorTextBrush}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,16"/>
+                    <Button x:Name="RetryButton" Style="{StaticResource ModernSecondaryButton}" HorizontalAlignment="Center" Click="RetryButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72C;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
+                            <TextBlock Text="Повторить загрузку" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
 
-                    <StackPanel x:Name="ErrorPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                        <TextBlock x:Name="ErrorTextBlock" FontSize="14" Foreground="#DC2626" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="520" Margin="0,0,0,16"/>
-                        <Button x:Name="RetryButton" Content="Повторить загрузку" Style="{StaticResource ModernSecondaryButton}" HorizontalAlignment="Center" Padding="20,0" Click="RetryButton_Click"/>
-                    </StackPanel>
-
-                    <DataGrid x:Name="MaterialsDataGrid"
+            <DataGrid x:Name="MaterialsDataGrid"
                               Style="{StaticResource ModernDataGrid}"
                               Visibility="Collapsed"
                               BorderThickness="0"
@@ -108,17 +129,20 @@
                             <DataGridTemplateColumn Header="Статус" Width="150">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border Padding="10,4" CornerRadius="4" HorizontalAlignment="Left"
+                                        <Border Padding="9,2" CornerRadius="999" BorderThickness="1" HorizontalAlignment="Left"
                                                 ToolTip="{Binding DetailDisplay}">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="#F1F5F9"/>
+                                                    <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasSyncError}" Value="True">
-                                                            <Setter Property="Background" Value="#FEE2E2"/>
+                                                            <Setter Property="Background" Value="{StaticResource ErrorBackgroundBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="{StaticResource ErrorBorderBrush}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsInProject}" Value="True">
-                                                            <Setter Property="Background" Value="#DCFCE7"/>
+                                                            <Setter Property="Background" Value="{StaticResource SuccessSoftBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="{StaticResource SuccessBorderBrush}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -127,14 +151,14 @@
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                                        <Setter Property="FontSize" Value="12"/>
+                                                        <Setter Property="FontSize" Value="11"/>
                                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding HasSyncError}" Value="True">
-                                                                <Setter Property="Foreground" Value="#991B1B"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding IsInProject}" Value="True">
-                                                                <Setter Property="Foreground" Value="#166534"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -147,7 +171,7 @@
                             <DataGridTextColumn Header="Детали" Binding="{Binding DetailDisplay}" Width="2*" MinWidth="220">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
-                                        <Setter Property="Foreground" Value="#991B1B"/>
+                                        <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
                                         <Setter Property="FontSize" Value="12"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasSyncError}" Value="False">
@@ -159,31 +183,39 @@
                             </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                </Grid>
-            </Border>
+            </Grid>
+        </Border>
 
-            <Grid Grid.Row="3" Margin="0,24,0,0">
+        <!-- FOOTER -->
+        <Border Grid.Row="2" Style="{StaticResource PageFooter}">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel x:Name="SyncProgressPanel" Grid.Row="0" Margin="0,0,0,16" Visibility="Collapsed">
-                    <TextBlock x:Name="SyncProgressTextBlock" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
-                    <ProgressBar x:Name="SyncProgressBar" Height="6" Minimum="0" Maximum="1" Value="0" Foreground="{StaticResource AppPrimaryBrush}"/>
+                <StackPanel x:Name="SyncProgressPanel" Grid.Row="0" Margin="0,2,0,14" Visibility="Collapsed">
+                    <TextBlock x:Name="SyncProgressTextBlock" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                    <ProgressBar x:Name="SyncProgressBar" Height="6" Minimum="0" Maximum="1" Value="0"/>
                 </StackPanel>
 
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Button x:Name="SyncButton" Grid.Column="0" Content="Синхронизировать" Style="{StaticResource ModernPrimaryButton}" Margin="0,0,16,0" Padding="32,0" IsEnabled="False" Click="SyncButton_Click"/>
-                    <TextBlock x:Name="StatusTextBlock" Grid.Column="1" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
-                    <Button x:Name="CloseButton" Grid.Column="2" Content="Закрыть" Style="{StaticResource ModernSecondaryButton}" Padding="32,0" IsCancel="True" Click="CloseButton_Click"/>
+                    <TextBlock x:Name="StatusTextBlock" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,20,0"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="CloseButton" Content="Закрыть" Style="{StaticResource ModernSecondaryButton}" MinWidth="110" Margin="0,0,10,0" IsCancel="True" Click="CloseButton_Click"/>
+                        <Button x:Name="SyncButton" Style="{StaticResource ModernPrimaryButton}" MinWidth="170" IsEnabled="False" Click="SyncButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE895;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
+                                <TextBlock Text="Синхронизировать" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Grid>
-        </Grid>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

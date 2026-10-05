@@ -611,7 +611,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void IgnoreValidationButton_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(
+            var confirm = AppMessageBox.Show(
                 this,
                 "Обнаружены проблемы с SR_ID или surfaces.rvt — часть материалов может не загрузиться.\n\n"
                 + "Вы уверены, что хотите продолжить инициализацию?",

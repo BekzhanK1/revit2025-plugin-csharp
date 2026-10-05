@@ -41,13 +41,13 @@ namespace SmartRemont.ExportRooms.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при сохранении: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show($"Ошибка при сохранении: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void ResetButton_Click(object sender, RoutedEventArgs e)
         {
-            if (MessageBox.Show(
+            if (AppMessageBox.Show(
                     "Сбросить все настройки к заводским по умолчанию?",
                     "Подтверждение",
                     MessageBoxButton.YesNo,

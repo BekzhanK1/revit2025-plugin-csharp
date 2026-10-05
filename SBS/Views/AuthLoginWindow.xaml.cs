@@ -17,7 +17,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             InitializeComponent();
             BrandAssets.TryApplyCompanyLogo(CompanyLogoImage);
-            WindowLayoutHelper.UseFullWorkAreaHeight(this);
+            WindowLayoutHelper.EnableEnvironmentBranding(this);
 
             _pluginVersion = PluginVersion.GetCurrent();
             PluginVersionTextBlock.Text = _pluginVersion;

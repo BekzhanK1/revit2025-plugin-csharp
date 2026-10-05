@@ -101,7 +101,7 @@ namespace SmartRemont.ExportRooms.Views
             var remont = ExportRoomsApplication.SelectedRemont;
             if (remont == null || remont.ClientRequestId <= 0)
             {
-                MessageBox.Show("Не указан ID заявки — отправка недоступна.", "Smart Remont",
+                AppMessageBox.Show("Не указан ID заявки — отправка недоступна.", "Smart Remont",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -133,7 +133,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 SetStatus(ex.Message, isError: true);
                 ExportRoomsApplication._logger?.Warning(ex, "Ошибка отправки замеров (по коду)");
-                MessageBox.Show(ex.Message, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(ex.Message, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

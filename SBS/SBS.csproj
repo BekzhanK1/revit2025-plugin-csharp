@@ -170,6 +170,7 @@
       <DependentUpon>LoadingOverlay.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\WindowLayoutHelper.cs" />
+    <Compile Include="Views\ScrollBehavior.cs" />
   </ItemGroup>
 
   <ItemGroup>
