@@ -2,63 +2,135 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Выбрать ДС на изменение ТК"
-        Width="520"
-        Height="420"
-        MinWidth="420"
-        MinHeight="320"
+        Width="540"
+        Height="460"
+        MinWidth="440"
+        MinHeight="340"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         ShowInTaskbar="False"
         FontFamily="Segoe UI"
-        Background="{DynamicResource AppBackgroundBrush}">
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        Background="{DynamicResource CardBackgroundBrush}">
 
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="DsItem" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                <Setter Property="Padding" Value="14,11"/>
+                <Setter Property="Margin" Value="0,0,0,6"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="Bd"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AppPrimaryBrush}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource ModernCard}" Margin="16">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,12">
-                <TextBlock Text="Выбор ДС" Style="{StaticResource Heading1}" FontSize="20"/>
-                <TextBlock Text="Привязать сверку к черновику TK_CHANGE. Утверждённые и на согласовании недоступны для правок."
-                           Style="{StaticResource BodyText}"
-                           TextWrapping="Wrap"
-                           Margin="0,6,0,0"/>
-            </StackPanel>
+        <StackPanel Grid.Row="0" Margin="28,24,28,14">
+            <TextBlock Text="Выбор ДС" Style="{StaticResource Heading1}" FontSize="19"/>
+            <TextBlock Text="Привязать сверку к черновику TK_CHANGE. Утверждённые и находящиеся на согласовании ДС недоступны для правок."
+                       Style="{StaticResource BodyText}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
 
-            <ListBox x:Name="ItemsList"
-                     Grid.Row="1"
-                     BorderBrush="{StaticResource CardBorderBrush}"
-                     BorderThickness="1"
-                     Padding="4"
-                     DisplayMemberPath="ListLabel"
-                     MouseDoubleClick="ItemsList_MouseDoubleClick"/>
+        <ListBox x:Name="ItemsList"
+                 Grid.Row="1"
+                 Margin="28,0,28,16"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 ItemContainerStyle="{StaticResource DsItem}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 MouseDoubleClick="ItemsList_MouseDoubleClick">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="34" Height="34"
+                                CornerRadius="9"
+                                Background="{StaticResource SurfaceHoverBrush}"
+                                Margin="0,0,12,0">
+                            <TextBlock Text="&#xE8A5;" Style="{StaticResource IconGlyph}" FontSize="15" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}">
+                                <Run Text="ДС №"/><Run Text="{Binding DsId, Mode=OneWay}"/>
+                            </TextBlock>
+                            <TextBlock Text="{Binding DsDate, Mode=OneWay, TargetNullValue=—}" Style="{StaticResource CaptionText}" Margin="0,1,0,0"/>
+                        </StackPanel>
+                        <Border Grid.Column="2">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CanEdit}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource WarningSoftBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource WarningBorderBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding StatusDisplay, Mode=OneWay}" Style="{StaticResource ChipText}"/>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
-            <Grid Grid.Row="2" Margin="0,12,0,0">
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceAltBrush}"
+                BorderBrush="{StaticResource DividerBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="28,14">
+            <Grid>
                 <Button Content="Отмена"
-                        Style="{StaticResource SecondaryButton}"
-                        Width="110"
+                        Style="{StaticResource ModernSecondaryButton}"
+                        MinWidth="110"
                         HorizontalAlignment="Left"
                         IsCancel="True"
                         Click="CancelButton_Click"/>
                 <Button x:Name="SelectButton"
                         Content="Выбрать"
-                        Style="{StaticResource PrimaryButton}"
-                        Width="120"
+                        Style="{StaticResource ModernPrimaryButton}"
+                        MinWidth="130"
                         HorizontalAlignment="Right"
                         IsDefault="True"
+                        ToolTipService.ShowOnDisabled="True"
                         Click="SelectButton_Click"/>
             </Grid>
-        </Grid>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

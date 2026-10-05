@@ -3,13 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont — Ремонт"
-        Width="920"
-        MinWidth="920"
+        Width="960"
+        MinWidth="900"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
@@ -22,21 +24,23 @@
                 <Setter Property="Margin" Value="0,0,0,4"/>
             </Style>
 
-            <Style x:Key="HubInfoValue" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+            <Style x:Key="HubInfoValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                 <Setter Property="TextWrapping" Value="Wrap"/>
             </Style>
 
-            <!-- Modern Dashboard Button Card -->
+            <!-- Карточка функции. Имена элементов шаблона используются в коде (FindName). -->
             <Style x:Key="FeatureCardButton" TargetType="Button">
-                <Setter Property="Margin" Value="0,0,16,16"/>
-                <Setter Property="Height" Value="100"/>
+                <Setter Property="Margin" Value="0,0,14,14"/>
+                <Setter Property="MinHeight" Value="112"/>
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisual}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -45,242 +49,214 @@
                                     BorderBrush="{StaticResource CardBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="12"
-                                    Padding="16">
-                                
-                                <VisualStateManager.VisualStateGroups>
-                                    <VisualStateGroup x:Name="CommonStates">
-                                        <VisualState x:Name="Normal">
-                                            <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="CardBorder"
-                                                                Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
-                                                                To="#E2E8F0" Duration="0:0:0.15"/>
-                                                <ColorAnimation Storyboard.TargetName="CardBorder"
-                                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                To="#FFFFFF" Duration="0:0:0.15"/>
-                                            </Storyboard>
-                                        </VisualState>
-                                        <VisualState x:Name="MouseOver">
-                                            <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="CardBorder"
-                                                                Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
-                                                                To="#3B82F6" Duration="0:0:0.15"/>
-                                                <ColorAnimation Storyboard.TargetName="CardBorder"
-                                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                To="#F8FAFC" Duration="0:0:0.15"/>
-                                            </Storyboard>
-                                        </VisualState>
-                                        <VisualState x:Name="Pressed">
-                                            <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="CardBorder"
-                                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                To="#F1F5F9" Duration="0:0:0.05"/>
-                                            </Storyboard>
-                                        </VisualState>
-                                    </VisualStateGroup>
-                                </VisualStateManager.VisualStateGroups>
-
+                                    Padding="18,16"
+                                    SnapsToDevicePixels="True">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
 
-                                    <!-- Icon Box -->
                                     <Border x:Name="IconHost"
-                                            Grid.Column="0"
+                                            Grid.RowSpan="2"
                                             Width="44" Height="44"
-                                            CornerRadius="10"
-                                            Background="#EFF6FF"
+                                            CornerRadius="12"
+                                            Background="{StaticResource PrimarySoftBrush}"
                                             Margin="0,0,16,0"
                                             VerticalAlignment="Top">
                                         <TextBlock x:Name="FeatureIcon"
-                                                   FontFamily="Segoe MDL2 Assets"
+                                                   Style="{StaticResource IconGlyph}"
                                                    FontSize="20"
-                                                   Foreground="#2563EB"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
+                                                   Foreground="{StaticResource AppPrimaryBrush}"/>
                                     </Border>
 
-                                    <!-- Text Content -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="0,2,0,0">
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Top">
                                         <TextBlock x:Name="FeatureTitle"
                                                    FontSize="14"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
                                                    Text="{TemplateBinding Content}"
                                                    TextWrapping="Wrap"
-                                                   Margin="0,0,0,4"/>
+                                                   Margin="0,1,0,3"/>
                                         <TextBlock x:Name="FeatureSubtitle"
                                                    FontSize="12"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
-                                    
-                                    <StackPanel Grid.Column="1"
+
+                                    <TextBlock x:Name="Chevron"
+                                               Grid.Column="2"
+                                               Text="&#xE76C;"
+                                               Style="{StaticResource IconGlyph}"
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               VerticalAlignment="Top"
+                                               Margin="12,4,0,0"/>
+
+                                    <StackPanel Grid.Row="1"
+                                                Grid.Column="1"
+                                                Grid.ColumnSpan="2"
                                                 VerticalAlignment="Bottom"
                                                 Margin="0,12,0,0">
-                                        
-                                        <!-- Dynamic Status Badge -->
                                         <Border x:Name="DynamicBadge"
-                                                Background="#F1F5F9"
+                                                Background="{StaticResource SurfaceHoverBrush}"
                                                 BorderThickness="0"
-                                                CornerRadius="4"
-                                                Padding="6,2"
+                                                CornerRadius="999"
+                                                Padding="9,3"
                                                 HorizontalAlignment="Left"
                                                 Visibility="Collapsed">
                                             <TextBlock x:Name="DynamicBadgeText"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#475569"/>
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </Border>
 
-                                        <!-- Explanation Text -->
                                         <TextBlock x:Name="StatusExplanationText"
                                                    FontSize="11"
-                                                   Foreground="#94A3B8"
+                                                   Foreground="{StaticResource TextTertiaryBrush}"
                                                    TextWrapping="Wrap"
-                                                   Margin="0,4,0,0"
+                                                   Margin="0,6,0,0"
                                                    Visibility="Collapsed"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
                             <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource AppPrimaryBrush}"/>
+                                    <Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource AppPrimaryBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="CardBorder" Property="Background" Value="#F8FAFC"/>
-                                    <Setter TargetName="IconHost" Property="Background" Value="#E2E8F0"/>
-                                    <Setter TargetName="FeatureIcon" Property="Foreground" Value="#94A3B8"/>
-                                    <Setter TargetName="FeatureTitle" Property="Foreground" Value="#94A3B8"/>
-                                    <Setter TargetName="FeatureSubtitle" Property="Foreground" Value="#CBD5E1"/>
+                                    <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                    <Setter TargetName="IconHost" Property="Background" Value="{StaticResource DividerBrush}"/>
+                                    <Setter TargetName="FeatureIcon" Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                    <Setter TargetName="FeatureTitle" Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                    <Setter TargetName="FeatureSubtitle" Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                    <Setter TargetName="Chevron" Property="Visibility" Value="Hidden"/>
                                 </Trigger>
                                 <Trigger Property="Tag" Value="muted">
-                                    <Setter TargetName="CardBorder" Property="Background" Value="#F8FAFC"/>
-                                    <Setter TargetName="IconHost" Property="Background" Value="#E2E8F0"/>
-                                    <Setter TargetName="FeatureIcon" Property="Foreground" Value="#64748B"/>
-                                    <Setter TargetName="FeatureTitle" Property="Foreground" Value="#475569"/>
-                                    <Setter TargetName="FeatureSubtitle" Property="Foreground" Value="#94A3B8"/>
+                                    <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                    <Setter TargetName="IconHost" Property="Background" Value="{StaticResource DividerBrush}"/>
+                                    <Setter TargetName="FeatureIcon" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    <Setter TargetName="FeatureTitle" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    <Setter TargetName="FeatureSubtitle" Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
             </Style>
-
         </ResourceDictionary>
     </Window.Resources>
 
     <Grid>
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Border Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <Border Grid.Row="0" Style="{StaticResource PageHeader}">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                <!-- HEADER -->
-                <Grid Grid.Row="0" Margin="0,0,0,24">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <StackPanel Grid.Column="0">
-                        <Image x:Name="CompanyLogoImage" Visibility="Collapsed"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
-                            <TextBlock x:Name="ClientRequestIdHeroText"
-                                       FontSize="28"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <Border Background="#EFF6FF"
-                                    BorderBrush="#BFDBFE"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10,4"
-                                    Margin="16,0,0,0"
-                                    VerticalAlignment="Center">
-                                <TextBlock x:Name="RemontIdHeroText"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           Foreground="#1D4ED8"/>
-                            </Border>
-                            
-                            <!-- Project Badge inline -->
-                            <Border x:Name="ProjectInitializedBadge"
-                                    Background="#DCFCE7"
-                                    BorderBrush="#BBF7D0"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10,4"
-                                    Margin="12,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Visibility="Collapsed">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconCheckCircle}" 
-                                          Fill="#10B981" 
-                                          Width="14" Height="14" 
-                                          Stretch="Uniform"
-                                          VerticalAlignment="Center"
-                                          Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="ProjectInitializedBadgeText"
-                                               FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Foreground="#166534"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
+                <Border Style="{StaticResource HeaderIconTile}" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE80F;" Style="{StaticResource HeaderIconGlyph}"/>
+                </Border>
 
-                        <TextBlock x:Name="RemontNameText"
-                                   Style="{StaticResource BodyText}"
-                                   TextWrapping="Wrap"
-                                   Visibility="Collapsed"/>
-                    </StackPanel>
-                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <WrapPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ClientRequestIdHeroText"
+                                   Style="{StaticResource PageTitle}"
+                                   FontSize="22"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
+                        <Border Style="{StaticResource ChipInfo}" Margin="0,0,8,0">
+                            <Border.Visibility>
+                                <Binding ElementName="RemontIdHeroText" Path="Visibility"/>
+                            </Border.Visibility>
+                            <TextBlock x:Name="RemontIdHeroText"
+                                       Style="{StaticResource ChipText}"
+                                       Foreground="{StaticResource InfoTextBrush}"/>
+                        </Border>
+                        <Border x:Name="ProjectInitializedBadge"
+                                Style="{StaticResource ChipSuccess}"
+                                Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE73E;"
+                                           Style="{StaticResource IconGlyph}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource SuccessBrush}"
+                                           Margin="0,0,6,0"/>
+                                <TextBlock x:Name="ProjectInitializedBadgeText"
+                                           Style="{StaticResource ChipText}"
+                                           Foreground="{StaticResource SuccessTextBrush}"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                    <TextBlock x:Name="RemontNameText"
+                               Style="{StaticResource PageSubtitle}"
+                               Visibility="Collapsed"/>
+                </StackPanel>
 
-                <!-- INFO BLOCK -->
-                <Border Grid.Row="1"
-                        Background="Transparent"
-                        BorderBrush="{StaticResource CardBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="24,20"
-                        Margin="0,0,0,32">
+                <Image x:Name="CompanyLogoImage"
+                       Grid.Column="2"
+                       MaxHeight="34"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0"
+                       Visibility="Collapsed"/>
+            </Grid>
+        </Border>
+
+        <!-- BODY -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="28,24,28,12">
+
+                <!-- Информация о заявке -->
+                <Border Style="{StaticResource ModernCard}" Padding="22,16" Margin="0,0,0,16">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="1"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="1"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="1"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Client -->
                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
                             <TextBlock Text="КЛИЕНТ" Style="{StaticResource HubInfoLabel}"/>
                             <TextBlock x:Name="ClientNameText" Style="{StaticResource HubInfoValue}"/>
                         </StackPanel>
-                        <Border Grid.Column="1" Background="{StaticResource CardBorderBrush}" Margin="0,4,0,4"/>
+                        <Border Grid.Column="1" Style="{StaticResource VerticalDivider}"/>
 
-                        <!-- Resident -->
-                        <StackPanel Grid.Column="2" Margin="16,0,16,0">
+                        <StackPanel Grid.Column="2" Margin="16,0">
                             <TextBlock Text="ЖК" Style="{StaticResource HubInfoLabel}"/>
                             <TextBlock x:Name="ResidentNameText" Style="{StaticResource HubInfoValue}"/>
                         </StackPanel>
-                        <Border Grid.Column="3" Background="{StaticResource CardBorderBrush}" Margin="0,4,0,4"/>
+                        <Border Grid.Column="3" Style="{StaticResource VerticalDivider}"/>
 
-                        <!-- Flat -->
-                        <StackPanel Grid.Column="4" Margin="16,0,16,0">
+                        <StackPanel Grid.Column="4" Margin="16,0">
                             <TextBlock Text="КВАРТИРА" Style="{StaticResource HubInfoLabel}"/>
                             <TextBlock x:Name="FlatNumText" Style="{StaticResource HubInfoValue}"/>
                         </StackPanel>
-                        <Border Grid.Column="5" Background="{StaticResource CardBorderBrush}" Margin="0,4,0,4"/>
+                        <Border Grid.Column="5" Style="{StaticResource VerticalDivider}"/>
 
-                        <!-- Preset Kit -->
                         <StackPanel Grid.Column="6" Margin="16,0,0,0">
                             <TextBlock Text="ПАКЕТ" Style="{StaticResource HubInfoLabel}"/>
                             <TextBlock x:Name="PresetNameText" Style="{StaticResource HubInfoValue}"/>
@@ -288,168 +264,200 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="2"
-                        x:Name="InitializedProjectPanel"
-                        Background="#F0FDF4"
-                        BorderBrush="#BBF7D0"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="20,16"
+                <!-- Инициализированный проект -->
+                <Border x:Name="InitializedProjectPanel"
+                        Style="{StaticResource ModernCard}"
+                        Padding="18,16"
                         Margin="0,0,0,24"
                         Visibility="Collapsed">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+
+                        <Border Width="40" Height="40"
+                                CornerRadius="10"
+                                Background="{StaticResource SuccessSoftBrush}"
+                                VerticalAlignment="Top"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="&#xE8E5;" Style="{StaticResource IconGlyph}" FontSize="18" Foreground="{StaticResource SuccessBrush}"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center">
                             <TextBlock Text="ПРОЕКТ ИНИЦИАЛИЗИРОВАН"
                                        Style="{StaticResource SectionLabel}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{StaticResource SuccessTextBrush}"
+                                       Margin="0,0,0,4"/>
                             <TextBlock x:Name="InitializedProjectPathText"
                                        FontSize="13"
-                                       Foreground="#1F2937"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
                                        TextWrapping="Wrap"/>
                             <TextBlock x:Name="InitializedProjectMetaText"
-                                       FontSize="12"
-                                       Foreground="#64748B"
-                                       Margin="0,6,0,0"
-                                       TextWrapping="Wrap"/>
+                                       Style="{StaticResource CaptionText}"
+                                       Margin="0,4,0,0"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button x:Name="OpenProjectFolderButton"
-                                    Content="Открыть папку"
-                                    Style="{StaticResource ModernSecondaryButton}"
+                                    Style="{StaticResource CompactSecondaryButton}"
+                                    Height="34"
                                     Margin="0,0,8,0"
-                                    Click="OpenProjectFolderButton_Click"/>
+                                    Click="OpenProjectFolderButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE838;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,7,0"/>
+                                    <TextBlock Text="Открыть папку" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                             <Button x:Name="ResyncMaterialsButton"
-                                    Content="Re-sync материалов"
-                                    Style="{StaticResource ModernSecondaryButton}"
-                                    Click="ResyncMaterialsButton_Click"/>
+                                    Style="{StaticResource CompactSecondaryButton}"
+                                    Height="34"
+                                    Click="ResyncMaterialsButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE72C;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,7,0"/>
+                                    <TextBlock Text="Re-sync материалов" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- FUNCTIONS DASHBOARD -->
-                <StackPanel Grid.Row="3" Margin="0,0,0,32">
-                    <TextBlock x:Name="FunctionsSectionLabel"
-                               Text="ФУНКЦИИ И ОПЕРАЦИИ"
-                               Style="{StaticResource SectionLabel}"
-                               Margin="0,0,0,16"/>
+                <!-- Функции -->
+                <TextBlock x:Name="FunctionsSectionLabel"
+                           Text="ФУНКЦИИ И ОПЕРАЦИИ"
+                           Style="{StaticResource SectionLabel}"
+                           Margin="0,8,0,12"/>
 
-                    <Grid>
-                        <UniformGrid Columns="2" Rows="4">
-                            <Button x:Name="InitProjectButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="Инициализировать проект"
-                                    Tag="primary"
-                                    Click="InitProjectButton_Click"/>
-                            <Button x:Name="RevitMaterialsButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="Синхронизация материалов из Revit"
-                                    Tag="primary"
-                                    Click="RevitMaterialsButton_Click"/>
-                            
-                            <!-- Legacy/Muted functions to show -->
-                            <Button x:Name="DsAreaChangeButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="ДС на изменение квадратуры"
-                                    Tag="default"
-                                    Click="DsAreaChangeButton_Click"/>
-                            <Button x:Name="MeasuresButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="Замеры комнат (из спецификаций)"
-                                    Tag="default"
-                                    Click="MeasuresButton_Click"/>
-                            <Button x:Name="RoomMaterialsButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="ДС на изменение ТК"
-                                    Tag="default"
-                                    Click="RoomMaterialsButton_Click"/>
+                <Grid Margin="0,0,-14,0">
+                    <UniformGrid Columns="2">
+                        <Button x:Name="InitProjectButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Инициализировать проект"
+                                Tag="primary"
+                                Click="InitProjectButton_Click"/>
+                        <Button x:Name="RevitMaterialsButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Синхронизация материалов из Revit"
+                                Tag="primary"
+                                Click="RevitMaterialsButton_Click"/>
+                        <Button x:Name="DsAreaChangeButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="ДС на изменение квадратуры"
+                                Tag="default"
+                                Click="DsAreaChangeButton_Click"/>
+                        <Button x:Name="MeasuresButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Замеры комнат (из спецификаций)"
+                                Tag="default"
+                                Click="MeasuresButton_Click"/>
+                        <Button x:Name="RoomMaterialsButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="ДС на изменение ТК"
+                                Tag="default"
+                                Click="RoomMaterialsButton_Click"/>
 
-                            <!-- Hidden functions (for later) -->
-                            <Button x:Name="MeasuresFromCodeButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="Замеры по коду"
-                                    Tag="default"
-                                    Visibility="Collapsed"
-                                    Click="MeasuresFromCodeButton_Click"/>
-                            <Button x:Name="MeasuresCompareButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="Сравнение замеров"
-                                    Tag="default"
-                                    Visibility="Collapsed"
-                                    Click="MeasuresCompareButton_Click"/>
-                            <Button x:Name="TypeParametersButton"
-                                    Style="{StaticResource FeatureCardButton}"
-                                    Content="Изменение параметров типов"
-                                    Tag="default"
-                                    Visibility="Collapsed"
-                                    Click="TypeParametersButton_Click"/>
-                        </UniformGrid>
-
-                        <Border x:Name="ProjectApprovedOverlay"
-                                Background="#CCF8FAFC"
+                        <!-- Скрытые функции (на потом) -->
+                        <Button x:Name="MeasuresFromCodeButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Замеры по коду"
+                                Tag="default"
                                 Visibility="Collapsed"
-                                CornerRadius="12">
-                            <Border Background="#FEE2E2" 
-                                    BorderBrush="#FECACA" 
-                                    BorderThickness="1" 
-                                    Padding="16,10" 
-                                    CornerRadius="6"
-                                    HorizontalAlignment="Center" 
-                                    VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconLock}" Fill="#991B1B" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBlock Text="Проект утвержден — внесение изменений заблокировано" 
-                                               Foreground="#991B1B" 
-                                               FontWeight="SemiBold" 
-                                               FontSize="14"/>
-                                </StackPanel>
-                            </Border>
-                        </Border>
-                    </Grid>
-                </StackPanel>
+                                Click="MeasuresFromCodeButton_Click"/>
+                        <Button x:Name="MeasuresCompareButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Сравнение замеров"
+                                Tag="default"
+                                Visibility="Collapsed"
+                                Click="MeasuresCompareButton_Click"/>
+                        <Button x:Name="TypeParametersButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Изменение параметров типов"
+                                Tag="default"
+                                Visibility="Collapsed"
+                                Click="TypeParametersButton_Click"/>
+                    </UniformGrid>
 
-                <!-- FOOTER ACTIONS -->
-                <Grid Grid.Row="4">
-                    <Border Background="#EFF6FF"
-                            BorderBrush="#BFDBFE"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="16,12"
-                            Margin="0,0,120,0"
-                            VerticalAlignment="Center"
-                            Visibility="Collapsed"
-                            x:Name="StatusBanner">
-                        <TextBlock x:Name="StatusTextBlock"
-                                   FontSize="14"
-                                   FontWeight="Medium"
-                                   Foreground="#1E40AF"
-                                   TextWrapping="Wrap"/>
+                    <Border x:Name="ProjectApprovedOverlay"
+                            Background="#D9F3F5F8"
+                            Margin="0,0,14,14"
+                            CornerRadius="12"
+                            Visibility="Collapsed">
+                        <Border Style="{StaticResource CalloutError}"
+                                Padding="16,12"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE72E;"
+                                           Style="{StaticResource IconGlyph}"
+                                           FontSize="15"
+                                           Foreground="{StaticResource ErrorTextBrush}"
+                                           Margin="0,0,10,0"/>
+                                <TextBlock Text="Проект утверждён — внесение изменений заблокировано"
+                                           Foreground="{StaticResource ErrorTextBrush}"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
                     </Border>
-                    <Border x:Name="StatusPlainHost"
-                            Margin="0,0,120,0"
-                            VerticalAlignment="Center">
-                        <TextBlock x:Name="StatusPlainText"
-                                   FontSize="14"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"/>
-                    </Border>
-                    <Button x:Name="CloseButton"
-                            Content="Закрыть"
-                            Style="{StaticResource ModernSecondaryButton}"
-                            HorizontalAlignment="Right"
-                            IsCancel="True"
-                            Click="CloseButton_Click"/>
                 </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- FOOTER -->
+        <Border Grid.Row="2" Style="{StaticResource PageFooter}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border x:Name="StatusBanner"
+                        Style="{StaticResource CalloutInfo}"
+                        Padding="12,8"
+                        Margin="0,0,16,0"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Left"
+                        Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#xE946;" Style="{StaticResource CalloutIcon}" FontSize="14" Foreground="{StaticResource InfoBrush}"/>
+                        <TextBlock x:Name="StatusTextBlock"
+                                   Grid.Column="1"
+                                   FontSize="13"
+                                   Foreground="{StaticResource InfoTextBrush}"
+                                   TextWrapping="Wrap"/>
+                    </Grid>
+                </Border>
+                <Border x:Name="StatusPlainHost"
+                        Margin="0,0,16,0"
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusPlainText"
+                               FontSize="13"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <Button x:Name="CloseButton"
+                        Grid.Column="1"
+                        Content="Закрыть"
+                        Style="{StaticResource ModernSecondaryButton}"
+                        MinWidth="110"
+                        VerticalAlignment="Center"
+                        IsCancel="True"
+                        Click="CloseButton_Click"/>
             </Grid>
         </Border>
-    </ScrollViewer>
-    <views:LoadingOverlay x:Name="InitLoaderOverlay"
-                          Visibility="Collapsed"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Stretch"
-                          Panel.ZIndex="1000"/>
+
+        <views:LoadingOverlay x:Name="InitLoaderOverlay"
+                              Grid.RowSpan="3"
+                              Visibility="Collapsed"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Panel.ZIndex="1000"/>
     </Grid>
 </Window>
