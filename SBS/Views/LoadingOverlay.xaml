@@ -14,51 +14,63 @@
     </UserControl.Resources>
 
     <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-        <Border Background="#F2F8FAFC"
+        <!-- Затемнение фона -->
+        <Border Background="#C7F3F5F8"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"/>
 
-        <StackPanel HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    MaxWidth="460"
-                    Margin="32">
-            <Image x:Name="OverlayLogoImage"
-                   Width="200"
-                   Height="60"
-                   Stretch="Uniform"
-                   Margin="0,0,0,24"/>
-            <TextBlock x:Name="StatusTextBlock"
-                       Text="Загрузка..."
-                       FontSize="15"
-                       FontWeight="SemiBold"
-                       Foreground="{StaticResource TextPrimaryBrush}"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       Margin="0,0,0,8"/>
-            <TextBlock x:Name="ProgressDetailTextBlock"
-                       FontSize="13"
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       Margin="0,0,0,16"
-                       Visibility="Collapsed"/>
-            <ProgressBar x:Name="OverlayProgressBar"
-                         Width="320"
-                         Height="8"
-                         Minimum="0"
-                         Maximum="1"
-                         Value="0"
-                         BorderThickness="0"
-                         Background="#E2E8F0"
-                         Foreground="{StaticResource AppPrimaryBrush}"
-                         Margin="0,0,0,16"/>
-            <Button x:Name="CancelButton"
-                    Content="Отмена"
-                    Width="120"
-                    Height="36"
-                    Visibility="Collapsed"
-                    Style="{StaticResource ModernSecondaryButton}"
-                    Click="CancelButton_Click"/>
-        </StackPanel>
+        <Grid HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="420"
+              Margin="32">
+            <!-- Тень отдельно от контента: эффект на пустом Border дешёвый -->
+            <Border Background="{StaticResource CardBackgroundBrush}" CornerRadius="16">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.12" Color="#0F172A"/>
+                </Border.Effect>
+            </Border>
+
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    Padding="32,28">
+                <StackPanel>
+                    <Image x:Name="OverlayLogoImage"
+                           Height="40"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,22"/>
+                    <TextBlock x:Name="StatusTextBlock"
+                               Text="Загрузка..."
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Margin="0,0,0,16"/>
+                    <ProgressBar x:Name="OverlayProgressBar"
+                                 Height="6"
+                                 Minimum="0"
+                                 Maximum="1"
+                                 Value="0"
+                                 Margin="0,0,0,10"/>
+                    <TextBlock x:Name="ProgressDetailTextBlock"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Visibility="Collapsed"/>
+                    <Button x:Name="CancelButton"
+                            Content="Отмена"
+                            MinWidth="120"
+                            HorizontalAlignment="Center"
+                            Margin="0,18,0,0"
+                            Visibility="Collapsed"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            Click="CancelButton_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

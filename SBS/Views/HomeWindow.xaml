@@ -3,13 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:SmartRemont.ExportRooms.Views"
         Title="Smart Remont"
-        Width="820"
-        MinWidth="760"
+        Width="760"
+        MinWidth="680"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize"
         ShowInTaskbar="True"
         FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
@@ -18,22 +20,13 @@
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource ModernSecondaryButton}">
-                <Setter Property="Height" Value="32"/>
-                <Setter Property="MinWidth" Value="0"/>
-                <Setter Property="Padding" Value="10,0"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Background" Value="Transparent"/>
-            </Style>
-
             <Style x:Key="ResultItem" TargetType="ListBoxItem">
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="Margin" Value="0,0,0,8"/>
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 <Setter Property="Template">
                     <Setter.Value>
@@ -42,198 +35,228 @@
                                     Background="{StaticResource CardBackgroundBrush}"
                                     BorderBrush="{StaticResource CardBorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="8"
+                                    CornerRadius="10"
                                     Padding="16,14">
                                 <ContentPresenter/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#3B82F6"/>
-                                    <Setter TargetName="ItemBorder" Property="Background" Value="#F8FAFC"/>
+                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource AppPrimaryBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#2563EB"/>
-                                    <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF"/>
+                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource AppPrimaryBrush}"/>
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <Style x:Key="InfoLabel" TargetType="TextBlock" BasedOn="{StaticResource SectionLabel}">
+                <Setter Property="Margin" Value="0,0,0,4"/>
+            </Style>
+
+            <Style x:Key="InfoValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource ModernCard}" Margin="24" Padding="28">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <!-- Header -->
-            <Grid Grid.Row="0" Margin="0,0,0,24">
-                <StackPanel>
-                    <TextBlock Text="Smart Remont"
-                               Style="{StaticResource Heading1}"/>
-                    <TextBlock x:Name="WelcomeTextBlock"
-                               Style="{StaticResource BodyText}"/>
+        <!-- HEADER -->
+        <Border Grid.Row="0" Style="{StaticResource PageHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource HeaderIconTile}">
+                    <TextBlock Text="&#xE80F;" Style="{StaticResource HeaderIconGlyph}"/>
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="Smart Remont" Style="{StaticResource PageTitle}"/>
+                    <TextBlock x:Name="WelcomeTextBlock" Style="{StaticResource PageSubtitle}"/>
                 </StackPanel>
-                <Button x:Name="LogoutButton"
-                        Content="Выйти"
-                        Style="{StaticResource LinkButton}"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        Margin="0,2,0,0"
-                        Click="LogoutButton_Click"/>
-            </Grid>
 
-            <!-- Bound remont banner card -->
-            <Border Grid.Row="1"
-                    x:Name="BoundRemontBanner"
-                    Background="#F0FDF4"
-                    BorderBrush="#BBF7D0"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="24,20"
-                    Margin="0,0,0,24"
+                <Button x:Name="LogoutButton"
+                        Grid.Column="2"
+                        Style="{StaticResource GhostButton}"
+                        VerticalAlignment="Center"
+                        ToolTip="Выйти из аккаунта"
+                        Click="LogoutButton_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xF3B1;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>
+                        <TextBlock Text="Выйти" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- BODY -->
+        <StackPanel Grid.Row="1" Margin="28,24,28,24">
+
+            <!-- Привязанный проект -->
+            <Border x:Name="BoundRemontBanner"
+                    Style="{StaticResource ContentCard}"
+                    Padding="22,20"
                     Visibility="Collapsed">
                 <StackPanel>
-                    <!-- Status Header -->
                     <Grid Margin="0,0,0,16">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,12,0">
-                                <Path Data="{StaticResource IconCheckCircle}" 
-                                      Fill="#166534" 
-                                      Width="16" Height="16" 
-                                      Stretch="Uniform"/>
-                            </Border>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="ПРОЕКТ ПРИВЯЗАН" FontSize="11" FontWeight="Bold" Foreground="#166534" Margin="0,0,0,2"/>
-                                <TextBlock x:Name="BoundRemontBannerText"
-                                           FontSize="16"
-                                           FontWeight="Bold"
-                                           Foreground="#065F46"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="40" Height="40"
+                                CornerRadius="20"
+                                Background="{StaticResource SuccessSoftBrush}"
+                                Margin="0,0,14,0">
+                            <TextBlock Text="&#xE73E;" Style="{StaticResource IconGlyph}" FontSize="18" Foreground="{StaticResource SuccessBrush}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="ПРОЕКТ ПРИВЯЗАН К ЗАЯВКЕ"
+                                       Style="{StaticResource SectionLabel}"
+                                       Foreground="{StaticResource SuccessTextBrush}"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock x:Name="BoundRemontBannerText"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
                     </Grid>
 
-                    <!-- Details Grid -->
-                    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,0,0,16">
+                    <Border Style="{StaticResource InsetPanel}" Margin="0,0,0,18">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                <TextBlock Text="КЛИЕНТ" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                                <TextBlock x:Name="BoundClientNameText" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis" Text="—"/>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="КЛИЕНТ" Style="{StaticResource InfoLabel}"/>
+                                <TextBlock x:Name="BoundClientNameText" Style="{StaticResource InfoValue}" Text="—"/>
                             </StackPanel>
 
-                            <Border Grid.Column="1" Background="#E2E8F0" Margin="0,2"/>
+                            <Border Grid.Column="1" Style="{StaticResource VerticalDivider}"/>
 
-                            <StackPanel Grid.Column="2" Margin="12,0">
-                                <TextBlock Text="ЖК / КВАРТИРА" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                                <TextBlock x:Name="BoundResidentNameText" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis" Text="—"/>
+                            <StackPanel Grid.Column="2" Margin="16,0">
+                                <TextBlock Text="ЖК / КВАРТИРА" Style="{StaticResource InfoLabel}"/>
+                                <TextBlock x:Name="BoundResidentNameText" Style="{StaticResource InfoValue}" Text="—"/>
                             </StackPanel>
 
-                            <Border Grid.Column="3" Background="#E2E8F0" Margin="0,2"/>
+                            <Border Grid.Column="3" Style="{StaticResource VerticalDivider}"/>
 
-                            <StackPanel Grid.Column="4" Margin="12,0,0,0">
-                                <TextBlock Text="ПАКЕТ" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                                <TextBlock x:Name="BoundPresetNameText" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis" Text="—"/>
+                            <StackPanel Grid.Column="4" Margin="16,0,0,0">
+                                <TextBlock Text="ПАКЕТ" Style="{StaticResource InfoLabel}"/>
+                                <TextBlock x:Name="BoundPresetNameText" Style="{StaticResource InfoValue}" Text="—"/>
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!-- Actions -->
-                    <Grid>
-                        <Button x:Name="ContinueToHubButton"
-                                Content="Открыть хаб проекта →"
-                                Style="{StaticResource ModernPrimaryButton}"
-                                HorizontalAlignment="Right"
-                                Height="40"
-                                Padding="24,0"
-                                Click="ContinueToHubButton_Click"/>
-                    </Grid>
+                    <Button x:Name="ContinueToHubButton"
+                            Style="{StaticResource ModernPrimaryButton}"
+                            HorizontalAlignment="Right"
+                            Padding="20,0"
+                            Click="ContinueToHubButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Открыть хаб проекта" VerticalAlignment="Center"/>
+                            <TextBlock Text="&#xE72A;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="10,1,0,0"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Border>
 
-            <!-- Search -->
-            <Border Grid.Row="2"
-                    x:Name="SearchSection"
-                    Background="#F8FAFC"
-                    BorderBrush="#E2E8F0"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="24,20"
-                    Margin="0,0,0,24">
+            <!-- Поиск заявки -->
+            <Border x:Name="SearchSection"
+                    Style="{StaticResource ContentCard}"
+                    Padding="22,20">
                 <StackPanel>
-                    <TextBlock Text="ПОИСК ЗАЯВКИ" Style="{StaticResource SectionLabel}"/>
-                    <TextBlock Text="ID заявки"
-                               Style="{StaticResource FieldLabel}"/>
-                    
+                    <TextBlock Text="Найти заявку" Style="{StaticResource CardTitle}" FontSize="15"/>
+                    <TextBlock Text="Введите номер заявки — найдём ремонт и привяжем к нему этот проект Revit."
+                               Style="{StaticResource BodyText}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,16"/>
+
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
+
                         <Grid Grid.Column="0">
                             <TextBox x:Name="IdTextBox"
                                      Style="{StaticResource ModernInputField}"
+                                     Height="40"
+                                     Padding="38,0,12,0"
                                      KeyDown="IdTextBox_KeyDown"
                                      TextChanged="IdTextBox_TextChanged"
                                      GotFocus="IdTextBox_GotFocus"
                                      LostFocus="IdTextBox_LostFocus"/>
+                            <TextBlock Text="&#xE721;"
+                                       Style="{StaticResource IconGlyph}"
+                                       FontSize="14"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       HorizontalAlignment="Left"
+                                       IsHitTestVisible="False"
+                                       Margin="14,0,0,0"/>
                             <TextBlock x:Name="IdPlaceholderTextBlock"
-                                       Text="Введите ID заявки (например, 100234)"
+                                       Text="ID заявки, например 100234"
                                        IsHitTestVisible="False"
                                        Foreground="{StaticResource TextTertiaryBrush}"
-                                       FontSize="14"
-                                       Margin="14,0,0,0"
+                                       FontSize="13"
+                                       Margin="40,0,0,0"
                                        VerticalAlignment="Center"/>
+                            <ProgressBar x:Name="SearchProgressBar"
+                                         Height="3"
+                                         IsIndeterminate="True"
+                                         Visibility="Collapsed"
+                                         VerticalAlignment="Bottom"
+                                         Margin="10,0,10,1"/>
                         </Grid>
-                        <ProgressBar x:Name="SearchProgressBar"
-                                     Grid.Column="1"
-                                     Width="72"
-                                     Height="4"
-                                     IsIndeterminate="True"
-                                     Visibility="Collapsed"
-                                     VerticalAlignment="Center"
-                                     Margin="12,0,0,0"
-                                     Foreground="{StaticResource AppPrimaryBrush}"
-                                     Background="#E2E8F0"
-                                     BorderThickness="0"/>
+
                         <Button x:Name="SearchButton"
-                                Grid.Column="3"
-                                Content="Найти"
+                                Grid.Column="2"
                                 Style="{StaticResource ModernPrimaryButton}"
-                                MinWidth="100"
-                                Click="SearchButton_Click"/>
+                                Height="40"
+                                MinWidth="110"
+                                Click="SearchButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE721;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
+                                <TextBlock Text="Найти" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
 
                     <TextBlock x:Name="StatusTextBlock"
-                               FontSize="13"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextTertiaryBrush}"
                                TextWrapping="Wrap"
-                               Margin="2,12,0,0"
-                               Text="Введите ID заявки и нажмите Найти или Enter"/>
+                               Margin="2,10,0,0"
+                               Text="Нажмите «Найти» или Enter"/>
                 </StackPanel>
             </Border>
 
-            <!-- Results list -->
-            <Border Grid.Row="3"
-                    x:Name="ResultsSection"
-                    Margin="0,0,0,24"
+            <!-- Результаты -->
+            <Border x:Name="ResultsSection"
+                    Margin="0,20,0,0"
                     Visibility="Collapsed">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -242,50 +265,57 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
-                               Text="РЕЗУЛЬТАТЫ"
+                               Text="РЕЗУЛЬТАТЫ — ВЫБЕРИТЕ ЗАЯВКУ"
                                Style="{StaticResource SectionLabel}"/>
 
                     <ListBox Grid.Row="1"
                              x:Name="ResultsListBox"
+                             MaxHeight="380"
                              ItemContainerStyle="{StaticResource ResultItem}"
                              Background="Transparent"
                              BorderThickness="0"
+                             Padding="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionChanged="ResultsListBox_SelectionChanged">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
+
+                                    <Border Width="40" Height="40"
+                                            CornerRadius="10"
+                                            Background="{StaticResource SurfaceHoverBrush}"
+                                            VerticalAlignment="Top"
+                                            Margin="0,0,14,0">
+                                        <TextBlock Text="&#xE80F;"
+                                                   Style="{StaticResource IconGlyph}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding Name}"
-                                                   FontSize="15"
+                                                   FontSize="14"
                                                    FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
                                                    Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock Text="{Binding ClientName}"
-                                                   FontSize="14"
+                                                   FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                   Margin="0,4,0,0"/>
+                                                   Margin="0,2,0,0"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <Border Background="#EFF6FF"
-                                                    CornerRadius="4"
-                                                    Padding="8,4"
-                                                    Margin="0,0,8,0">
-                                                <TextBlock FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#1D4ED8">
-                                                    <Run Text="Заявка #"/>
-                                                    <Run Text="{Binding ClientRequestId}"/>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,6,0">
+                                                <TextBlock Style="{StaticResource ChipText}">
+                                                    <Run Text="Заявка #"/><Run Text="{Binding ClientRequestId, Mode=OneWay}"/>
                                                 </TextBlock>
                                             </Border>
-                                            <Border Background="#F0FDF4"
-                                                    CornerRadius="4"
-                                                    Padding="8,4">
+                                            <Border>
                                                 <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource ChipSuccess}">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding RemontId}" Value="{x:Null}">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -293,21 +323,18 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
-                                                <TextBlock FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#16A34A">
-                                                    <Run Text="Ремонт #"/>
-                                                    <Run Text="{Binding RemontId}"/>
+                                                <TextBlock Style="{StaticResource ChipText}" Foreground="{StaticResource SuccessTextBrush}">
+                                                    <Run Text="Ремонт #"/><Run Text="{Binding RemontId, Mode=OneWay}"/>
                                                 </TextBlock>
                                             </Border>
                                         </StackPanel>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="1"
+
+                                    <TextBlock Grid.Column="2"
                                                Text="&#xE76C;"
-                                               FontFamily="Segoe MDL2 Assets"
-                                               FontSize="16"
+                                               Style="{StaticResource IconGlyph}"
+                                               FontSize="14"
                                                Foreground="{StaticResource TextTertiaryBrush}"
-                                               VerticalAlignment="Center"
                                                Margin="12,0,0,0"/>
                                 </Grid>
                             </DataTemplate>
@@ -315,16 +342,16 @@
                     </ListBox>
                 </Grid>
             </Border>
+        </StackPanel>
 
-            <!-- Actions -->
-            <Grid Grid.Row="4">
-                <Button Content="Отмена"
-                        Style="{StaticResource ModernSecondaryButton}"
-                        HorizontalAlignment="Right"
-                        MinWidth="100"
-                        IsCancel="True"
-                        Click="CancelButton_Click"/>
-            </Grid>
-        </Grid>
-    </Border>
+        <!-- FOOTER -->
+        <Border Grid.Row="2" Style="{StaticResource PageFooter}">
+            <Button Content="Отмена"
+                    Style="{StaticResource ModernSecondaryButton}"
+                    HorizontalAlignment="Right"
+                    MinWidth="110"
+                    IsCancel="True"
+                    Click="CancelButton_Click"/>
+        </Border>
+    </Grid>
 </Window>

@@ -73,7 +73,7 @@ namespace SmartRemont.ExportRooms.Views
                         rawCount == 0
                             ? $"API вернул 0 материалов.\n{Configs.ApiOriginUrl}"
                             : $"Есть {rawCount} строк, но без URL/surface для синка.\n{Configs.ApiOriginUrl}";
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         this,
                         StatusTextBlock.Text
                         + "\n\nЕсли заявка боевая — в app.config / SmartRemont.ExportRooms.dll.config "
@@ -95,7 +95,7 @@ namespace SmartRemont.ExportRooms.Views
                 var msg = ex.Message + $"\n\nAPI: {Configs.ApiOriginUrl}";
                 ShowError(msg);
                 StatusTextBlock.Text = string.Empty;
-                MessageBox.Show(
+                AppMessageBox.Show(
                     this,
                     msg,
                     "Ошибка загрузки материалов",

@@ -11,6 +11,8 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Resources>
@@ -19,31 +21,8 @@
                 <ResourceDictionary Source="/SmartRemont.ExportRooms;component/Views/AppStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             
-            <Style TargetType="ComboBox">
-                <Setter Property="Height" Value="38"/>
-                <Setter Property="Padding" Value="10,0"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}"/>
-            </Style>
-
-            <Style TargetType="CheckBox">
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
                 <Setter Property="Margin" Value="0,6"/>
-            </Style>
-
-            <Style x:Key="StatBadge" TargetType="Border">
-                <Setter Property="Background" Value="#F8FAFC"/>
-                <Setter Property="BorderBrush" Value="#E2E8F0"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="CornerRadius" Value="8"/>
-                <Setter Property="Padding" Value="16,12"/>
-                <Setter Property="Margin" Value="0,0,12,0"/>
-                <Setter Property="MinWidth" Value="130"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -88,9 +67,9 @@
                                       ToolTip="Выберите фазу из которой будут взяты помещения"/>
                         </Grid>
 
-                        <Border x:Name="PhaseInfoBorder" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,16,0,0" Visibility="Collapsed">
+                        <Border x:Name="PhaseInfoBorder" Style="{StaticResource CalloutInfo}" Margin="0,16,0,0" Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="TxtPhaseInfo" FontSize="13" Foreground="#1D4ED8"/>
+                                <TextBlock x:Name="TxtPhaseInfo" FontSize="13" Foreground="{StaticResource InfoTextBrush}"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -179,7 +158,7 @@
                                         <DataTemplate>
                                             <ComboBox ItemsSource="{Binding DataContext.Disciplines, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                       SelectedItem="{Binding Discipline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      Height="32" Padding="8,0" VerticalAlignment="Center"/>
+                                                      Height="30" MinWidth="0" VerticalAlignment="Center"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -221,37 +200,37 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                             <Border Style="{StaticResource StatBadge}">
                                 <StackPanel>
-                                    <TextBlock x:Name="TxtRoomCount" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtRoomCount" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                                     <TextBlock Text="помещений" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource StatBadge}">
                                 <StackPanel>
-                                    <TextBlock x:Name="TxtApartmentCount" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtApartmentCount" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                                     <TextBlock Text="квартир" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource StatBadge}">
                                 <StackPanel>
-                                    <TextBlock x:Name="TxtLevelCount" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtLevelCount" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                                     <TextBlock Text="уровней" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource StatBadge}" Margin="0">
                                 <StackPanel>
-                                    <TextBlock x:Name="TxtTotalArea" Text="—" FontSize="24" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtTotalArea" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                                     <TextBlock Text="м² площадь" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
 
                         <!-- Mini room list -->
-                        <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" MaxHeight="200" Background="#F8FAFC">
+                        <Border Style="{StaticResource InsetPanel}" Padding="0" MaxHeight="200">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="PreviewList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Padding="16,12" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1">
+                                            <Border Padding="16,12" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="60"/>

@@ -369,7 +369,7 @@ namespace SmartRemont.ExportRooms.Views
             var remont = ExportRoomsApplication.SelectedRemont;
             if (remont?.RemontId == null || remont.RemontId <= 0)
             {
-                MessageBox.Show("У выбранной заявки ещё нет ремонта — отправка недоступна.", "Smart Remont",
+                AppMessageBox.Show("У выбранной заявки ещё нет ремонта — отправка недоступна.", "Smart Remont",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -377,7 +377,7 @@ namespace SmartRemont.ExportRooms.Views
             var revitRows = _allRows.Where(r => r.AreaM2 > 0d).ToList();
             if (revitRows.Count == 0)
             {
-                MessageBox.Show("Нет помещений Revit для отправки.", "Smart Remont",
+                AppMessageBox.Show("Нет помещений Revit для отправки.", "Smart Remont",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -399,7 +399,7 @@ namespace SmartRemont.ExportRooms.Views
 
             if (payloadRooms.Count == 0)
             {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     "Не удалось сопоставить помещения Revit с системой (нет room_id). Отправка недоступна.",
                     "Smart Remont", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -443,7 +443,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 SetStatus(ex.Message, isError: true);
                 ExportRoomsApplication._logger?.Warning(ex, "Ошибка отправки ДС room-change");
-                MessageBox.Show(ex.Message, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(ex.Message, "Ошибка отправки", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
