@@ -20,6 +20,7 @@ namespace SmartRemont.ExportRooms.Views
         bool _syncInProgress;
         string _surfacesFileUrl;
         string _surfacesFileHash;
+        string _tkFlagsError;
         List<RevitMaterialRowVm> _rows = new();
 
         public RevitMaterialsWindow(int clientRequestId, Document doc)
@@ -113,8 +114,12 @@ namespace SmartRemont.ExportRooms.Views
         async Task ApplyTkFlagsAsync()
         {
             var flags = await ClientMaterialFlagsService.TryReadAsync(_clientRequestId).ConfigureAwait(true);
+            _tkFlagsError = flags.Status ? null : flags.Error;
             if (!flags.Status)
+            {
+                UpdateSummaryStatus();
                 return;
+            }
 
             var byMaterial = ClientMaterialFlagsService.BuildByMaterial(flags.Data);
             foreach (var row in _rows)
@@ -173,6 +178,8 @@ namespace SmartRemont.ExportRooms.Views
             var inProject = _rows.Count(r => r.IsInProject);
             var missing = _rows.Count - inProject;
             var text = $"В проекте: {inProject} · Нет в проекте: {missing}";
+            if (!string.IsNullOrWhiteSpace(_tkFlagsError))
+                text += $" · Подбор / наличие недоступны: {_tkFlagsError}";
 
             if (syncResult == null)
             {

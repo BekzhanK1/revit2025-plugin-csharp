@@ -42,11 +42,13 @@ namespace SmartRemont.ExportRooms.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    var error = TryReadErrorMessage(responseBody) ?? $"Ошибка запроса меток ТК ({(int)response.StatusCode})";
                     ExportRoomsApplication._logger?.Warning(
-                        "Material flags read failed: client_request_id={ClientRequestId}, http={HttpStatus}",
+                        "Material flags read failed: client_request_id={ClientRequestId}, http={HttpStatus}, error={Error}",
                         clientRequestId,
-                        (int)response.StatusCode);
-                    return (null, false, TryReadErrorMessage(responseBody) ?? $"Ошибка запроса меток ТК ({(int)response.StatusCode})");
+                        (int)response.StatusCode,
+                        error);
+                    return (null, false, error);
                 }
 
                 var parsed = JsonConvert.DeserializeObject<ClientMaterialFlagsResponse>(responseBody);

@@ -39,7 +39,7 @@ Backend этот запрет не проверяет: запись замеро
 
 | # | Фича | Плагин | Backend | Frontend | SQL | Статус |
 |---|---|---|---|---|---|---|
-| F8 | Неактуальные материалы в ТК: строка ТК не совпадает с текущим подбором заявки (заменён, конструктив убран, вариант выключен) | `feature/tk-material-flags` (от `dev1.0.1`) | `feature/tk-material-flags` (от `master`) | `feature/tk-material-flags` (от `master`) | `sql/tk-material-flags/` | код написан, не закоммичен, не проверен на стенде |
+| F8 | Неактуальные материалы в ТК: строка ТК не совпадает с текущим подбором заявки (заменён, конструктив убран, вариант выключен) | `feature/tk-material-flags` (от `dev1.0.1`), запушена | `feature/tk-material-flags` → `master` (#198), `feature/tk-material-flags-dev` → `dev` (#197) | `feature/tk-material-flags` → `master` (#358), `feature/tk-material-flags-dev` → `dev` (#357) | backend `client_request/sql/read_client_material_flags.sql` | PR открыты, на стенде не проверено |
 | F9 | Наличие материалов в ТК: снят с продажи / нет в наличии / нет поставщика в городе (справочник) и «поставщик отказал» (закуп) | та же | та же | та же | та же | то же |
 
 ### F8 + F9: решения
@@ -57,7 +57,7 @@ Backend этот запрет не проверяет: запись замеро
 
 | Часть | Файлы |
 |---|---|
-| SQL | `sql/tk-material-flags/01_read_client_material_flags.sql`: `client_material_avail_status()`, `read_client_material_flags()` |
+| SQL | `client_request/sql/read_client_material_flags.sql` в backend (копия в `sql/tk-material-flags/`): `client_material_avail_status()`, `read_client_material_flags()` |
 | Backend | `client_request/ex_services/client_material_services.py` (`read_client_material_flags` + summary), `GET /client_request/<id>/client_material/tk/flags/` (`OA__RemontFormTabulation`), `GET /revit/plugin/material/flags/?client_request_id=` (`require_revit_materials_show` + доступ к заявке) |
 | Frontend | `textConstructor/` (вкладка «Текстовый конструктор»): метки под материалом, «В подборе: …», баннер и фильтры «Все / Неактуальные / Наличие» |
 | Плагин | `DTO/ClientMaterialFlagDtos.cs`, `Services/ClientMaterialFlagsService.cs`, `Configs.RevitMaterialFlagsUrl`, бейдж в `RemontHubWindow`, колонка в `RevitMaterialsWindow` |

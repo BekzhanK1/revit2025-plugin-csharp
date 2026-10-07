@@ -48,14 +48,24 @@
 
 ### F8 + F9 (метки ТК) — когда будет готово
 
-1. SQL: `psql -f sql/tk-material-flags/01_read_client_material_flags.sql`
-2. Backend: `feature/tk-material-flags` → `master`
-3. Frontend: `feature/tk-material-flags` → `master`
+1. SQL: `psql -f client_request/sql/read_client_material_flags.sql` (backend)
+2. Backend: PR #198 → `master` (в `dev` — #197)
+3. Frontend: PR #358 → `master` (в `dev` — #357)
 4. Плагин: `feature/tk-material-flags` → `dev1.0.1` и в релиз вместе с ним
 
 Плагин не падает, если ручки `material/flags/` ещё нет: метки просто не показываются.
 
 ## Журнал
+
+### 07.10.2026 — F8 + F9: PR в MySpace
+
+- Backend и frontend закоммичены и запушены. Ветки `feature/tk-material-flags` отходят от `master`, в `master` есть коммиты, которых нет в `dev` (Sync1C, CMS). Поэтому для `dev` отдельные ветки `feature/tk-material-flags-dev` от `origin/dev` с cherry-pick.
+- PR: backend #197 (`dev`), #198 (`master`); frontend #357 (`dev`), #358 (`master`).
+- SQL перенесён в backend: `client_request/sql/read_client_material_flags.sql`.
+- Изменения только на чтение: новые ручки и SQL-функции, существующее поведение не меняется.
+- Все 4 PR смёрджены. На тесте ручка `revit/plugin/material/flags/` отвечала 400: в `dev` в `revit_plugin_read_views.py` не было импорта `require_plugin_client_request_access` (в `master` он есть). Исправление — backend #199 (`fix/tk-material-flags-dev-import` → `dev`). `master` (#198) не затронут.
+- Плагин теперь пишет в лог текст ошибки ручки меток, а не только код ответа.
+- Тестовые заявки проектировщика Габдуллин Д. (employee 2219): 2988877, 2988849, 2573344, 3071538, 3123528, 2988957, контроль 2174212.
 
 ### 07.10.2026 — сборка под 2025 и 2027, адрес API для разработки
 
@@ -94,6 +104,7 @@
 - [x] F8/F9: backend — ручка для ТК MySpace и для плагина
 - [x] F8/F9: frontend ТК — метки, фильтры, баннер
 - [x] F8/F9: плагин — бейдж в хабе, колонка в «Материалы Revit»
+- [x] F8/F9: PR в backend и frontend (#197/#198, #357/#358)
 - [ ] F8/F9: накатить SQL на тестовую БД и проверить ручки
 - [ ] F8/F9: собрать frontend и посмотреть вкладку «Текстовый конструктор»
 - [ ] F8/F9: собрать плагин в Windows и проверить хаб и «Материалы Revit»
