@@ -39,7 +39,7 @@ Backend этот запрет не проверяет: запись замеро
 
 | # | Фича | Плагин | Backend | Frontend | SQL | Статус |
 |---|---|---|---|---|---|---|
-| F8 | Неактуальные материалы в ТК: строка ТК не совпадает с текущим подбором заявки (заменён, конструктив убран, вариант выключен) | `feature/tk-material-flags` (от `dev1.0.1`), запушена | `feature/tk-material-flags` → `master` (#198), `feature/tk-material-flags-dev` → `dev` (#197) | `feature/tk-material-flags` → `master` (#358), `feature/tk-material-flags-dev` → `dev` (#357) | backend `client_request/sql/read_client_material_flags.sql` | PR открыты, на стенде не проверено |
+| F8 | Неактуальные материалы в ТК: строка ТК не совпадает с текущим подбором заявки (заменён, конструктив убран, вариант выключен) | `feature/tk-material-flags` (от `dev1.0.1`), запушена | смёрджено, ветки удалены: `master` #198 + #202, `dev` #197 + #199 + #201 | смёрджено, ветки удалены: `master` #358, `dev` #357; правка «Изменён набор»: `master` #361, `dev` #360 | backend `client_request/sql/read_client_material_flags.sql` | backend и frontend в `dev` и `master`; SQL на тесте; плагин — в ветке |
 | F9 | Наличие материалов в ТК: снят с продажи / нет в наличии / нет поставщика в городе (справочник) и «поставщик отказал» (закуп) | та же | та же | та же | та же | то же |
 
 ### F8 + F9: решения

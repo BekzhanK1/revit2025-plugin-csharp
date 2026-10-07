@@ -91,6 +91,10 @@ namespace SmartRemont.ExportRooms.Services
             {
                 switch (row.KitStatus)
                 {
+                    case "replaced" when row.KitMaterialId.HasValue && row.KitMaterialId == row.MaterialId:
+                        // В подборе тот же материал, но в другом наборе.
+                        Add(row.MaterialId, MaterialFlagTone.Warn, "Изменён набор в подборе");
+                        break;
                     case "replaced":
                         Add(row.MaterialId, MaterialFlagTone.Warn,
                             row.KitMaterialId.HasValue ? $"Заменён в подборе → {row.KitMaterialId}" : "Заменён в подборе");
