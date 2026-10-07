@@ -31,6 +31,14 @@ namespace SmartRemont.ExportRooms
                 if (_useTestApi.HasValue)
                     return _useTestApi.Value;
 
+                // Адрес из секретной панели: всё, что не prod, считаем тестом (вход по JWT и пометка TEST).
+                var localOverride = ApiOriginOverride;
+                if (localOverride != null)
+                {
+                    _useTestApi = !string.Equals(localOverride, ProductionApiOriginUrl, StringComparison.OrdinalIgnoreCase);
+                    return _useTestApi.Value;
+                }
+
                 var fromToggle = ReadAppSetting(UseTestApiKey);
                 if (!string.IsNullOrWhiteSpace(fromToggle))
                 {
@@ -55,8 +63,44 @@ namespace SmartRemont.ExportRooms
         }
 
         /// <summary>
-        /// Базовый URL API (origin). По умолчанию из пресетов test/prod (useTestApi).
-        /// Необязательный apiOriginUrl переопределяет пресет.
+        /// Адрес API из секретной панели (5 кликов по чипу версии в окне входа).
+        /// Хранится в %APPDATA%\SmartRemont\RevitPlugin\settings.json, переживает перезапуск Revit.
+        /// </summary>
+        public static string ApiOriginOverride
+        {
+            get
+            {
+                var value = Services.LocalSettingsService.Load().ApiOriginOverride;
+                return string.IsNullOrWhiteSpace(value) ? null : NormalizeOrigin(value);
+            }
+        }
+
+        /// <summary>Проверяет и сохраняет адрес API (null или пусто — сброс). Действует сразу, без перезапуска Revit.</summary>
+        public static void SetApiOriginOverride(string url)
+        {
+            string normalized = null;
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                normalized = NormalizeOrigin(url);
+                if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
+                    || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    throw new ArgumentException("Адрес должен начинаться с http:// или https://, например http://localhost:8000");
+                }
+            }
+
+            var settings = Services.LocalSettingsService.Load();
+            settings.ApiOriginOverride = normalized;
+            Services.LocalSettingsService.Save(settings);
+
+            _apiOriginUrl = null;
+            _useTestApi = null;
+            ExportRoomsApplication._logger?.Information(
+                "API origin override set: {ApiOrigin}", normalized ?? "(сброшен)");
+        }
+
+        /// <summary>
+        /// Базовый URL API (origin). Порядок: секретная панель → apiOriginUrl из app.config → пресет test/prod (useTestApi).
         /// </summary>
         public static string ApiOriginUrl
         {
@@ -64,6 +108,13 @@ namespace SmartRemont.ExportRooms
             {
                 if (_apiOriginUrl != null)
                     return _apiOriginUrl;
+
+                var localOverride = ApiOriginOverride;
+                if (localOverride != null)
+                {
+                    _apiOriginUrl = localOverride;
+                    return _apiOriginUrl;
+                }
 
                 var overrideUrl = ReadAppSetting(ApiOriginUrlKey);
                 if (!string.IsNullOrWhiteSpace(overrideUrl))
@@ -134,6 +185,9 @@ namespace SmartRemont.ExportRooms
 
         public static string RevitMaterialReadUrl(int clientRequestId) =>
             $"{ApiOriginUrl}/revit/plugin/material/read/?client_request_id={clientRequestId}";
+
+        public static string RevitMaterialFlagsUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/revit/plugin/material/flags/?client_request_id={clientRequestId}";
 
         // Единый неймспейс /revit/plugin/ — display + apply, primary key client_request_id (PLUGIN_API.md).
         public static string TkReadUrl(int clientRequestId) =>

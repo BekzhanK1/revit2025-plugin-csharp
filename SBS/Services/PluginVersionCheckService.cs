@@ -19,6 +19,8 @@ namespace SmartRemont.ExportRooms.Services
 
     public static class PluginVersionCheckService
     {
+        // Плагин собирается против API Revit 2025 и для сервера всегда 2025, даже если запущен в Revit 2027
+        // (см. build/RevitApi.props). Не брать год из запущенного Revit.
         public const int RevitYear = 2025;
 
         static readonly HttpClient Http = new HttpClient

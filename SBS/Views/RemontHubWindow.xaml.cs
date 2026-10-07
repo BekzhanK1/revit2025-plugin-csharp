@@ -75,14 +75,19 @@ namespace SmartRemont.ExportRooms.Views
                 var dsTask = DsRoomChangeService.TryReadAsync(clientRequestId);
                 var measuresTask = MeasuresService.TryReadAsync(clientRequestId);
                 var materialsTask = RevitMaterialsService.TryReadAsync(clientRequestId);
+                var flagsTask = ClientMaterialFlagsService.TryReadAsync(clientRequestId);
 
-                await Task.WhenAll(dsTask, measuresTask, materialsTask).ConfigureAwait(true);
+                await Task.WhenAll(dsTask, measuresTask, materialsTask, flagsTask).ConfigureAwait(true);
 
                 var ds = await dsTask;
                 var measures = await measuresTask;
                 var materials = await materialsTask;
+                var flags = await flagsTask;
 
                 ApplyMaterialsState(materials.Data, materials.Status, materials.Error, clientRequestId);
+                // Метки ТК — вспомогательные: ошибка не попадает в окно проблем, только в лог (внутри сервиса).
+                if (materials.Status && flags.Status)
+                    ApplyMaterialFlagsState(flags.Data, clientRequestId);
                 ApplyMeasuresState(measures.Data, measures.Status, measures.Error);
 
                 var resolvedRemontId = remont?.RemontId ?? ds.RemontId;
@@ -257,6 +262,28 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ApplyBadge(RevitMaterialsButton, $"✔ Синхронизировано{timeStr}", "#DCFCE7", "#166534");
             }
+        }
+
+        void ApplyMaterialFlagsState(ClientMaterialFlagsResponse flags, int clientRequestId)
+        {
+            var stale = ClientMaterialFlagsService.CountStale(flags);
+            var unavailable = ClientMaterialFlagsService.CountUnavailable(flags);
+            if (stale == 0 && unavailable == 0)
+                return;
+
+            var parts = new System.Collections.Generic.List<string>();
+            if (stale > 0) parts.Add($"{stale} неактуальны");
+            if (unavailable > 0) parts.Add($"{unavailable} нет в наличии");
+
+            var lastSync = LocalSettingsService.GetLastMaterialSyncTime(clientRequestId);
+            var syncText = lastSync.HasValue ? $"Синхронизировано · {lastSync.Value:HH:mm}. " : string.Empty;
+
+            ApplyBadge(
+                RevitMaterialsButton,
+                "⚠ " + string.Join(" · ", parts),
+                "#FFF8EB",
+                "#92400E",
+                syncText + "Позиции ТК отличаются от подбора или недоступны. Замена — в MySpace через ДС.");
         }
 
         void ApplyMeasuresState(System.Collections.Generic.List<SmartRemont.ExportRooms.DTO.MeasureRoomInfoDto> data, bool status, string error)
