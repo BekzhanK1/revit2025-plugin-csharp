@@ -363,7 +363,8 @@ namespace SmartRemont.ExportRooms.Services
                   + (scheduleLineCount > 0
                       ? (qtyBaselineFromDs
                           ? $" Объёмы vs ДС: к отправке {qtyMismatch}, нельзя отправить {qtyBlocked}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}."
-                          : $" Объёмы vs договор: к отправке {qtyMismatch}, нельзя отправить {qtyBlocked}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}.")
+                          // Без черновика ДС отправлять некуда: считаем расхождения, а не «к отправке».
+                          : $" Объёмы vs договор (ДС ещё нет): расхождений с полем ввода {qtyMismatch}, из них нельзя отправить {qtyBlocked}, алерт проекта (≥{QtyProjectAlertRelThreshold:P0}) {qtyProjectAlert}.")
                       : string.Empty);
 
             return new DsTkCompareResult

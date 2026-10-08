@@ -421,7 +421,8 @@ namespace SmartRemont.ExportRooms.Services
             if (parsed == null)
                 return 1d * scale;
 
-            return parsed.Value * (scale <= 0 ? 1d : scale);
+            // Округление убирает хвосты от мм → м (1650 × 0.001 = 1.6500000000000001).
+            return Math.Round(parsed.Value * (scale <= 0 ? 1d : scale), 4, MidpointRounding.AwayFromZero);
         }
 
         static bool TryFindSchedules(
