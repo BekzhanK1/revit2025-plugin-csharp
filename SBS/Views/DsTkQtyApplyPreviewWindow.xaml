@@ -69,7 +69,7 @@
             <Border Grid.Column="0" Style="{StaticResource StatBadge}">
                 <StackPanel>
                     <TextBlock x:Name="StatSendValue" Style="{StaticResource StatValue}" Foreground="{StaticResource InfoTextBrush}" Text="—"/>
-                    <TextBlock Text="уйдёт в ДС" Style="{StaticResource StatLabel}"/>
+                    <TextBlock Text="позиций уйдёт в ДС" Style="{StaticResource StatLabel}"/>
                 </StackPanel>
             </Border>
             <Border Grid.Column="1" Style="{StaticResource StatBadge}">
@@ -122,12 +122,12 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="ДС/ТК" Binding="{Binding TkQtyDisplay}" Width="70" MinWidth="64">
+                <DataGridTextColumn Header="Было (ДС)" Binding="{Binding TkQtyDisplay}" Width="78" MinWidth="64">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCellText}"/>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Проект" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="64">
+                <DataGridTextColumn Header="Станет" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="64">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCellText}">
                             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -151,6 +151,14 @@
                                     Binding="{Binding MyspaceUnitDisplay}"
                                     Width="88"
                                     MinWidth="64"/>
+                <DataGridTextColumn Header="Откуда" Binding="{Binding Note}" Width="1.2*" MinWidth="110">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
 

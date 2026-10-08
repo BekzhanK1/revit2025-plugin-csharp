@@ -359,6 +359,148 @@ namespace SmartRemont.ExportRooms.Services
             };
         }
 
+        /// <summary>
+        /// Колонку объёма берём из расчёта ДС по модели (DsTkTargetService): там строка ДС
+        /// сопоставлена со своей ведомостью по конструктиву. Строки без поля ввода остаются как были.
+        /// </summary>
+        public static DsTkCompareResult ApplyTarget(DsTkCompareResult compare, DsTkTargetResult target)
+        {
+            if (compare?.Rooms == null || target == null)
+                return compare;
+
+            // (комната, material_id) → строки расчёта. Несколько позиций — берём сумму, статус по худшей.
+            var byKey = new Dictionary<(string, int), List<(DsTkTargetPosition Position, DsTkTargetLine Line)>>();
+            foreach (var position in target.Positions)
+            {
+                var roomKey = DsAreaCompareService.GetRoomCompareKey(position.RoomName ?? string.Empty);
+                foreach (var line in new[] { position.Head }.Concat(position.Members))
+                {
+                    if (line == null || line.MaterialId <= 0)
+                        continue;
+                    var key = (roomKey.ToUpperInvariant(), line.MaterialId);
+                    if (!byKey.TryGetValue(key, out var list))
+                        byKey[key] = list = new List<(DsTkTargetPosition, DsTkTargetLine)>();
+                    list.Add((position, line));
+                }
+            }
+
+            var send = 0;
+            var blocked = 0;
+            var rooms = new List<DsTkCompareRoom>();
+            foreach (var room in compare.Rooms)
+            {
+                var roomKey = DsAreaCompareService.GetRoomCompareKey(room.RoomName ?? string.Empty).ToUpperInvariant();
+                var rows = new List<DsTkCompareRow>();
+                foreach (var row in room.Rows)
+                {
+                    if (row.MaterialId <= 0 || !byKey.TryGetValue((roomKey, row.MaterialId), out var hits))
+                    {
+                        rows.Add(row);
+                        continue;
+                    }
+
+                    var current = hits.Any(h => h.Line.CurrentQty != null)
+                        ? hits.Sum(h => h.Line.CurrentQty ?? 0d)
+                        : (double?)null;
+                    var targetQty = hits.Any(h => h.Line.TargetQty != null)
+                        ? hits.Sum(h => h.Line.TargetQty ?? h.Line.CurrentQty ?? 0d)
+                        : (double?)null;
+                    var changed = hits.Any(h => h.Line.IsChanged);
+                    var worst = hits.Select(h => h.Position)
+                        .OrderBy(p => p.Status switch
+                        {
+                            DsTkTargetStatus.Blocked => 0,
+                            DsTkTargetStatus.Skipped => 1,
+                            DsTkTargetStatus.Change => 2,
+                            DsTkTargetStatus.Same => 3,
+                            _ => 4
+                        })
+                        .First();
+                    var unit = hits.Select(h => h.Line.RevitUnit).FirstOrDefault(u => !string.IsNullOrWhiteSpace(u))
+                        ?? row.QtyUnit;
+                    var note = hits.Select(h => h.Line.Note).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n));
+
+                    string key;
+                    string display;
+                    switch (worst.Status)
+                    {
+                        case DsTkTargetStatus.Blocked when changed || worst.Head?.TargetQty == null:
+                            key = "qty_blocked";
+                            display = "не отправляется: " + worst.Reason;
+                            blocked++;
+                            break;
+                        case DsTkTargetStatus.Skipped when changed:
+                            key = "qty_blocked";
+                            display = $"ДС {FormatQty(current)} ≠ модель {FormatQty(targetQty)} — {worst.Reason}";
+                            blocked++;
+                            break;
+                        case DsTkTargetStatus.NotFromModel:
+                            key = "qty_tk_only";
+                            display = worst.Reason;
+                            break;
+                        default:
+                            if (changed)
+                            {
+                                key = "qty_mismatch";
+                                display = $"уйдёт в ДС: {FormatQty(current)} → {FormatQty(targetQty)}"
+                                          + (note == null ? string.Empty : $" ({note})");
+                                send++;
+                            }
+                            else
+                            {
+                                key = "qty_match";
+                                display = targetQty == null ? (note ?? "как в ДС") : "объём = ДС";
+                            }
+                            break;
+                    }
+
+                    rows.Add(new DsTkCompareRow
+                    {
+                        RoomName = row.RoomName,
+                        MaterialId = row.MaterialId,
+                        ClientMaterialId = row.ClientMaterialId,
+                        MaterialSetId = row.MaterialSetId,
+                        IsSetMember = row.IsSetMember,
+                        TkChangeId = row.TkChangeId,
+                        IsMaterialCntInput = true,
+                        MaterialName = row.MaterialName,
+                        WorkSetName = row.WorkSetName,
+                        RevitName = row.RevitName,
+                        Category = row.Category,
+                        KindDisplay = row.KindDisplay,
+                        RevitFileType = row.RevitFileType,
+                        SourceLevel = row.SourceLevel,
+                        Quantity = row.Quantity,
+                        TkQty = current,
+                        ScheduleQty = targetQty,
+                        QtyUnit = unit,
+                        MyspaceUnit = row.MyspaceUnit,
+                        QtyStatusKey = key,
+                        QtyStatusDisplay = FormatQtyStatusDisplay(display, unit),
+                        QtyBaselineFromDs = true,
+                        Status = row.Status
+                    });
+                }
+
+                rooms.Add(new DsTkCompareRoom { RoomName = room.RoomName, Rows = rows });
+            }
+
+            return new DsTkCompareResult
+            {
+                Rooms = rooms,
+                MatchCount = compare.MatchCount,
+                MissingInRevitCount = compare.MissingInRevitCount,
+                NotExpectedInModelCount = compare.NotExpectedInModelCount,
+                ExtraInRevitCount = compare.ExtraInRevitCount,
+                QtyMismatchCount = send,
+                QtyProjectAlertCount = compare.QtyProjectAlertCount,
+                QtyBlockedCount = blocked,
+                Note = compare.Note,
+                QtyBaselineFromDs = true,
+                ScheduleSources = compare.ScheduleSources
+            };
+        }
+
         static ClientMaterialRowDto PreferTkRowForApply(List<ClientMaterialRowDto> tkGroup)
         {
             if (tkGroup == null || tkGroup.Count == 0)

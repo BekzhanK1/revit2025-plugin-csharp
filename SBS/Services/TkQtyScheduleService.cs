@@ -25,6 +25,8 @@ namespace SmartRemont.ExportRooms.Services
         public string ScheduleNameExpected { get; set; }
         public string ScheduleNameFound { get; set; }
         public bool Found { get; set; }
+        /// <summary>Таблица прочитана и колонки нашлись: пустая ведомость значит «в модели нет».</summary>
+        public bool Readable { get; set; }
         public int LineCount { get; set; }
         public string Message { get; set; }
     }
@@ -70,7 +72,8 @@ namespace SmartRemont.ExportRooms.Services
                 .GroupBy(s => NormalizeName(s.Name), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-            foreach (var entry in TkQtyScheduleMapping.All.Where(e => e.Enabled))
+            // Фурнитура и т.п. считаются по другому источнику — своей ведомости у них нет.
+            foreach (var entry in TkQtyScheduleMapping.All.Where(e => e.Enabled && !e.IsDerived))
             {
                 var expected = string.Join(" | ", entry.ScheduleNamesExact ?? new List<string>());
                 var source = new TkQtyScheduleSourceInfo
@@ -109,6 +112,7 @@ namespace SmartRemont.ExportRooms.Services
 
                 source.ScheduleNameFound = schedule.Name;
                 source.Found = true;
+                source.Readable = true;
 
                 // Если qty-колонка в мм, а scale=1 — применяем 0.001; если уже «м» / «шт» — не трогаем scale из конфига.
                 var effectiveScale = ResolveEffectiveScale(entry.QuantityScale, qtyHeader, entry.QuantityUnit);

@@ -78,6 +78,7 @@
     <Compile Include="Services\TkMaterialCompareService.cs" />
     <Compile Include="Services\DsTkCompareService.cs" />
     <Compile Include="Services\DsTkChangeService.cs" />
+    <Compile Include="Services\DsTkTargetService.cs" />
     <Compile Include="Services\TkQtyScheduleMapping.cs" />
     <Compile Include="Services\TkQtyScheduleService.cs" />
     <Compile Include="Services\RoomPaintScheduleService.cs" />
