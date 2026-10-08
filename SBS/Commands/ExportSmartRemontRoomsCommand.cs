@@ -42,8 +42,8 @@ namespace SmartRemont.ExportRooms.Commands
                 if (hubWindow.ShowDialog() != true)
                     return Result.Cancelled;
 
-                if (ProjectPostInitExitService.TryConsumeShutdownRequest(out var initializedPath))
-                    ProjectPostInitExitService.ScheduleShutdownRevit(uiApp, initializedPath);
+                if (ProjectPostInitOpenService.TryConsumeOpenRequest(out var initializedPath))
+                    ProjectPostInitOpenService.ScheduleOpenProject(uiApp, initializedPath);
 
                 // ExportSmartRemontRoomsWindow — полный экспорт, временно не используется
                 return Result.Succeeded;

@@ -89,7 +89,7 @@
     <Compile Include="Services\DsRoomChangeService.cs" />
     <Compile Include="Services\DsAreaCompareService.cs" />
     <Compile Include="Services\ProjectRemontMetadataService.cs" />
-    <Compile Include="Services\ProjectPostInitExitService.cs" />
+    <Compile Include="Services\ProjectPostInitOpenService.cs" />
     <Compile Include="Services\ProjectRemontBindingService.cs" />
     <Compile Include="Services\ProjectFileNamingService.cs" />
     <Compile Include="Services\ProjectCopyService.cs" />

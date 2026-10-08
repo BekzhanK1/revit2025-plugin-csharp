@@ -338,7 +338,7 @@ namespace SmartRemont.ExportRooms.Services
 
             var uiApp = ExportRoomsApplication.CurrentUiApplication;
             if (uiApp != null && ReferenceEquals(uiApp.ActiveUIDocument?.Document, sourceDoc))
-                ProjectPostInitExitService.ActivateProjectDocument(uiApp, projectDoc);
+                ProjectPostInitOpenService.ActivateProjectDocument(uiApp, projectDoc);
 
             try
             {

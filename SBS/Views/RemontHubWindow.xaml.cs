@@ -877,7 +877,7 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             var details = BuildInitSuccessDetails(result);
-            ProjectPostInitExitService.RequestShutdownRevitAfterPluginExit(result.NewFilePath);
+            ProjectPostInitOpenService.RequestOpenProjectAfterPluginExit(result.NewFilePath);
             var successTitle = result.Errors > 0
                 ? "Проект инициализирован с ошибками"
                 : "Проект инициализирован";
@@ -892,7 +892,7 @@ namespace SmartRemont.ExportRooms.Views
                 successTitle,
                 successSummary,
                 details,
-                buttonText: "Закрыть");
+                buttonText: "Открыть проект");
 
             DialogResult = true;
             Close();
@@ -910,9 +910,8 @@ namespace SmartRemont.ExportRooms.Views
             if (!string.IsNullOrWhiteSpace(result.BackupPath))
                 lines.Add("Прежний файл проекта сохранён как: " + result.BackupPath);
 
-            lines.Add("Нажмите «Закрыть» — Revit завершит работу. "
-                      + "Если в других открытых файлах есть несохранённые изменения, Revit спросит, сохранить ли их.");
-            lines.Add("Затем откройте сохранённый файл вручную через Файл → Открыть.");
+            lines.Add("Нажмите «Открыть проект» — плагин закроется, и Revit откроет новый проект. "
+                      + "Остальные файлы закроются, кроме тех, где есть несохранённые изменения.");
 
             return string.Join("\n\n", lines);
         }
