@@ -303,8 +303,12 @@ namespace SmartRemont.ExportRooms.Services
             switch (element.Category?.Id.Value)
             {
                 case (int)BuiltInCategory.OST_Doors when element is FamilyInstance door:
-                    TryAddRoom(result, GetDoorRoom(door, phase, from: true), roomIds);
+                    // Дверь — в одной комнате: «В помещение», как колонка «Помещение» в ведомости
+                    // дверей и строка ТК (дверь Кухни из Прихожей — в Кухне). Раньше дверь шла в обе
+                    // комнаты и считалась дважды. Нет «В помещение» (дверь наружу) — «Из помещения».
                     TryAddRoom(result, GetDoorRoom(door, phase, from: false), roomIds);
+                    if (result.Count == 0)
+                        TryAddRoom(result, GetDoorRoom(door, phase, from: true), roomIds);
                     break;
 
                 case (int)BuiltInCategory.OST_Windows when element is FamilyInstance window:
