@@ -324,9 +324,12 @@
                 </Border>
 
                 <!-- Функции -->
+                <!-- 5 кликов по заголовку «ИНИЦИАЛИЗАЦИЯ» открывают карточку привязки без шаблона. -->
                 <TextBlock x:Name="FunctionsSectionLabel"
                            Text="ФУНКЦИИ И ОПЕРАЦИИ"
                            Style="{StaticResource SectionLabel}"
+                           Background="Transparent"
+                           MouseLeftButtonUp="FunctionsSectionLabel_MouseLeftButtonUp"
                            Margin="0,8,0,12"/>
 
                 <Grid Margin="0,0,-14,0">
@@ -336,6 +339,12 @@
                                 Content="Инициализировать проект"
                                 Tag="primary"
                                 Click="InitProjectButton_Click"/>
+                        <Button x:Name="BindWithoutInitButton"
+                                Style="{StaticResource FeatureCardButton}"
+                                Content="Привязать заявку без шаблона"
+                                Tag="default"
+                                Visibility="Collapsed"
+                                Click="BindWithoutInitButton_Click"/>
                         <Button x:Name="RevitMaterialsButton"
                                 Style="{StaticResource FeatureCardButton}"
                                 Content="Синхронизация материалов из Revit"

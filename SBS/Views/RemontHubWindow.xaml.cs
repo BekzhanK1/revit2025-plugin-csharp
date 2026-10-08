@@ -19,6 +19,7 @@ namespace SmartRemont.ExportRooms.Views
         readonly Document _doc;
 
         const string InitProjectSubtitle = "Проект из шаблона .rte по грейду, метаданные и материалы";
+        const string BindWithoutInitSubtitle = "Записать заявку в открытый файл без шаблона и материалов";
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
@@ -30,6 +31,12 @@ namespace SmartRemont.ExportRooms.Views
         bool _initInProgress;
         bool _showInitOverlay;
         CancellationTokenSource _initCts;
+
+        // Скрытая карточка «Привязать заявку без шаблона»: 5 кликов по заголовку раздела за 3 секунды.
+        const int BindWithoutInitClickCount = 5;
+        static readonly TimeSpan BindWithoutInitClickWindow = TimeSpan.FromSeconds(3);
+        readonly System.Collections.Generic.List<DateTime> _sectionLabelClicks = new();
+        bool _bindWithoutInitRevealed;
 
         public RemontHubWindow(Document doc)
         {
@@ -498,6 +505,7 @@ namespace SmartRemont.ExportRooms.Views
         void SetupFeatureButtons()
         {
             ConfigureFeatureButton(InitProjectButton, "\uE8C8", InitProjectSubtitle);
+            ConfigureFeatureButton(BindWithoutInitButton, "\uE71B", BindWithoutInitSubtitle);
             ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
             ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
             ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
@@ -632,6 +640,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ApplyInitFeatureBadge(InitProjectButton, null);
                 InitProjectButton.IsEnabled = !_initInProgress && selectedClientRequestId > 0;
+                BindWithoutInitButton.IsEnabled = !_initInProgress && selectedClientRequestId > 0;
                 return;
             }
 
@@ -652,6 +661,9 @@ namespace SmartRemont.ExportRooms.Views
             InitProjectButton.Visibility = isInitialized
                 ? System.Windows.Visibility.Collapsed
                 : System.Windows.Visibility.Visible;
+            BindWithoutInitButton.Visibility = !isInitialized && _bindWithoutInitRevealed
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
 
             // После init — все функции доступны через client_request_id (PLUGIN_API.md).
             // ДС «изменение площади» дополнительно требует remont_id — гейтится внутри окна.
@@ -704,6 +716,117 @@ namespace SmartRemont.ExportRooms.Views
                 return remont.Name.Trim();
 
             return null;
+        }
+
+        void FunctionsSectionLabel_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (_bindWithoutInitRevealed || ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
+                return;
+
+            var now = DateTime.UtcNow;
+            _sectionLabelClicks.RemoveAll(t => now - t > BindWithoutInitClickWindow);
+            _sectionLabelClicks.Add(now);
+            if (_sectionLabelClicks.Count < BindWithoutInitClickCount)
+                return;
+
+            _sectionLabelClicks.Clear();
+            _bindWithoutInitRevealed = true;
+            RefreshProjectInitState();
+        }
+
+        /// <summary>
+        /// Записывает заявку в ExtensibleStorage открытого файла и сохраняет его — без шаблона .rte
+        /// и загрузки материалов. Для проектов, собранных вручную или до появления инициализации.
+        /// </summary>
+        async void BindWithoutInitButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_initInProgress)
+                return;
+
+            var remont = ExportRoomsApplication.SelectedRemont;
+            var clientRequestId = remont?.ClientRequestId ?? 0;
+            if (clientRequestId <= 0)
+            {
+                SetStatus("Не указан ID заявки", isSuccess: false);
+                return;
+            }
+
+            if (_doc == null || _doc.IsFamilyDocument)
+            {
+                SetStatus("Откройте файл проекта (.rvt), а не семейство.", isSuccess: false);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_doc.PathName))
+            {
+                SetStatus("Файл не сохранён на диске. Сохраните его (Save As) и повторите привязку.", isSuccess: false);
+                return;
+            }
+
+            var remontId = remont.RemontId ?? 0;
+            var question = $"Привязать открытый файл к заявке #{clientRequestId} без шаблона и загрузки материалов?\n\n{_doc.PathName}";
+            if (remontId <= 0)
+                question += "\n\nНомер ремонта не найден: ДС на изменение квадратуры будет недоступна.";
+            question += "\n\nФайл будет сохранён.";
+
+            if (AppMessageBox.Show(this, question, "Привязка заявки", MessageBoxButton.YesNo, MessageBoxImage.Question)
+                != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                ProjectRemontMetadataService.Write(_doc, new ProjectRemontMetadata
+                {
+                    RemontId = remontId,
+                    ClientRequestId = clientRequestId
+                });
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Error(ex,
+                    "Bind without init failed: client_request_id={ClientRequestId}, path={Path}",
+                    clientRequestId,
+                    _doc.PathName);
+                SetStatus($"Не удалось записать заявку в файл: {ex.Message}", isSuccess: false);
+                return;
+            }
+
+            string saveError = null;
+            try
+            {
+                _doc.Save();
+            }
+            catch (Exception ex)
+            {
+                saveError = ex.Message;
+                ExportRoomsApplication._logger?.Warning(ex,
+                    "Bind without init: metadata written but save failed, path={Path}",
+                    _doc.PathName);
+            }
+
+            ExportRoomsApplication._logger?.Information(
+                "Project bound without init: client_request_id={ClientRequestId}, remont_id={RemontId}, path={Path}",
+                clientRequestId,
+                remontId,
+                _doc.PathName);
+
+            _bindWithoutInitRevealed = false;
+            BindRemontInfo(remont);
+            RefreshProjectInitState();
+
+            if (saveError != null)
+            {
+                SetStatus($"Заявка #{clientRequestId} привязана, но файл не сохранился: {saveError}. Сохраните его вручную (Ctrl+S).",
+                    isSuccess: false);
+                return;
+            }
+
+            AppMessageDialog.ShowSuccess(
+                this,
+                "Заявка привязана",
+                $"Файл привязан к заявке #{clientRequestId}",
+                _doc.PathName);
+            await FetchAsyncStates().ConfigureAwait(true);
         }
 
         async void InitProjectButton_Click(object sender, RoutedEventArgs e)
