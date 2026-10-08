@@ -27,13 +27,19 @@ namespace SmartRemont.ExportRooms.Views
         /// </summary>
         public bool ZeroFill { get; set; }
 
+        /// <summary>
+        /// У комнаты в системе нет такого параметра (справочник комнат) — не отправляем:
+        /// бэкенд отклонит всю отправку.
+        /// </summary>
+        public bool NotInSystem { get; set; }
+
         /// <summary>Что уйдёт в систему: значение из Revit или 0 для ZeroFill.</summary>
-        public double? OutgoingValue => param_value ?? (ZeroFill ? 0d : null);
+        public double? OutgoingValue => NotInSystem ? null : param_value ?? (ZeroFill ? 0d : null);
 
         public string param_value_display => Format(OutgoingValue);
         public string CurrentValueDisplay => Format(CurrentValue);
 
-        public bool WillSend => ZeroFill || (param_value.HasValue &&
+        public bool WillSend => !NotInSystem && (ZeroFill || param_value.HasValue &&
             (!CurrentValue.HasValue || Math.Abs(param_value.Value - CurrentValue.Value) > 0.001));
 
         public bool IsMatch => param_value.HasValue && CurrentValue.HasValue &&
@@ -43,6 +49,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             get
             {
+                if (NotInSystem) return "нет у комнаты в системе";
                 if (ZeroFill) return "0 — нет в Revit";
                 if (!param_value.HasValue && !CurrentValue.HasValue) return "—";
                 if (!param_value.HasValue) return "нет в Revit";
@@ -328,6 +335,11 @@ namespace SmartRemont.ExportRooms.Views
                     {
                         var currentParam = currentParams?.FirstOrDefault(cp =>
                             string.Equals(cp.ParamCode, p.param_code, StringComparison.OrdinalIgnoreCase));
+                        // Комната в системе известна, а параметра у неё нет (у балкона нет дверей
+                        // и молдингов): пустую строку не показываем, значение из Revit не отправляем.
+                        var notInSystem = currentParams != null && currentParam == null;
+                        if (notInSystem && !p.param_value.HasValue)
+                            return null;
                         double? currentVal = null;
                         if (currentParam != null &&
                             double.TryParse(currentParam.ParamValue?.Replace(',', '.'),
@@ -343,9 +355,11 @@ namespace SmartRemont.ExportRooms.Views
 
                         // 0 только в параметр, который у комнаты в системе есть и пуст: иначе
                         // бэкенд отклонит всю отправку («Параметр недоступен для этой комнаты»).
+                        // Достаточно, что ведомость есть в модели: значений в ней может не быть
+                        // вовсе (двустворчатых дверей нет ни в одной комнате) — это тоже 0.
                         var zeroFill = inRevit
                                        && !p.param_value.HasValue
-                                       && source?.Found == true
+                                       && !string.IsNullOrWhiteSpace(source?.schedule_name_found)
                                        && currentParam != null
                                        && string.IsNullOrWhiteSpace(currentParam.ParamValue);
 
@@ -356,9 +370,11 @@ namespace SmartRemont.ExportRooms.Views
                             param_value = p.param_value,
                             CurrentValue = currentVal,
                             SourceHint = sourceHint,
-                            ZeroFill = zeroFill
+                            ZeroFill = zeroFill,
+                            NotInSystem = notInSystem
                         };
                     })
+                    .Where(p => p != null)
                     .ToList()
             };
         }
