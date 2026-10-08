@@ -249,6 +249,23 @@ namespace SmartRemont.ExportRooms.Services
                         baselineName,
                         baselineShort);
 
+                    // Ведомости нет, а материал штучный и стоит в модели семействами: сверяем число
+                    // элементов с ТК. Иначе «Совпадает» стоял при 8 светильниках в ТК и 5 в модели.
+                    // Только подсказка — в ДС уходят объёмы из ведомостей, а не число элементов.
+                    if (!hasScheduleQty && hasRevit && tkQty != null
+                        && string.Equals(fileType?.Trim(), "rfa", StringComparison.OrdinalIgnoreCase)
+                        && QtyUnits.Normalize(tkRow?.UnitName) == "шт")
+                    {
+                        var elementCount = revitGroup.Sum(i => i.Quantity);
+                        if (!QtyEquals(tkQty.Value, elementCount))
+                        {
+                            (qtyKey, qtyDisplay) = ResolveQtyStatus(
+                                tkQty, elementCount, hasSchedule: true, canEditInMyspace: false,
+                                baselineName, baselineShort);
+                            qtyDisplay = qtyDisplay?.Replace("вед.", "элементов в модели");
+                        }
+                    }
+
                     var revitItem = revitGroup?.FirstOrDefault();
                     var qtyUnit = ResolveQtyUnit(materialId, roomKey, scheduleQty);
 
