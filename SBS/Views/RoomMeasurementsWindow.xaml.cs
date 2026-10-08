@@ -150,19 +150,11 @@ namespace SmartRemont.ExportRooms.Views
                     RoomName = kvp.Key,
                     Parameters = RoomMeasurementsScheduleMapping.All
                         .Where(entry => RoomMeasurementsService.ParamAppliesToRoom(entry, kvp.Key))
-                        .Select(entry =>
+                        .Select(entry => new RoomMeasurementParamItem
                         {
-                            // Комнаты только из системы: если ведомость есть — 0, иначе null.
-                            var source = _snapshot.Sources?.FirstOrDefault(s =>
-                                string.Equals(s.param_code, entry.ParamCode, StringComparison.OrdinalIgnoreCase)
-                                && !string.IsNullOrWhiteSpace(s.schedule_name_found)
-                                && s.schedule_name_found != "—");
-                            return new RoomMeasurementParamItem
-                            {
-                                param_code = entry.ParamCode,
-                                param_name = entry.ParamName,
-                                param_value = source != null ? 0d : null
-                            };
+                            param_code = entry.ParamCode,
+                            param_name = entry.ParamName,
+                            param_value = null
                         })
                         .ToList()
                 });
@@ -188,6 +180,8 @@ namespace SmartRemont.ExportRooms.Views
 
             if ((remont?.ClientRequestId ?? 0) <= 0)
                 SetStatus("Отправка недоступна: не указан ID заявки.", isError: true);
+            else if (RoomAreaService.GetPreferredPhase(_doc) == null)
+                SetStatus($"Фаза «{RoomAreaService.PreferredPhaseName}» не найдена — помещения Revit не прочитаны.", isError: true);
             else if (!hasValues)
                 SetStatus("Нет значений из Revit для отправки. Откройте «Настроить источники» или проверьте ведомости.", isError: false);
             else
@@ -242,22 +236,14 @@ namespace SmartRemont.ExportRooms.Views
                     .ApplyAsync(remont.ClientRequestId, _snapshot.Rooms, _roomIdsByKey)
                     .ConfigureAwait(true);
 
-                var skippedCount = result.Skipped?.Count ?? 0;
-                var skippedSuffix = skippedCount > 0 ? $" · пропущено {skippedCount}" : "";
                 SetStatus(
-                    $"Отправлено: {result.AppliedRooms} помещ., {result.AppliedParams} знач.{skippedSuffix}",
+                    $"Отправлено: {result.AppliedRooms} помещ., {result.AppliedParams} знач.",
                     isError: false);
 
                 LastSuccessMessage =
-                    $"Замеры отправлены · {result.AppliedRooms} помещ. · {result.AppliedParams} знач.{skippedSuffix}";
+                    $"Замеры отправлены · {result.AppliedRooms} помещ. · {result.AppliedParams} знач.";
 
                 var details = $"Помещений: {result.AppliedRooms}\nЗначений: {result.AppliedParams}";
-                if (skippedCount > 0)
-                {
-                    var reasons = result.Skipped
-                        .Select(s => $"— {(string.IsNullOrWhiteSpace(s.RoomName) ? "?" : s.RoomName)}: {s.Reason}");
-                    details += "\n\nПропущено:\n" + string.Join("\n", reasons);
-                }
 
                 AppMessageDialog.ShowSuccess(this, "Успешно отправлено", "Замеры отправлены", details);
 

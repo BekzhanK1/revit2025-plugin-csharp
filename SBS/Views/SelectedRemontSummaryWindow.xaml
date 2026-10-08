@@ -192,7 +192,7 @@
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
                                     <Border Style="{StaticResource LegendDot}" Background="{StaticResource ErrorBackgroundBrush}" BorderBrush="{StaticResource ErrorBrush}"/>
-                                    <TextBlock Text="Только в системе" Style="{StaticResource LegendText}"/>
+                                    <TextBlock Text="Нет в проекте" Style="{StaticResource LegendText}"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
                                     <Border Style="{StaticResource LegendDot}" Background="{StaticResource InfoSoftBrush}" BorderBrush="{StaticResource InfoBrush}"/>
@@ -282,7 +282,7 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTemplateColumn Header="Статус" Width="130">
+                            <DataGridTemplateColumn Header="Статус" Width="140">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Border x:Name="ActionBadge"
@@ -312,7 +312,7 @@
                                             <DataTrigger Binding="{Binding AreaCompareStatus}" Value="SystemOnly">
                                                 <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource ErrorBackgroundBrush}"/>
                                                 <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource ErrorBorderBrush}"/>
-                                                <Setter TargetName="ActionText" Property="Text" Value="Удалено"/>
+                                                <Setter TargetName="ActionText" Property="Text" Value="Нет в проекте"/>
                                                 <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">

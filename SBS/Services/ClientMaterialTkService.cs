@@ -127,7 +127,9 @@ namespace SmartRemont.ExportRooms.Services
                         IsMaterialCntInput = head.IsMaterialCntInput,
                         IsOptional = head.IsOptional,
                         IsSetMember = true,
-                        TkChangeId = head.TkChangeId
+                        TkChangeId = head.TkChangeId,
+                        UnitName = item.UnitName,
+                        IsAtomMeasure = head.IsAtomMeasure
                     });
                 }
             }
@@ -156,6 +158,8 @@ namespace SmartRemont.ExportRooms.Services
                 IsOptional = row.IsOptional,
                 IsSetMember = row.IsSetMember,
                 TkChangeId = row.TkChangeId,
+                UnitName = row.UnitName,
+                IsAtomMeasure = row.IsAtomMeasure,
                 SetItems = CloneSetItems(row.SetItems)
             };
         }
@@ -171,7 +175,8 @@ namespace SmartRemont.ExportRooms.Services
                 {
                     MaterialId = i.MaterialId,
                     MaterialName = i.MaterialName,
-                    MaterialCnt = i.MaterialCnt
+                    MaterialCnt = i.MaterialCnt,
+                    UnitName = i.UnitName
                 })
                 .ToList();
         }
@@ -245,7 +250,8 @@ namespace SmartRemont.ExportRooms.Services
             {
                 MaterialId = materialId,
                 MaterialName = ReadString(obj["material_name"]),
-                MaterialCnt = ReadDouble(obj["material_cnt"])
+                MaterialCnt = ReadDouble(obj["material_cnt"]),
+                UnitName = ReadString(obj["unit_name"])
             };
         }
 
@@ -426,6 +432,8 @@ namespace SmartRemont.ExportRooms.Services
                 IsMaterialCntInput = ReadBool(obj["is_material_cnt_input"]),
                 IsOptional = ReadInt(obj["is_optional"]) ?? 0,
                 TkChangeId = ReadInt(obj["tk_change_id"]),
+                UnitName = ReadString(obj["unit_name"]),
+                IsAtomMeasure = ReadBool(obj["is_atom_measure"]) == true,
                 SetItems = ParseSetItems(obj)
             };
         }

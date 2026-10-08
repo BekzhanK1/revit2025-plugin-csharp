@@ -28,6 +28,11 @@ namespace SmartRemont.ExportRooms.Views
         Dictionary<int, RevitMaterialRowDto> _materialMeta = new();
         List<DsTkChangeItem> _dsItems = new();
         DsTkChangeItem _boundDs;
+        /// <summary>Неутверждённая ДС площади: пока она есть, ДС ТК не отправляем.</summary>
+        DsTkChangeItem _openRoomChange;
+        /// <summary>Что должно стоять в ДС по модели (только строки с полем ввода).</summary>
+        DsTkTargetResult _target;
+        List<string> _modelRoomNames = new();
         bool _loading;
         bool _dsBusy;
 
@@ -63,7 +68,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 AppMessageBox.Show(
                     this,
-                    "Нет права OA__RemontFormDSAdd — создание ДС недоступно.",
+                    "Нет права создавать ДС.",
                     "Smart Remont",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -73,28 +78,13 @@ namespace SmartRemont.ExportRooms.Views
             if (_dsItems.Count == 0)
                 await RefreshDsBindAsync().ConfigureAwait(true);
 
-            var existingLocked = _dsItems.FirstOrDefault(i => i.IsLocked);
-            if (existingLocked != null)
-            {
-                AppMessageBox.Show(
-                    this,
-                    $"Уже есть ДС №{existingLocked.DsId} ({existingLocked.StatusDisplay}).\n\n"
-                    + "Новую TK_CHANGE создавать нельзя, пока эта не разсогласована / не закрыта.\n"
-                    + "Рассогласование: в БД сбросить card_id и is_accept (см. подсказку в статусе).",
-                    "ДС уже существует",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                ApplyDsBadge(existingLocked);
-                UpdateDsActionButtons();
-                return;
-            }
-
-            var existingDraft = _dsItems.FirstOrDefault(i => i.CanEdit);
+            // Утверждённые ДС не мешают: у заявки их бывает несколько. Мешает только черновик.
+            var existingDraft = DsTkChangeBindState.PreferAutoSelect(_dsItems);
             if (existingDraft != null)
             {
                 AppMessageBox.Show(
                     this,
-                    $"Уже есть черновик ДС №{existingDraft.DsId}.\nВыберите его кнопкой «Выбрать…», а не создавайте второй.",
+                    $"Уже есть черновик ДС №{existingDraft.DsId}. Объёмы уйдут в него, второй не нужен.",
                     "Черновик уже есть",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -413,6 +403,12 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
+            if (RoomAreaService.GetPreferredPhase(_doc) == null)
+            {
+                StatusText.Text = $"Фаза «{RoomAreaService.PreferredPhaseName}» не найдена.";
+                return;
+            }
+
             _loading = true;
             StatusText.Text = "Сканирование SR_ID в модели и загрузка ТК…";
             UpdateDsActionButtons();
@@ -421,6 +417,10 @@ namespace SmartRemont.ExportRooms.Views
             {
                 _revitSnapshot = RoomMaterialsService.CollectSrId(_doc);
                 _scheduleQty = TkQtyScheduleService.Collect(_doc);
+                _modelRoomNames = RoomAreaService.CollectRooms(_doc)
+                    .Select(r => r.RoomName)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .ToList();
                 var scheduleFound = _scheduleQty.Sources.Count(s => s.Found);
                 var scheduleLines = _scheduleQty.Lines.Count;
                 ScanInfoText.Text =
@@ -451,6 +451,7 @@ namespace SmartRemont.ExportRooms.Views
                 StatusText.Text = ex.Message;
                 HideMismatchWarning();
                 _result = null;
+                _target = null;
                 _scheduleQty = null;
                 _tkSnapshot = null;
                 _tkFlattened = null;
@@ -473,17 +474,23 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            var missing = _result.MissingInRevitCount;
-            var extra = _result.ExtraInRevitCount;
-            var send = _result.QtyMismatchCount;
-            StatusText.Text = send > 0
-                ? $"К отправке в ДС: {send} (объёмы MySpace)."
-                : "Нет объёмов MySpace к отправке.";
+            if (_boundDs == null)
+                StatusText.Text = "Нет черновика ДС на изменение ТК — создайте его, чтобы сверить объёмы.";
+            else if (_target == null)
+                StatusText.Text = "Объёмы ДС не прочитаны — нажмите «Обновить».";
+            else
+            {
+                var positions = _target.ToSend.Count;
+                StatusText.Text = positions > 0
+                    ? $"Уйдёт в ДС №{_boundDs.DsId}: {positions} поз. ({_target.ChangedLineCount} строк) + замеры комнат."
+                    : $"Объёмы модели совпадают с ДС №{_boundDs.DsId}.";
+            }
 
             if (!string.IsNullOrWhiteSpace(materialsError) && !materialsOk)
                 StatusText.Text += $" Тип файла: {materialsError}";
 
-            if (missing == 0 && extra == 0)
+            var lines = BuildWarningLines();
+            if (lines.Count == 0)
             {
                 HideMismatchWarning();
                 return;
@@ -492,11 +499,49 @@ namespace SmartRemont.ExportRooms.Views
             if (MismatchWarningPanel == null || MismatchWarningText == null)
                 return;
 
-            MismatchWarningText.Text =
-                $"Проект не совпадает с договором: нет в проекте {missing}, лишнее {extra}. "
-                + "Сейчас это не блокирует отправку. Дальше без совпадения состава отправка будет ограничена.";
+            MismatchWarningText.Text = string.Join("\n", lines);
             MismatchWarningPanel.Visibility = System.Windows.Visibility.Visible;
         }
+
+        /// <summary>Сначала то, что останавливает отправку, потом предупреждения.</summary>
+        List<string> BuildWarningLines()
+        {
+            const int maxPerGroup = 6;
+            var lines = new List<string>();
+
+            if (_openRoomChange != null)
+            {
+                lines.Add(
+                    $"ДС «Изменение площади» №{_openRoomChange.DsId} не утверждена ({_openRoomChange.StatusDisplay}). "
+                    + "Сначала утвердите её: при утверждении она пересчитает ТК и затрёт объёмы ДС ТК.");
+            }
+
+            if (_target == null)
+                return lines;
+
+            void AddGroup(string title, IEnumerable<string> items)
+            {
+                var list = items.ToList();
+                if (list.Count == 0)
+                    return;
+                lines.Add($"{title} ({list.Count}):");
+                lines.AddRange(list.Take(maxPerGroup).Select(x => "  — " + x));
+                if (list.Count > maxPerGroup)
+                    lines.Add($"  … и ещё {list.Count - maxPerGroup}");
+            }
+
+            AddGroup("Отправка остановлена, исправьте модель",
+                _target.Blocked.Select(p => $"{p.RoomName}: {StripId(p.MaterialName)} — {p.Reason}"));
+            AddGroup("Не уйдёт, правится в MySpace",
+                _target.Skipped.Select(p => $"{p.RoomName}: {StripId(p.MaterialName)} — {p.Reason}"));
+            AddGroup("В модели есть, в ТК нет — заменить или добавить в MySpace",
+                _target.ExtraInModel.Select(i => $"{i.RoomName}: {i.MaterialName}"));
+            AddGroup("Строки ведомостей без помещения — не учтены",
+                _target.Unassigned.Select(i => i.Display));
+            return lines;
+        }
+
+        static string StripId(string name) => TkMaterialCompareService.StripHtml(name) ?? "—";
 
         void HideMismatchWarning()
         {
@@ -513,6 +558,7 @@ namespace SmartRemont.ExportRooms.Views
 
             var tkForCompare = CloneTkSnapshot(_tkSnapshot);
             var fromDs = false;
+            _target = null;
 
             if (_boundDs != null && _boundDs.DsId > 0 && _clientRequestId > 0)
             {
@@ -523,14 +569,33 @@ namespace SmartRemont.ExportRooms.Views
                         .ConfigureAwait(true);
                     DsTkChangeService.ApplyDsQtyOverlay(tkForCompare, dsRows);
                     fromDs = true;
+                    _target = DsTkTargetService.Build(dsRows, _scheduleQty, _modelRoomNames);
+                    ExportRoomsApplication._logger?.Information(
+                        "DS TK target ds={DsId} send={Send} lines={Lines} blocked={Blocked} skipped={Skipped} not_from_model={NotFromModel} extra={Extra}",
+                        _boundDs.DsId,
+                        _target.ToSend.Count,
+                        _target.ChangedLineCount,
+                        _target.Blocked.Count,
+                        _target.Skipped.Count,
+                        _target.NotFromModel.Count,
+                        _target.ExtraInModel.Count);
                 }
                 catch (Exception ex)
                 {
+                    // Не сравниваем с договором вместо ДС: кандидаты посчитались бы от чужого эталона.
                     ExportRoomsApplication._logger?.Warning(
                         ex,
                         "DS TK materials overlay failed ds={DsId}",
                         _boundDs.DsId);
-                    fromDs = false;
+                    _result = null;
+                    _tkFlattened = null;
+                    UpdateStats();
+                    BindRooms();
+                    UpdateDsActionButtons();
+                    HideMismatchWarning();
+                    StatusText.Text = $"Не удалось прочитать материалы ДС №{_boundDs.DsId}: {ex.Message}. "
+                        + "Сверка остановлена, отправка недоступна. Нажмите «Обновить».";
+                    return;
                 }
             }
 
@@ -549,10 +614,12 @@ namespace SmartRemont.ExportRooms.Views
                 _materialMeta,
                 _scheduleQty,
                 qtyBaselineFromDs: fromDs);
+            _result = DsTkCompareService.ApplyTarget(_result, _target);
 
             UpdateStats();
             BindRooms();
             UpdateDsActionButtons();
+            UpdateStatusAndAlerts(true, null);
         }
 
         static ClientMaterialTkSnapshot CloneTkSnapshot(ClientMaterialTkSnapshot source)
@@ -585,8 +652,12 @@ namespace SmartRemont.ExportRooms.Views
 
             try
             {
-                var items = await DsTkChangeService.ListTkChangeAsync(_clientRequestId).ConfigureAwait(true);
+                var all = await DsTkChangeService.ListAllDsAsync(_clientRequestId).ConfigureAwait(true);
+                var items = all
+                    .Where(i => string.Equals(i.DsTypeCode, DsTkChangeService.TkChangeTypeCode, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
                 _dsItems = items;
+                _openRoomChange = DsTkChangeService.FindOpenRoomChange(all);
 
                 if (preferDsId is > 0)
                 {
@@ -595,8 +666,9 @@ namespace SmartRemont.ExportRooms.Views
                 }
                 else if (_boundDs != null)
                 {
-                    _boundDs = items.FirstOrDefault(i => i.DsId == _boundDs.DsId)
-                               ?? DsTkChangeBindState.PreferAutoSelect(items);
+                    // Выбранная вручную ДС могла уйти на согласование — тогда снова последний черновик.
+                    var same = items.FirstOrDefault(i => i.DsId == _boundDs.DsId);
+                    _boundDs = same is { CanEdit: true } ? same : DsTkChangeBindState.PreferAutoSelect(items);
                 }
                 else
                 {
@@ -679,117 +751,126 @@ namespace SmartRemont.ExportRooms.Views
             if (_dsBusy || _loading || _clientRequestId <= 0)
                 return;
 
-            if (_boundDs == null || !_boundDs.CanEdit)
+            var blockReason = ResolveSendBlockReason();
+            if (blockReason != null)
             {
-                AppMessageBox.Show(
-                    this,
-                    "Нужен редактируемый черновик ДС. Создайте ДС или выберите черновик.",
-                    "Smart Remont",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                AppMessageBox.Show(this, blockReason, "Отправка недоступна", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var session = ExportRoomsApplication.CurrentSession;
-            if (session?.HasGrant(DsTkChangeService.QtyUpdGrant) != true)
+            // Замеры уходят вместе с объёмами: работы ДС MySpace считает по замерам комнат.
+            List<MeasureApplyRoomDto> measureRooms;
+            try
             {
+                StatusText.Text = "Сбор замеров комнат из модели…";
+                var measures = RoomMeasurementsService.Collect(_doc);
+                var systemRooms = await MeasuresService.ReadAsync(_clientRequestId).ConfigureAwait(true);
+                measureRooms = MeasuresService.BuildPayloadRooms(
+                    measures?.Rooms,
+                    MeasuresService.BuildRoomIdsByKey(systemRooms));
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "DS TK measures collect failed");
+                StatusText.Text = "Замеры комнат не собраны — отправка остановлена.";
                 AppMessageBox.Show(
                     this,
-                    $"Нет права {DsTkChangeService.QtyUpdGrant} — изменение объёмов в ДС недоступно.",
-                    "Smart Remont",
+                    "Без замеров ДС ТК не отправляется: работы MySpace считает по ним.\n\n" + ex.Message,
+                    "Замеры не собраны",
                     MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                    MessageBoxImage.Error);
                 return;
             }
 
-            if (_result == null)
-            {
-                AppMessageBox.Show(
-                    this,
-                    "Сначала дождитесь сверки.",
-                    "Smart Remont",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-
-            var preview = DsTkChangeService.BuildQtyApplyPreview(_result, DsTkQtyApplyMode.EditableOnly);
-            if (preview.Candidates.Count == 0)
-            {
-                AppMessageBox.Show(
-                    this,
-                    "Нет объёмов к отправке: в MySpace нет поля ввода или объём ведомости совпадает.",
-                    "Объёмы",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-
+            var positions = _target.ToSend;
+            var preview = DsTkChangeService.BuildPreview(_target);
             var previewWindow = new DsTkQtyApplyPreviewWindow(
                 preview,
                 _boundDs.DsId,
-                _boundDs.StatusDisplay)
+                _boundDs.StatusDisplay,
+                measureRooms.Count)
             {
                 Owner = this
             };
             if (previewWindow.ShowDialog() != true || !previewWindow.Confirmed)
+            {
+                UpdateStatusAndAlerts(true, null);
                 return;
+            }
 
-            var candidates = preview.Candidates;
+            var dsId = _boundDs.DsId;
             _dsBusy = true;
             UpdateDsActionButtons();
             try
             {
-                StatusText.Text = $"Отправка объёмов в ДС №{_boundDs.DsId}…";
+                StatusText.Text = $"Отправка замеров и объёмов в ДС №{dsId}…";
                 var apply = await DsTkChangeService
-                    .ApplyQtyAsync(_clientRequestId, _boundDs.DsId, candidates, _result)
+                    .ApplyFromModelAsync(_clientRequestId, dsId, positions, measureRooms)
                     .ConfigureAwait(true);
 
-                var msg = $"Объёмы: отправлено {apply.Succeeded} из {apply.Attempted}.";
-                if (apply.Failed > 0)
-                    msg += $" Ошибок: {apply.Failed}.";
+                var msg = $"Замеры комнат: {apply.MeasureRooms}.\nВ ДС №{dsId} записано позиций: {apply.Applied}.";
+                if (apply.RevertedToContract > 0)
+                    msg += $"\nСовпали с договором, изменение из ДС убрано: {apply.RevertedToContract}.";
+                msg += "\n\nРаботы и сумму ДС MySpace пересчитал сам. Проверьте ДС и отправьте на утверждение как обычно.";
 
+                await RefreshDsBindAsync(preferDsId: dsId).ConfigureAwait(true);
                 await RebuildCompareAsync().ConfigureAwait(true);
-                StatusText.Text = msg + $" ДС №{_boundDs.DsId}."
-                    + (_result?.QtyBaselineFromDs == true
-                        ? $" Сверка обновлена по ДС (qty≠ {_result.QtyMismatchCount})."
-                        : string.Empty);
+                UpdateStatusAndAlerts(true, null);
+                StatusText.Text = $"Отправлено в ДС №{dsId}: {apply.Applied} поз. · " + StatusText.Text;
 
-                var logHint = "\n\nЛоги: %LocalAppData%\\SmartRemont\\logs\nИщите: DS TK qty";
-
-                if (apply.Failed > 0)
-                {
-                    var errText = string.Join("\n", apply.Errors.Take(12));
-                    if (apply.Errors.Count > 12)
-                        errText += $"\n… и ещё {apply.Errors.Count - 12}";
-                    AppMessageBox.Show(
-                        this,
-                        msg + "\n\n" + errText + logHint,
-                        "Частичная отправка",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-                else
-                {
-                    AppMessageBox.Show(
-                        this,
-                        msg + "\nПроверьте черновик ДС." + logHint
-                            + $"\napiOrigin: {Configs.ApiOriginUrl}",
-                        "Объёмы отправлены",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
+                AppMessageBox.Show(
+                    this,
+                    msg,
+                    "ДС ТК отправлена",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                ExportRoomsApplication._logger?.Warning(ex, "DS TK apply qty failed");
-                AppMessageBox.Show(this, ex.Message, "Ошибка отправки объёмов", MessageBoxButton.OK, MessageBoxImage.Error);
+                ExportRoomsApplication._logger?.Warning(ex, "DS TK apply failed");
+                StatusText.Text = "Не отправлено: в ДС и в замерах ничего не записано.";
+                AppMessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Не отправлено",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             finally
             {
                 _dsBusy = false;
                 UpdateDsActionButtons();
             }
+        }
+
+        /// <summary>Почему сейчас отправлять нельзя; null — можно.</summary>
+        string ResolveSendBlockReason()
+        {
+            var session = ExportRoomsApplication.CurrentSession;
+            if (session?.HasGrant(DsTkChangeService.QtyUpdGrant) != true)
+                return "Нет права менять объёмы в ДС на изменение ТК.";
+            if (session.HasGrant(DsTkChangeService.MeasureSaveGrant) != true)
+                return "Нет права сохранять замеры: ДС ТК отправляется вместе с ними.";
+            if (_boundDs == null || !_boundDs.CanEdit)
+                return "Нет черновика ДС на изменение ТК — создайте его.";
+            if (_openRoomChange != null)
+            {
+                return $"ДС «Изменение площади» №{_openRoomChange.DsId} не утверждена. "
+                       + "Сначала утвердите её, потом отправляйте ДС ТК: при утверждении она пересчитает ТК "
+                       + "и затрёт отправленные объёмы.";
+            }
+            if (_target == null)
+                return "Объёмы ДС не прочитаны — нажмите «Обновить».";
+            if (_target.Blocked.Count > 0)
+            {
+                return "Есть позиции, которые нельзя посчитать по модели. Исправьте модель и нажмите «Обновить»:\n\n"
+                       + string.Join("\n", _target.Blocked.Take(10).Select(p =>
+                           $"— {p.RoomName}: {StripId(p.MaterialName)} — {p.Reason}"))
+                       + (_target.Blocked.Count > 10 ? $"\n… и ещё {_target.Blocked.Count - 10}" : string.Empty);
+            }
+            if (_target.ToSend.Count == 0)
+                return "Объёмы модели совпадают с ДС — отправлять нечего.";
+            return null;
         }
 
         void UpdateDsActionButtons()
@@ -799,50 +880,40 @@ namespace SmartRemont.ExportRooms.Views
 
             var session = ExportRoomsApplication.CurrentSession;
             var hasAdd = session?.HasGrant("OA__RemontFormDSAdd") == true;
-            var hasQtyUpd = session?.HasGrant(DsTkChangeService.QtyUpdGrant) == true;
             var busy = _loading || _dsBusy;
             var hasRequest = _clientRequestId > 0;
-            var hasLocked = _dsItems.Any(i => i.IsLocked);
+            var hasDraft = _dsItems.Any(i => i.CanEdit);
             var hasAny = _dsItems.Count > 0;
-            var canEditBound = _boundDs != null && _boundDs.CanEdit;
-            var preview = _result == null
-                ? null
-                : DsTkChangeService.BuildQtyApplyPreview(_result, DsTkQtyApplyMode.EditableOnly);
-            var candidates = preview?.Candidates.Count ?? 0;
+            var lines = _target?.ChangedLineCount ?? 0;
+            var positions = _target?.ToSend.Count ?? 0;
 
-            CreateDsButton.IsEnabled = hasRequest && hasAdd && !busy && !hasAny;
+            CreateDsButton.IsEnabled = hasRequest && hasAdd && !busy && !hasDraft;
             PickDsButton.IsEnabled = hasRequest && !busy && hasAny;
             CreateDsButton.ToolTip = !hasAdd
-                ? "Нет права OA__RemontFormDSAdd"
-                : hasLocked
-                    ? "Уже есть ДС на согласовании/утверждённая — новую нельзя"
-                    : hasAny
-                        ? "Черновик уже есть — выберите его"
-                        : "Создать пустой черновик TK_CHANGE";
-            PickDsButton.ToolTip = hasLocked && !_dsItems.Any(i => i.CanEdit)
-                ? "Есть только ДС не в статусе черновик — выбрать для правок нельзя"
-                : "Выбрать существующий черновик ДС";
+                ? "Нет права создавать ДС"
+                : hasDraft
+                    ? "Черновик уже есть — объёмы уйдут в последний"
+                    : "Создать пустой черновик ДС на изменение ТК";
+            PickDsButton.ToolTip = "По умолчанию берётся последний черновик. Лишние черновики удалите в MySpace.";
 
             if (QtyCandidateBadgeText != null)
             {
-                QtyCandidateBadgeText.Text = preview == null
+                QtyCandidateBadgeText.Text = _target == null
                     ? "—"
-                    : candidates == 1 ? "1 уйдёт" : $"{candidates} уйдёт";
+                    : positions == 1 ? "1 позиция" : $"{positions} позиций";
+                QtyCandidateBadgeText.ToolTip = _target == null ? null : $"строк с изменением: {lines}";
             }
 
             if (ApplyQtyButton != null)
             {
-                ApplyQtyButton.IsEnabled = hasRequest && canEditBound && hasQtyUpd && !busy && candidates > 0;
+                var reason = _result == null ? "Сначала дождитесь сверки" : ResolveSendBlockReason();
+                ApplyQtyButton.IsEnabled = hasRequest && !busy && reason == null;
                 ApplyQtyButton.Content = "Проверить и отправить";
-                ApplyQtyButton.ToolTip = !hasQtyUpd
-                    ? $"Нет права {DsTkChangeService.QtyUpdGrant}"
-                    : !canEditBound
-                        ? "Нужен редактируемый черновик ДС"
-                        : candidates == 0
-                            ? "Нет объёмов MySpace к отправке"
-                            : $"Открыть превью: {candidates} позиций → ДС №{_boundDs.DsId}";
+                ApplyQtyButton.ToolTip = reason
+                    ?? $"Замеры комнат + {positions} поз. в ДС №{_boundDs?.DsId}";
             }
         }
+
         static Dictionary<int, RevitMaterialRowDto> BuildMaterialMeta(RevitMaterialReadResponse materials)
         {
             var map = new Dictionary<int, RevitMaterialRowDto>();

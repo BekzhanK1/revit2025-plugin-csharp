@@ -2,7 +2,7 @@
 <RevitAddIns>
   <AddIn Type="Application">
     <Name>SmartRemont</Name>
-    <Assembly>C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont\SmartRemont.ExportRooms.dll</Assembly>
+    <Assembly>SmartRemont\SmartRemont.ExportRooms.dll</Assembly>
     <AddInId>B9E4D1C2-3A5F-4E7B-9D0E-1F2A3B4C5D6E</AddInId>
     <FullClassName>SmartRemont.ExportRooms.ExportRoomsApplication</FullClassName>
     <VendorId>SmartRemont</VendorId>

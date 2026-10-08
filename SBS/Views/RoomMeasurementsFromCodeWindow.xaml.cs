@@ -115,22 +115,14 @@ namespace SmartRemont.ExportRooms.Views
                     .ApplyAsync(remont.ClientRequestId, _snapshot.Rooms, _roomIdsByKey)
                     .ConfigureAwait(true);
 
-                var skippedCount = result.Skipped?.Count ?? 0;
-                var skippedSuffix = skippedCount > 0 ? $" · пропущено {skippedCount}" : "";
                 SetStatus(
-                    $"Отправлено: {result.AppliedRooms} помещ., {result.AppliedParams} знач.{skippedSuffix}",
+                    $"Отправлено: {result.AppliedRooms} помещ., {result.AppliedParams} знач.",
                     isError: false);
 
                 LastSuccessMessage =
-                    $"Замеры (по коду) отправлены · {result.AppliedRooms} помещ. · {result.AppliedParams} знач.{skippedSuffix}";
+                    $"Замеры (по коду) отправлены · {result.AppliedRooms} помещ. · {result.AppliedParams} знач.";
 
                 var details = $"Помещений: {result.AppliedRooms}\nЗначений: {result.AppliedParams}";
-                if (skippedCount > 0)
-                {
-                    var reasons = result.Skipped
-                        .Select(s => $"— {(string.IsNullOrWhiteSpace(s.RoomName) ? "?" : s.RoomName)}: {s.Reason}");
-                    details += "\n\nПропущено:\n" + string.Join("\n", reasons);
-                }
 
                 AppMessageDialog.ShowSuccess(this, "Успешно отправлено", "Замеры отправлены", details);
 

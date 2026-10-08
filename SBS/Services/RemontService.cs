@@ -24,11 +24,13 @@ namespace SmartRemont.ExportRooms.Services
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
                 throw new InvalidOperationException("Требуется авторизация");
 
-            var request = new QuickSearchRequest();
             if (byRemontId)
-                request.RemontId = id;
-            else
-                request.ClientRequestId = id;
+                throw new InvalidOperationException("Поиск только по ID заявки");
+
+            var request = new QuickSearchRequest
+            {
+                ClientRequestId = id
+            };
 
             var json = JsonConvert.SerializeObject(request);
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, Configs.QuickSearchUrl);
@@ -73,6 +75,8 @@ namespace SmartRemont.ExportRooms.Services
                 FlatNum = item.FlatNum?.Trim(),
                 PresetName = item.PresetName?.Trim(),
                 PresetKitName = item.PresetKitName?.Trim(),
+                GradeId = item.GradeId ?? 0,
+                GradeName = item.GradeName?.Trim(),
                 ProjectAccepted = item.ProjectAccepted
             };
 

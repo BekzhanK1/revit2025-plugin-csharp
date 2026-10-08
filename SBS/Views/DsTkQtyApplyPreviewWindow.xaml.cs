@@ -11,7 +11,8 @@ namespace SmartRemont.ExportRooms.Views
         public DsTkQtyApplyPreviewWindow(
             DsTkQtyApplyPreview preview,
             int dsId,
-            string dsStatusDisplay)
+            string dsStatusDisplay,
+            int measureRoomCount = 0)
         {
             InitializeComponent();
             WindowLayoutHelper.EnableEnvironmentBranding(this);
@@ -23,23 +24,25 @@ namespace SmartRemont.ExportRooms.Views
             };
 
             SubtitleText.Text = preview.ModeHint;
-            StatSendValue.Text = preview.Candidates.Count.ToString(CultureInfo.InvariantCulture);
+            StatSendValue.Text = preview.PositionCount.ToString(CultureInfo.InvariantCulture);
+            StatSendValue.ToolTip = $"строк с изменением: {preview.Candidates.Count}";
             StatDsValue.Text = $"№{dsId}";
 
-            StatSkipValue.Text = preview.ProjectAlertCount.ToString(CultureInfo.InvariantCulture);
-            StatSkipLabel.Text = "алерт проекта ≥10%";
-            EditableColumn.Visibility = Visibility.Collapsed;
+            StatSkipValue.Text = preview.UntouchedCount.ToString(CultureInfo.InvariantCulture);
+            StatSkipLabel.Text = "строк с вводом как в ДС";
+            StatSkipValue.ToolTip = "Конструктив не из модели (мебель, кондиционер, доплаты…) или правится только в MySpace";
 
             FooterHintText.Text =
-                "В ДС уйдут только объёмы с полем ввода в MySpace. Расхождения состава пока не блокируют.";
+                $"Сначала замеры {measureRoomCount} комнат, потом объёмы. Записывается всё вместе: "
+                + "если сервер отклонит хоть что-то, не запишется ни замер, ни объём.";
 
             if (!string.IsNullOrWhiteSpace(dsStatusDisplay))
                 StatDsValue.ToolTip = dsStatusDisplay;
 
             PreviewGrid.ItemsSource = preview.Candidates;
-            ConfirmButton.Content = preview.Candidates.Count == 1
+            ConfirmButton.Content = preview.PositionCount == 1
                 ? "Отправить 1 позицию"
-                : $"Отправить {preview.Candidates.Count} позиций";
+                : $"Отправить {preview.PositionCount} позиций";
             ConfirmButton.IsEnabled = preview.Candidates.Count > 0;
         }
 

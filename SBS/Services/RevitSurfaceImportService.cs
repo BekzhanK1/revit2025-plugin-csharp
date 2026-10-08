@@ -143,7 +143,28 @@ namespace SmartRemont.ExportRooms.Services
                     }
                 }
 
-                tx.Commit();
+                try
+                {
+                    tx.Commit();
+                }
+                catch (Exception commitEx)
+                {
+                    // Транзакция откатилась — скопированные типы в проекте не остались.
+                    ExportRoomsApplication._logger?.Warning(commitEx, "Surface import transaction commit failed");
+                    for (var i = 0; i < results.Count; i++)
+                    {
+                        var r = results[i];
+                        if (!r.Success || r.AlreadyInProject)
+                            continue;
+
+                        results[i] = new SurfaceImportResult
+                        {
+                            MaterialId = r.MaterialId,
+                            Success = false,
+                            ErrorMessage = "Импорт surface-типов откатился: " + commitEx.Message
+                        };
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -195,12 +216,27 @@ namespace SmartRemont.ExportRooms.Services
                 return results;
             }
 
+            var cacheKey = BuildLibraryCacheKey(surfacesRvtPath);
+            if (cacheKey != null && LibrarySrIdCache.TryGetValue(cacheKey, out var cachedLabels))
+            {
+                ExportRoomsApplication._logger?.Debug(
+                    "Surface validation cache hit: path={Path}, ids={Count}",
+                    surfacesRvtPath,
+                    ids.Count);
+                return BuildValidationResults(ids, cachedLabels);
+            }
+
             Document sourceDoc = null;
             try
             {
                 var modelPath = ModelPathUtils.ConvertUserVisiblePathToModelPath(surfacesRvtPath);
                 sourceDoc = app.OpenDocumentFile(modelPath, new OpenOptions());
                 var sourceBySrId = BuildSrIdElementMap(sourceDoc);
+
+                // Запоминаем все SR_ID библиотеки: при init surfaces.rvt повторно не открываем.
+                var labels = sourceBySrId.ToDictionary(kv => kv.Key, kv => FormatElementLabel(kv.Value));
+                if (cacheKey != null)
+                    LibrarySrIdCache[cacheKey] = labels;
 
                 foreach (var materialId in ids)
                 {
@@ -210,7 +246,7 @@ namespace SmartRemont.ExportRooms.Services
                         {
                             MaterialId = materialId,
                             Success = true,
-                            MaterialName = FormatElementLabel(sourceBySrId[materialId])
+                            MaterialName = labels[materialId]
                         });
                     }
                     else
@@ -250,6 +286,49 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             return results;
+        }
+
+        static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<int, string>> LibrarySrIdCache = new();
+
+        static string BuildLibraryCacheKey(string path)
+        {
+            try
+            {
+                var info = new System.IO.FileInfo(path);
+                if (!info.Exists)
+                    return null;
+
+                return string.Join(
+                    "|",
+                    info.FullName.ToLowerInvariant(),
+                    info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture),
+                    info.Length.ToString(CultureInfo.InvariantCulture));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        static List<SurfaceImportResult> BuildValidationResults(
+            IEnumerable<int> ids,
+            IReadOnlyDictionary<int, string> labels)
+        {
+            return ids
+                .Select(materialId => labels.TryGetValue(materialId, out var label)
+                    ? new SurfaceImportResult
+                    {
+                        MaterialId = materialId,
+                        Success = true,
+                        MaterialName = label
+                    }
+                    : new SurfaceImportResult
+                    {
+                        MaterialId = materialId,
+                        Success = false,
+                        ErrorMessage = $"{SrIdParameterName}={materialId} не найден в surfaces.rvt"
+                    })
+                .ToList();
         }
 
         static void SafeCloseSourceDocument(Document sourceDoc, Document projectDoc)

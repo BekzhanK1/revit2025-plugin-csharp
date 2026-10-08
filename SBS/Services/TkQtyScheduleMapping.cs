@@ -45,6 +45,27 @@ namespace SmartRemont.ExportRooms.Services
             public double QuantityScale { get; set; } = 1d;
 
             public bool Enabled { get; set; } = true;
+
+            /// <summary>
+            /// Конструктивы ТК (work_set_id), объёмы которых в ДС ТК берутся из этого источника.
+            /// Строки ДС с другими конструктивами из этой ведомости не заполняются.
+            /// </summary>
+            public List<int> WorkSetIds { get; set; }
+
+            /// <summary>
+            /// Материал набора, которого нет в ведомости, ставится в 0 (электрика: в ведомости все
+            /// материалы набора по ID). Иначе остаётся как в ДС.
+            /// </summary>
+            public bool ZeroMissingSetItems { get; set; }
+
+            /// <summary>
+            /// Ведомости нет: объём строки — число элементов источника с этим кодом в комнате
+            /// (фурнитура = число дверей).
+            /// </summary>
+            public string CountFromCode { get; set; }
+
+            [JsonIgnore]
+            public bool IsDerived => !string.IsNullOrWhiteSpace(CountFromCode);
         }
 
         static List<Entry> _cached;
@@ -132,6 +153,9 @@ namespace SmartRemont.ExportRooms.Services
             if (MergeMissingScheduleNames(loaded, defaults))
                 changed = true;
 
+            if (MergeMissingWorkSets(loaded, defaults))
+                changed = true;
+
             if (changed)
             {
                 try
@@ -183,6 +207,39 @@ namespace SmartRemont.ExportRooms.Services
             return changed;
         }
 
+        /// <summary>
+        /// Старый AppData-конфиг без привязки к конструктивам получает её из дефолтов.
+        /// </summary>
+        static bool MergeMissingWorkSets(List<Entry> loaded, List<Entry> defaults)
+        {
+            var byCode = defaults
+                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Code))
+                .GroupBy(e => e.Code.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var changed = false;
+            foreach (var entry in loaded)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Code))
+                    continue;
+                if (!byCode.TryGetValue(entry.Code.Trim(), out var def))
+                    continue;
+                if (entry.WorkSetIds is { Count: > 0 } || def.WorkSetIds is not { Count: > 0 })
+                    continue;
+
+                entry.WorkSetIds = new List<int>(def.WorkSetIds);
+                entry.ZeroMissingSetItems = def.ZeroMissingSetItems;
+                entry.CountFromCode = def.CountFromCode;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        /// <summary>Источники, привязанные к конструктиву.</summary>
+        public static IReadOnlyList<Entry> ForWorkSet(int workSetId) =>
+            All.Where(e => e.Enabled && e.WorkSetIds != null && e.WorkSetIds.Contains(workSetId)).ToList();
+
         static void NormalizeEntry(Entry e)
         {
             if (e == null) return;
@@ -191,6 +248,7 @@ namespace SmartRemont.ExportRooms.Services
             e.MaterialNameColumnsExact ??= new List<string>();
             e.QuantityColumnsExact ??= new List<string>();
             e.RoomColumnsExact ??= new List<string>();
+            e.WorkSetIds ??= new List<int>();
             if (e.QuantityScale <= 0) e.QuantityScale = 1d;
             if (string.IsNullOrWhiteSpace(e.QuantityUnit)) e.QuantityUnit = "—";
         }
@@ -200,6 +258,7 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "DOORS",
+                WorkSetIds = new List<int> { 247 },
                 Title = "Двери",
                 ScheduleNamesExact = new List<string> { "Спецификация дверей", "Спецификация дверей." },
                 Mode = ParseMode.FlatByRoomColumn,
@@ -212,6 +271,8 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "ELECTRICS",
+                WorkSetIds = new List<int> { 42 },
+                ZeroMissingSetItems = true,
                 Title = "Электрические приборы (с ID)",
                 ScheduleNamesExact = new List<string>
                 {
@@ -241,6 +302,7 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "FLOORS",
+                WorkSetIds = new List<int> { 184, 277, 112, 103, 252, 379, 38, 255, 198, 108 },
                 Title = "Площадь напольных покрытий",
                 ScheduleNamesExact = new List<string>
                 {
@@ -351,6 +413,7 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "APRON",
+                WorkSetIds = new List<int> { 109, 41 },
                 Title = "Фартук кухни",
                 ScheduleNamesExact = new List<string>
                 {
@@ -367,6 +430,7 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "BATH_TILE",
+                WorkSetIds = new List<int> { 8, 377, 198, 108 },
                 Title = "Плитка в ванной",
                 ScheduleNamesExact = new List<string>
                 {
@@ -383,6 +447,7 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "LIGHTING",
+                WorkSetIds = new List<int> { 135, 145, 751, 56, 613 },
                 Title = "Осветительные приборы",
                 ScheduleNamesExact = new List<string> { "Спецификация осветительных приборов" },
                 Mode = ParseMode.GroupedByRoomHeader,
@@ -390,6 +455,16 @@ namespace SmartRemont.ExportRooms.Services
                 MaterialNameColumnsExact = new List<string> { "Наименование" },
                 QuantityColumnsExact = new List<string> { "Кол-во, шт", "Кол-во", "Число, шт" },
                 RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                QuantityUnit = "шт"
+            },
+            new Entry
+            {
+                Code = "DOOR_HARDWARE",
+                Title = "Фурнитура для дверей (= число дверей)",
+                WorkSetIds = new List<int> { 248 },
+                CountFromCode = "DOORS",
+                ScheduleNamesExact = new List<string>(),
+                Mode = ParseMode.FlatByRoomColumn,
                 QuantityUnit = "шт"
             }
         };

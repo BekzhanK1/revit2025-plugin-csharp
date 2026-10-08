@@ -64,7 +64,7 @@
 
                 <StackPanel Grid.Column="1" Margin="0,0,16,0">
                     <TextBlock Text="ДС на изменение ТК" Style="{StaticResource PageTitle}"/>
-                    <TextBlock Text="Сверка состава с договором: чего нет в проекте и что лишнее. Объёмы в ДС — только как в MySpace."
+                    <TextBlock Text="Сверка состава с договором: чего нет в проекте и что лишнее. Из Revit в ДС уходят только объёмы; удалить, добавить или заменить материал можно только в MySpace."
                                Style="{StaticResource PageSubtitle}"/>
 
                     <WrapPanel Orientation="Horizontal" Margin="0,12,0,0">
@@ -279,6 +279,9 @@
                                                         <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_project_alert">
                                                             <Setter Property="Background" Value="#FFF4EC"/>
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_blocked">
+                                                            <Setter Property="Background" Value="#F5F3FF"/>
+                                                        </DataTrigger>
                                                         <Trigger Property="IsSelected" Value="True">
                                                             <Setter Property="Background" Value="{StaticResource SelectionBrush}"/>
                                                         </Trigger>
@@ -318,6 +321,10 @@
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_project_alert">
                                                                     <Setter Property="Foreground" Value="#C2410C"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_blocked">
+                                                                    <Setter Property="Foreground" Value="#6D28D9"/>
                                                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_match">
@@ -384,7 +391,7 @@
                     <TextBlock x:Name="QtyModeHintText"
                                Style="{StaticResource CaptionText}"
                                Margin="0,4,0,0"
-                               Text="В ДС уходят только объёмы, которые можно править в MySpace. Состав проекта пока не блокирует отправку."/>
+                               Text="Уходят замеры комнат и объёмы строк, которые в MySpace вводят вручную, — в последний черновик ДС. Работы и сумму MySpace посчитает сам. Лишнее или недостающее в модели меняйте в MySpace."/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

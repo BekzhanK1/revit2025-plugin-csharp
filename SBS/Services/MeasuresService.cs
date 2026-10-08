@@ -113,9 +113,7 @@ namespace SmartRemont.ExportRooms.Services
             if (session == null || string.IsNullOrWhiteSpace(session.AccessToken))
                 throw new InvalidOperationException("Требуется авторизация");
 
-            var payloadRooms = BuildApplyRooms(rooms, roomIdsByKey);
-            if (payloadRooms.Count == 0)
-                throw new InvalidOperationException("Нет замеров для отправки");
+            var payloadRooms = BuildPayloadRooms(rooms, roomIdsByKey);
 
             var requestBody = new MeasuresApplyRequest
             {
@@ -148,7 +146,40 @@ namespace SmartRemont.ExportRooms.Services
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(parsed.Error) ? "Ошибка отправки замеров" : parsed.Error);
 
-            return parsed.Data ?? new MeasuresApplyDataDto();
+            var data = parsed.Data ?? new MeasuresApplyDataDto();
+            if (data.Skipped != null && data.Skipped.Count > 0)
+            {
+                var lines = data.Skipped.Select(s =>
+                    "— " + (string.IsNullOrWhiteSpace(s.RoomName) ? "?" : s.RoomName) + ": " + s.Reason);
+                throw new InvalidOperationException(
+                    "Сервер принял замеры не полностью. Проверьте замеры в MySpace и отправьте снова:\n"
+                    + string.Join("\n", lines));
+            }
+
+            return data;
+        }
+
+        /// <summary>
+        /// Комнаты для отправки замеров (measures/apply и вместе с ДС ТК). Бросает, если
+        /// отправлять нечего или помещение модели не сопоставилось с планировкой.
+        /// </summary>
+        public static List<MeasureApplyRoomDto> BuildPayloadRooms(
+            IEnumerable<RoomMeasurementsRoomRow> rooms,
+            IReadOnlyDictionary<string, int> roomIdsByKey)
+        {
+            var payloadRooms = BuildApplyRooms(rooms, roomIdsByKey);
+            if (payloadRooms.Count == 0)
+                throw new InvalidOperationException("Нет замеров для отправки");
+
+            var unmapped = payloadRooms.Where(r => r.RoomId <= 0).Select(r => r.RoomName).ToList();
+            if (unmapped.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Отправка остановлена. Не сопоставлены помещения:\n"
+                    + string.Join("\n", unmapped.Select(n => "— " + n)));
+            }
+
+            return payloadRooms;
         }
 
         static List<MeasureApplyRoomDto> BuildApplyRooms(

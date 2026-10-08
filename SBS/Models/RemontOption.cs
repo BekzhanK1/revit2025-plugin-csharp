@@ -18,6 +18,8 @@ namespace SmartRemont.ExportRooms.Models
         public string FlatNum { get; set; }
         public string PresetName { get; set; }
         public string PresetKitName { get; set; }
+        public int GradeId { get; set; }
+        public string GradeName { get; set; }
         public int? ProjectAccepted { get; set; }
 
         public override string ToString() => Name;

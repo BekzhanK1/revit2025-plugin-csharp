@@ -33,6 +33,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ApplyBoundRemontLayout(isBound: true);
                 UpdatePlaceholderVisibility();
+                ContinueToHubButton.IsEnabled = false;
                 _ = EnrichBoundRemontAsync();
                 return;
             }
@@ -94,12 +95,29 @@ namespace SmartRemont.ExportRooms.Views
             if (remont == null || remont.ClientRequestId <= 0)
                 return;
 
-            await ProjectRemontBindingService.TryEnrichFromQuickSearchAsync(remont)
+            var (ok, error) = await ProjectRemontBindingService.TryEnrichFromQuickSearchAsync(remont)
                 .ConfigureAwait(true);
+
+            if (!ok && IsSearchMiss(error))
+            {
+                ExportRoomsApplication.SelectedRemont = null;
+                BoundRemontBanner.Visibility = Visibility.Collapsed;
+                ApplyBoundRemontLayout(isBound: false);
+                UpdatePlaceholderVisibility();
+                SetStatus("Ничего не найдено", isError: false);
+                return;
+            }
 
             BoundRemontBannerText.Text = BuildBoundBannerText(remont);
             UpdateBoundDetailsCard(remont);
+            ContinueToHubButton.IsEnabled = true;
+
+            if (!ok)
+                SetStatus(error, isError: true);
         }
+
+        static bool IsSearchMiss(string error) =>
+            !string.IsNullOrWhiteSpace(error) && error.StartsWith("Заявка #", StringComparison.Ordinal);
 
         void UpdateBoundDetailsCard(RemontOption remont)
         {

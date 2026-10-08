@@ -27,7 +27,12 @@ namespace SmartRemont.ExportRooms.Commands
                         return Result.Failed;
                     }
 
-                ProjectRemontBindingService.TryBindFromDocument(doc);
+                // Заявку определяет открытый файл. Если он не инициализирован, сбрасываем выбор
+                // прошлого запуска: иначе HomeWindow показывает старую заявку как «привязанную»
+                // и прячет поиск, а сменить её можно только через выход из аккаунта.
+                var binding = ProjectRemontBindingService.TryBindFromDocument(doc);
+                if (!binding.Bound)
+                    ExportRoomsApplication.SelectedRemont = null;
 
                 var homeWindow = new HomeWindow(doc);
                 if (homeWindow.ShowDialog() != true)

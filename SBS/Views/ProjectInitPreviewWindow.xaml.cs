@@ -77,7 +77,9 @@ namespace SmartRemont.ExportRooms.Views
 
             {
 
-                OverwriteWarningTextBlock.Text = "Файл уже существует и будет перезаписан.";
+                OverwriteWarningTextBlock.Text =
+                    "Файл уже существует. Он не удаляется: перед созданием нового проекта "
+                    + "старый файл переименуется в резервную копию (.backup-дата.rvt) в той же папке.";
 
                 OverwriteWarningTextBlock.Visibility = System.Windows.Visibility.Visible;
 
@@ -157,7 +159,13 @@ namespace SmartRemont.ExportRooms.Views
 
             Loaded += async (_, _) => await RunPreflightAsync().ConfigureAwait(true);
 
-            Closed += (_, _) => _preflightCts.Cancel();
+            Closed += (_, _) =>
+            {
+                _preflightCts.Cancel();
+                // Init не подтвердили — фоновое скачивание больше не нужно.
+                if (DialogResult != true)
+                    RevitMaterialsSyncOrchestrator.CancelBackgroundPreDownload();
+            };
 
         }
 
@@ -193,13 +201,15 @@ namespace SmartRemont.ExportRooms.Views
 
                     progress,
 
-                    _preflightCts.Token).ConfigureAwait(true);
+                    _preflightCts.Token,
+
+                    ignoreHostProject: true).ConfigureAwait(true);
 
 
 
                 PreDownloadStatusTextBlock.Text =
 
-                    $"Кэш RFA: {result.DownloadReadyCount} из {RevitMaterialsSyncOrchestrator.CountSyncableMaterials(_materialsResponse?.Data)} готово";
+                    $"Кэш файлов: {result.DownloadReadyCount} из {RevitMaterialsSyncOrchestrator.CountSyncableMaterials(_materialsResponse?.Data)} готово";
 
 
 
@@ -561,11 +571,27 @@ namespace SmartRemont.ExportRooms.Views
 
 
 
-        string BuildStepsText(PreviewStats stats) =>
+        string BuildStepsText(PreviewStats stats)
 
-            "Будет выполнено:\n"
+        {
 
-            + $"• SaveAs копии проекта\n"
+            var gradeId = ExportRoomsApplication.SelectedRemont?.GradeId ?? 0;
+
+            var gradeName = ExportRoomsApplication.SelectedRemont?.GradeName;
+
+            var gradeLabel = gradeId > 0 ? gradeId.ToString(CultureInfo.InvariantCulture) : "—";
+
+            if (!string.IsNullOrWhiteSpace(gradeName))
+
+                gradeLabel += " (" + gradeName.Trim() + ")";
+
+
+
+            return "Будет скачан официальный шаблон Smart Remont для грейда " + gradeLabel + ".\n\n"
+
+                + "Будет выполнено:\n"
+
+                + "• Создать проект из скачанного шаблона .rte\n"
 
             + $"• Запись client_request_id #{_clientRequestId} в модель\n"
 
@@ -574,6 +600,8 @@ namespace SmartRemont.ExportRooms.Views
             + $"(3D: {stats.Model3DCount}, surface: {stats.SurfaceCount})\n"
 
             + $"• Библиотека surfaces.rvt: {(stats.HasSurfacesLibrary ? "да" : "нет")}";
+
+        }
 
 
 

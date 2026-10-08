@@ -76,6 +76,16 @@ namespace SmartRemont.ExportRooms.Services
                     && string.Equals(documentPath, projectFullPath, StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                // Несохранённые правки пользователя не выбрасываем: такой документ оставляем
+                // открытым, и ExitRevit покажет стандартный вопрос «Сохранить изменения?».
+                if (document.IsModified)
+                {
+                    ExportRoomsApplication._logger?.Information(
+                        "Keeping modified document open for Revit exit prompt: {Path}",
+                        string.IsNullOrEmpty(document.PathName) ? document.Title : document.PathName);
+                    continue;
+                }
+
                 try
                 {
                     document.Close(false);

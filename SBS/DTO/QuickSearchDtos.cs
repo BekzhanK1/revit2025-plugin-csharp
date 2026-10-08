@@ -58,5 +58,11 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("preset_kit_name")]
         public string PresetKitName { get; set; }
+
+        [JsonProperty("grade_id")]
+        public int? GradeId { get; set; }
+
+        [JsonProperty("grade_name")]
+        public string GradeName { get; set; }
     }
 }

@@ -23,8 +23,95 @@ namespace SmartRemont.ExportRooms.Views
             PluginVersionTextBlock.Text = _pluginVersion;
             LoginHeaderVersionTextBlock.Text = _pluginVersion;
             Title = AppBranding.FormatLoginTitle(_pluginVersion);
+            RefreshApiOverrideIndicator();
 
             Loaded += AuthLoginWindow_Loaded;
+        }
+
+        // Секретная панель адреса API: 5 кликов по чипу версии за 3 секунды.
+        const int DevPanelClickCount = 5;
+        static readonly TimeSpan DevPanelClickWindow = TimeSpan.FromSeconds(3);
+        readonly System.Collections.Generic.List<DateTime> _versionChipClicks = new();
+
+        void VersionChip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            var now = DateTime.UtcNow;
+            _versionChipClicks.RemoveAll(t => now - t > DevPanelClickWindow);
+            _versionChipClicks.Add(now);
+            if (_versionChipClicks.Count < DevPanelClickCount)
+                return;
+
+            _versionChipClicks.Clear();
+            ShowDevApiPanel();
+        }
+
+        void ShowDevApiPanel()
+        {
+            VersionCheckPanel.Visibility = Visibility.Collapsed;
+            LoginPanel.Visibility = Visibility.Collapsed;
+            DevApiPanel.Visibility = Visibility.Visible;
+            DevApiErrorBorder.Visibility = Visibility.Collapsed;
+
+            var source = Configs.ApiOriginOverride != null ? "задан здесь" : "из app.config";
+            DevApiCurrentTextBlock.Text = $"Сейчас: {Configs.ApiOriginUrl} ({source}). Действует сразу и сохраняется до сброса.";
+            DevApiUrlTextBox.Text = Configs.ApiOriginUrl;
+            DevApiUrlTextBox.Focus();
+            DevApiUrlTextBox.SelectAll();
+        }
+
+        void DevApiPreset_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.Tag is string url)
+                DevApiUrlTextBox.Text = url;
+        }
+
+        async void DevApiSave_Click(object sender, RoutedEventArgs e) =>
+            await ApplyApiOriginAsync(DevApiUrlTextBox.Text).ConfigureAwait(true);
+
+        async void DevApiReset_Click(object sender, RoutedEventArgs e) =>
+            await ApplyApiOriginAsync(null).ConfigureAwait(true);
+
+        void DevApiBack_Click(object sender, RoutedEventArgs e)
+        {
+            DevApiPanel.Visibility = Visibility.Collapsed;
+            if (_versionCheckPassed)
+            {
+                LoginPanel.Visibility = Visibility.Visible;
+                LoginPanel.Opacity = 1;
+            }
+            else
+            {
+                VersionCheckPanel.Visibility = Visibility.Visible;
+            }
+        }
+
+        async Task ApplyApiOriginAsync(string url)
+        {
+            try
+            {
+                Configs.SetApiOriginOverride(url);
+            }
+            catch (ArgumentException ex)
+            {
+                DevApiErrorTextBlock.Text = ex.Message;
+                DevApiErrorBorder.Visibility = Visibility.Visible;
+                return;
+            }
+
+            // Токены прошлого окружения не должны уйти на новый адрес.
+            AuthService.Logout();
+            RefreshApiOverrideIndicator();
+            WindowLayoutHelper.ApplyEnvironmentBranding(this);
+
+            DevApiPanel.Visibility = Visibility.Collapsed;
+            await RunVersionCheckAsync().ConfigureAwait(true);
+        }
+
+        void RefreshApiOverrideIndicator()
+        {
+            var overrideUrl = Configs.ApiOriginOverride;
+            ApiOverrideTextBlock.Text = overrideUrl == null ? string.Empty : $"API: {overrideUrl} (задан вручную)";
+            ApiOverrideTextBlock.Visibility = overrideUrl == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
         async void AuthLoginWindow_Loaded(object sender, RoutedEventArgs e)
@@ -42,6 +129,11 @@ namespace SmartRemont.ExportRooms.Views
             await TryLoginAsync();
         }
 
+        async void JwtLoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            await TryJwtLoginAsync();
+        }
+
         async void PasswordBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -57,6 +149,7 @@ namespace SmartRemont.ExportRooms.Views
         async Task RunVersionCheckAsync()
         {
             _versionCheckPassed = false;
+            DevApiPanel.Visibility = Visibility.Collapsed;
             VersionCheckPanel.Visibility = Visibility.Visible;
             LoginPanel.Visibility = Visibility.Collapsed;
             LoginPanel.Opacity = 0;
@@ -131,6 +224,10 @@ namespace SmartRemont.ExportRooms.Views
                 PasswordBox.Password = creds.password ?? string.Empty;
             }
 
+            JwtLoginPanel.Visibility = Configs.UseTestApi && Configs.IsTestApi
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
             var animation = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
@@ -171,6 +268,35 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        async Task TryJwtLoginAsync()
+        {
+            if (!_versionCheckPassed)
+            {
+                ShowError("Сначала должна пройти проверка версии плагина.");
+                return;
+            }
+
+            SetBusy(true);
+            HideError();
+
+            try
+            {
+                await AuthService.LoginWithAccessTokenAsync(JwtTextBox.Text).ConfigureAwait(true);
+                JwtTextBox.Clear();
+                DialogResult = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex.Message);
+                ExportRoomsApplication._logger?.Warning(ex, "Ошибка входа по JWT");
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
         void ShowError(string message)
         {
             ErrorTextBlock.Text = message;
@@ -187,7 +313,10 @@ namespace SmartRemont.ExportRooms.Views
             LoginButton.IsEnabled = !isBusy;
             EmailTextBox.IsEnabled = !isBusy;
             PasswordBox.IsEnabled = !isBusy;
+            JwtTextBox.IsEnabled = !isBusy;
+            JwtLoginButton.IsEnabled = !isBusy;
             LoginButton.Content = isBusy ? "Вход..." : "Войти";
+            JwtLoginButton.Content = isBusy ? "Вход..." : "Войти по JWT";
         }
     }
 }

@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SmartRemont.ExportRooms.Services
 {
@@ -20,11 +22,12 @@ namespace SmartRemont.ExportRooms.Services
     {
         const string SrIdParameterName = "SR_ID";
 
-        public static List<FamilyImportResult> LoadFamiliesIntoDocument(
+        public static async Task<List<FamilyImportResult>> LoadFamiliesIntoDocumentAsync(
             Document doc,
             IEnumerable<(int materialId, string filePath, string revitFileType)> items,
             IProgress<(int done, int total, int materialId, string label)> progress = null,
-            IReadOnlyDictionary<int, string> materialNames = null)
+            IReadOnlyDictionary<int, string> materialNames = null,
+            CancellationToken cancellationToken = default)
         {
             if (doc == null)
                 throw new System.ArgumentNullException(nameof(doc));
@@ -47,6 +50,11 @@ namespace SmartRemont.ExportRooms.Services
             // LoadFamily нельзя вызывать внутри открытой Transaction — иначе часто возвращает false.
             foreach (var (materialId, filePath, revitFileType) in itemList)
             {
+                // Между семействами отдаём управление окну: прогресс перерисовывается,
+                // кнопка «Отмена» срабатывает. LoadFamily идёт вне Transaction — yield безопасен.
+                await UiYield.ToUiAsync().ConfigureAwait(true);
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var importLabel = ResolveImportLabel(materialId, materialNames);
                 progress?.Report((importDone, importTotal, materialId, importLabel));
                 var type = (revitFileType ?? string.Empty).Trim().ToLowerInvariant();
@@ -357,6 +365,17 @@ namespace SmartRemont.ExportRooms.Services
             if (app == null || string.IsNullOrWhiteSpace(filePath))
                 return "Не удалось проверить SR_ID";
 
+            // Превью уже проверило этот файл — при init повторно не открываем его в Revit.
+            var cacheKey = BuildSrIdCacheKey(filePath, expectedMaterialId);
+            if (cacheKey != null && SrIdValidationCache.TryGetValue(cacheKey, out var cached))
+            {
+                ExportRoomsApplication._logger?.Debug(
+                    "SR_ID check cache hit: file={Path}, material_id={MaterialId}",
+                    filePath,
+                    expectedMaterialId);
+                return cached.Length == 0 ? null : cached;
+            }
+
             ExportRoomsApplication._logger?.Information(
                 "SR_ID check start: file={Path}, expected material_id={MaterialId}",
                 filePath,
@@ -367,7 +386,10 @@ namespace SmartRemont.ExportRooms.Services
             {
                 var modelPath = ModelPathUtils.ConvertUserVisiblePathToModelPath(filePath);
                 familyDoc = app.OpenDocumentFile(modelPath, new OpenOptions());
-                return ValidateSrIdInFamilyDocument(familyDoc, expectedMaterialId);
+                var error = ValidateSrIdInFamilyDocument(familyDoc, expectedMaterialId);
+                if (cacheKey != null)
+                    SrIdValidationCache[cacheKey] = error ?? string.Empty;
+                return error;
             }
             catch (Exception ex)
             {
@@ -378,6 +400,34 @@ namespace SmartRemont.ExportRooms.Services
             {
                 if (familyDoc != null)
                     familyDoc.Close(false);
+            }
+        }
+
+        /// <summary>
+        /// Результат проверки SR_ID по файлу: "" — ок, иначе текст ошибки. Ключ включает время
+        /// изменения и размер файла, поэтому перекачанный RFA проверяется заново. Ошибки открытия
+        /// (исключения) не кэшируются.
+        /// </summary>
+        static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> SrIdValidationCache = new();
+
+        static string BuildSrIdCacheKey(string filePath, int materialId)
+        {
+            try
+            {
+                var info = new System.IO.FileInfo(filePath);
+                if (!info.Exists)
+                    return null;
+
+                return string.Join(
+                    "|",
+                    info.FullName.ToLowerInvariant(),
+                    info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture),
+                    info.Length.ToString(CultureInfo.InvariantCulture),
+                    materialId.ToString(CultureInfo.InvariantCulture));
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -418,7 +468,12 @@ namespace SmartRemont.ExportRooms.Services
                 srParameter.StorageType,
                 srParameter.IsInstance);
 
+            // Семейство может содержать несколько типов (вариантов) — импорт (см.
+            // LoadFamiliesIntoDocument/BuildSrIdIndex) считает материал загруженным, если SR_ID
+            // совпал хотя бы у ОДНОГО типа/элемента. Раньше эта проверка требовала валидный SR_ID
+            // у ВСЕХ типов и падала на первом пустом/несовпадающем — даже если нужный тип был верным.
             var typesChecked = 0;
+            var problems = new List<string>();
             foreach (FamilyType familyType in familyManager.Types)
             {
                 typesChecked++;
@@ -429,7 +484,8 @@ namespace SmartRemont.ExportRooms.Services
                         "SR_ID FamilyManager type {TypeName}: empty or not numeric, raw={Raw}",
                         familyType.Name,
                         rawValue ?? "—");
-                    return $"Тип «{familyType.Name}»: {SrIdParameterName} пуст или не число";
+                    problems.Add($"«{familyType.Name}»: {SrIdParameterName} пуст или не число");
+                    continue;
                 }
 
                 ExportRoomsApplication._logger?.Information(
@@ -438,18 +494,25 @@ namespace SmartRemont.ExportRooms.Services
                     rawValue,
                     srId);
 
-                if (srId != expectedMaterialId)
-                    return $"{SrIdParameterName} ({srId}) не совпадает с material_id ({expectedMaterialId})";
+                if (srId == expectedMaterialId)
+                {
+                    ExportRoomsApplication._logger?.Information(
+                        "SR_ID FamilyManager check OK: type {TypeName} matches material_id {MaterialId} ({TypeCount} type(s) total)",
+                        familyType.Name,
+                        expectedMaterialId,
+                        typesChecked);
+                    return null;
+                }
+
+                problems.Add($"«{familyType.Name}»: {SrIdParameterName} ({srId}) ≠ material_id ({expectedMaterialId})");
             }
 
             if (typesChecked == 0)
                 return "В семействе нет типов";
 
-            ExportRoomsApplication._logger?.Information(
-                "SR_ID FamilyManager check OK for {TypeCount} type(s)",
-                typesChecked);
-
-            return null;
+            return problems.Count > 0
+                ? $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства ({string.Join("; ", problems)})"
+                : $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства";
         }
 
         static string ValidateSrIdViaFamilySymbols(Document familyDoc, int expectedMaterialId)
@@ -467,6 +530,7 @@ namespace SmartRemont.ExportRooms.Services
                 symbols.Count);
 
             var typesWithSrId = 0;
+            var problems = new List<string>();
 
             foreach (var symbol in symbols)
             {
@@ -487,7 +551,8 @@ namespace SmartRemont.ExportRooms.Services
                         "SR_ID symbol {SymbolName}: parameter exists but HasValue=false, storage={StorageType}",
                         symbol.Name,
                         parameter.StorageType);
-                    return $"Тип «{symbol.Name}»: {SrIdParameterName} пуст";
+                    problems.Add($"«{symbol.Name}»: {SrIdParameterName} пуст");
+                    continue;
                 }
 
                 if (!TryReadSrId(parameter, out var srId, out var rawValue))
@@ -497,9 +562,10 @@ namespace SmartRemont.ExportRooms.Services
                         symbol.Name,
                         rawValue ?? "—",
                         parameter.StorageType);
-                    return string.IsNullOrWhiteSpace(rawValue)
-                        ? $"Тип «{symbol.Name}»: {SrIdParameterName} пуст"
-                        : $"Тип «{symbol.Name}»: {SrIdParameterName} не число ({rawValue})";
+                    problems.Add(string.IsNullOrWhiteSpace(rawValue)
+                        ? $"«{symbol.Name}»: {SrIdParameterName} пуст"
+                        : $"«{symbol.Name}»: {SrIdParameterName} не число ({rawValue})");
+                    continue;
                 }
 
                 ExportRoomsApplication._logger?.Information(
@@ -508,8 +574,18 @@ namespace SmartRemont.ExportRooms.Services
                     rawValue,
                     srId);
 
-                if (srId != expectedMaterialId)
-                    return $"{SrIdParameterName} ({srId}) не совпадает с material_id ({expectedMaterialId})";
+                // Как и в FamilyManager-проверке выше: достаточно ОДНОГО совпавшего типа —
+                // остальные типы семейства (с иным/пустым SR_ID) не блокируют импорт.
+                if (srId == expectedMaterialId)
+                {
+                    ExportRoomsApplication._logger?.Information(
+                        "SR_ID FamilySymbol check OK: symbol {SymbolName} matches material_id {MaterialId}",
+                        symbol.Name,
+                        expectedMaterialId);
+                    return null;
+                }
+
+                problems.Add($"«{symbol.Name}»: {SrIdParameterName} ({srId}) ≠ material_id ({expectedMaterialId})");
             }
 
             if (typesWithSrId == 0)
@@ -520,11 +596,9 @@ namespace SmartRemont.ExportRooms.Services
                 return $"Параметр {SrIdParameterName} не найден ни у одного типа семейства";
             }
 
-            ExportRoomsApplication._logger?.Information(
-                "SR_ID FamilySymbol check OK for {TypeCount} symbol(s)",
-                typesWithSrId);
-
-            return null;
+            return problems.Count > 0
+                ? $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства ({string.Join("; ", problems)})"
+                : $"{SrIdParameterName}={expectedMaterialId} не найден среди типов семейства";
         }
 
         static FamilyParameter FindFamilyManagerParameter(FamilyManager familyManager, string parameterName)

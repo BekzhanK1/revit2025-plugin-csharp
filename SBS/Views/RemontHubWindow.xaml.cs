@@ -18,7 +18,7 @@ namespace SmartRemont.ExportRooms.Views
     {
         readonly Document _doc;
 
-        const string InitProjectSubtitle = "Копия RVT по заявке, метаданные и материалы";
+        const string InitProjectSubtitle = "Проект из шаблона .rte по грейду, метаданные и материалы";
         const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
         const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
         const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
@@ -39,8 +39,17 @@ namespace SmartRemont.ExportRooms.Views
             _doc = doc;
             ApplyHubMenuVisibility(ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc));
             Loaded += RemontHubWindow_Loaded;
-            Closing += (_, _) =>
+            Closing += (_, e) =>
             {
+                // Крестик / Alt+F4 во время init или re-sync: окно не закрываем, иначе процесс
+                // продолжит работать с Revit без окна и упадёт на DialogResult закрытого окна.
+                if (_initInProgress)
+                {
+                    e.Cancel = true;
+                    SetStatus("Дождитесь окончания или нажмите «Отмена» на индикаторе.", isSuccess: false);
+                    return;
+                }
+
                 // Гарантируем Result.Succeeded, чтобы Revit не откатил транзакции сессии.
                 if (DialogResult == null)
                     DialogResult = true;
@@ -75,14 +84,19 @@ namespace SmartRemont.ExportRooms.Views
                 var dsTask = DsRoomChangeService.TryReadAsync(clientRequestId);
                 var measuresTask = MeasuresService.TryReadAsync(clientRequestId);
                 var materialsTask = RevitMaterialsService.TryReadAsync(clientRequestId);
+                var flagsTask = ClientMaterialFlagsService.TryReadAsync(clientRequestId);
 
-                await Task.WhenAll(dsTask, measuresTask, materialsTask).ConfigureAwait(true);
+                await Task.WhenAll(dsTask, measuresTask, materialsTask, flagsTask).ConfigureAwait(true);
 
                 var ds = await dsTask;
                 var measures = await measuresTask;
                 var materials = await materialsTask;
+                var flags = await flagsTask;
 
                 ApplyMaterialsState(materials.Data, materials.Status, materials.Error, clientRequestId);
+                // Метки ТК — вспомогательные: ошибка не попадает в окно проблем, только в лог (внутри сервиса).
+                if (materials.Status && flags.Status)
+                    ApplyMaterialFlagsState(flags.Data, clientRequestId);
                 ApplyMeasuresState(measures.Data, measures.Status, measures.Error);
 
                 var resolvedRemontId = remont?.RemontId ?? ds.RemontId;
@@ -259,6 +273,28 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        void ApplyMaterialFlagsState(ClientMaterialFlagsResponse flags, int clientRequestId)
+        {
+            var stale = ClientMaterialFlagsService.CountStale(flags);
+            var unavailable = ClientMaterialFlagsService.CountUnavailable(flags);
+            if (stale == 0 && unavailable == 0)
+                return;
+
+            var parts = new System.Collections.Generic.List<string>();
+            if (stale > 0) parts.Add($"{stale} неактуальны");
+            if (unavailable > 0) parts.Add($"{unavailable} нет в наличии");
+
+            var lastSync = LocalSettingsService.GetLastMaterialSyncTime(clientRequestId);
+            var syncText = lastSync.HasValue ? $"Синхронизировано · {lastSync.Value:HH:mm}. " : string.Empty;
+
+            ApplyBadge(
+                RevitMaterialsButton,
+                "⚠ " + string.Join(" · ", parts),
+                "#FFF8EB",
+                "#92400E",
+                syncText + "Позиции ТК отличаются от подбора или недоступны. Замена — в MySpace через ДС.");
+        }
+
         void ApplyMeasuresState(System.Collections.Generic.List<SmartRemont.ExportRooms.DTO.MeasureRoomInfoDto> data, bool status, string error)
         {
             if (!status && (error?.Contains("планировк") == true || error?.Contains("plan") == true))
@@ -311,9 +347,15 @@ namespace SmartRemont.ExportRooms.Views
                 }
             }
 
+            var measuresConfirmed = data != null && data.Any(r => r != null && r.IsMeasureConfirm == 1);
+
             if (notInPlan > 0)
             {
                 ApplyBadge(MeasuresButton, $"• {notInPlan} комнат не в планировке", "#FEF9C3", "#A16207");
+            }
+            else if (measuresConfirmed)
+            {
+                ApplyBadge(MeasuresButton, "Уже отправлено", "#DCFCE7", "#166534", "В MySpace отмечено «Замеры подтверждены»");
             }
             else
             {
@@ -677,37 +719,29 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            if (_doc.IsWorkshared)
+            if (remont.GradeId <= 0)
             {
-                AppMessageDialog.Show(
-                    this,
-                    AppMessageKind.InDevelopment,
-                    "Worksharing не поддерживается",
-                    "Инициализация доступна только для локального шаблона без центральной модели.",
-                    ProjectCopyService.WorksharedUnsupportedMessage);
+                SetStatus("У заявки не указан грейд. Найдите заявку заново.", isSuccess: false);
                 return;
             }
 
-            if (ProjectRemontMetadataService.IsInitialized(_doc)
-                && !ProjectRemontMetadataService.ValidateMatches(_doc, clientRequestId))
+            ShowInitProgress("Проверка шаблона проекта...", indeterminate: true);
+            try
             {
-                var existing = ProjectRemontMetadataService.TryRead(_doc);
-                AppMessageDialog.Show(
-                    this,
-                    AppMessageKind.InDevelopment,
-                    "Нельзя инициализировать",
-                    $"Проект уже привязан к заявке #{existing?.ClientRequestId}.",
-                    $"Выбрана заявка #{clientRequestId}. Откройте другой файл или выберите соответствующую заявку.");
+                await ProjectTemplateService.EnsureGradeHasTemplateAsync(remont.GradeId).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project template check failed");
+                HideInitProgress();
+                SetStatus(ex.Message, isSuccess: false);
+                AppMessageBox.Show(
+                    ex.Message,
+                    "Шаблон проекта",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
-
-            var remontId = remont?.RemontId ?? 0;
-            var targetPath = ProjectFileNamingService.BuildFullPath(
-                clientRequestId,
-                remontId,
-                remont?.ResidentName,
-                remont?.FlatNum);
-            var fileExists = File.Exists(targetPath);
 
             ShowInitProgress("Загрузка списка материалов...", indeterminate: true);
 
@@ -731,6 +765,10 @@ namespace SmartRemont.ExportRooms.Views
 
             HideInitProgress();
 
+            // Окно закрыли, пока читались шаблон и материалы — превью открывать некуда.
+            if (!IsVisible)
+                return;
+
             if (ProjectInitMaterialsPreflightService.CountSyncableMaterials(materialsResponse.Data) <= 0)
             {
                 SetStatus(ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage(), isSuccess: false);
@@ -741,6 +779,17 @@ namespace SmartRemont.ExportRooms.Views
                     MessageBoxImage.Information);
                 return;
             }
+
+            // remont_id в списке заявок может быть null — используем тот же fallback на
+            // materialsResponse.RemontId, что и ProjectInitService, иначе preview покажет
+            // путь, отличающийся от реального места сохранения файла.
+            var remontId = remont?.RemontId ?? materialsResponse.RemontId ?? 0;
+            var targetPath = ProjectFileNamingService.BuildFullPath(
+                clientRequestId,
+                remontId,
+                remont?.ResidentName,
+                remont?.FlatNum);
+            var fileExists = File.Exists(targetPath);
 
             var preview = new ProjectInitPreviewWindow(_doc, clientRequestId, targetPath, fileExists, materialsResponse)
             {
@@ -858,7 +907,11 @@ namespace SmartRemont.ExportRooms.Views
             if (result.IsWorksharedWarning)
                 lines.Add(ProjectCopyService.WorksharedUnsupportedMessage);
 
-            lines.Add("Нажмите «Закрыть» — Revit завершит работу.");
+            if (!string.IsNullOrWhiteSpace(result.BackupPath))
+                lines.Add("Прежний файл проекта сохранён как: " + result.BackupPath);
+
+            lines.Add("Нажмите «Закрыть» — Revit завершит работу. "
+                      + "Если в других открытых файлах есть несохранённые изменения, Revit спросит, сохранить ли их.");
             lines.Add("Затем откройте сохранённый файл вручную через Файл → Открыть.");
 
             return string.Join("\n\n", lines);
@@ -920,7 +973,7 @@ namespace SmartRemont.ExportRooms.Views
                 return;
 
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.ClientRequestId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
             {
                 SetStatus("Не указан ID заявки", isSuccess: false);
                 return;

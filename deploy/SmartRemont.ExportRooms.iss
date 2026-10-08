@@ -1,5 +1,5 @@
 #define MyAppName "Smart Remont — Revit 2025"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "dev1.0.1"
 #define MyAppPublisher "Smart Remont"
 #define AddinsDir "{commonappdata}\Autodesk\Revit\Addins\2025"
 #define PluginDir "{commonappdata}\Autodesk\Revit\Addins\2025\SmartRemont"
@@ -62,11 +62,35 @@ begin
 end;
 
 function InitializeSetup(): Boolean;
+var
+  ExistingDll: String;
+  FileVersion: String;
+  Msg: String;
 begin
   Result := True;
+
   if IsRevitRunning() then
   begin
     MsgBox('Закройте Autodesk Revit и запустите установщик снова.', mbError, MB_OK);
     Result := False;
+    Exit;
+  end;
+
+  // Плагин уже стоит (этот же установщик раньше или ручной деплой в ту же папку) —
+  // предупреждаем и переписываем только с согласия. [Files] ниже и так всегда
+  // перезатирает (ignoreversion), поэтому без этой проверки замена шла бы molча.
+  ExistingDll := ExpandConstant('{#PluginDir}\SmartRemont.ExportRooms.dll');
+  if FileExists(ExistingDll) then
+  begin
+    Msg := 'Плагин Smart Remont уже установлен:' + #13#10 + ExpandConstant('{#PluginDir}') + #13#10;
+    if GetVersionNumbersString(ExistingDll, FileVersion) then
+      Msg := Msg + #13#10 + 'Версия установленного файла: ' + FileVersion + '.';
+    Msg := Msg + #13#10 + #13#10 + 'Заменить текущую версию на {#MyAppVersion}?';
+
+    if MsgBox(Msg, mbConfirmation, MB_YESNO) = IDNO then
+    begin
+      Result := False;
+      Exit;
+    end;
   end;
 end;

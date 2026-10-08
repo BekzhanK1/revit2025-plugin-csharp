@@ -40,19 +40,34 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Image x:Name="CompanyLogoImage"
                    MaxHeight="40"
                    Stretch="Uniform"
                    HorizontalAlignment="Left"
                    VerticalAlignment="Center"
                    Visibility="Collapsed"/>
-            <Border Grid.Column="1" Style="{StaticResource Chip}">
+            <!-- 5 кликов по чипу версии открывают панель адреса API (для разработки). -->
+            <Border Grid.Column="1" Style="{StaticResource Chip}"
+                    MouseLeftButtonUp="VersionChip_MouseLeftButtonUp">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Версия " Style="{StaticResource ChipText}" FontWeight="Normal" Foreground="{StaticResource TextTertiaryBrush}"/>
                     <TextBlock x:Name="PluginVersionTextBlock" Style="{StaticResource ChipText}"/>
                     <TextBlock x:Name="LoginHeaderVersionTextBlock" Visibility="Collapsed"/>
                 </StackPanel>
             </Border>
+            <!-- Видно, только когда адрес API задан в панели: чтобы не забыть вернуть. -->
+            <TextBlock x:Name="ApiOverrideTextBlock"
+                       Grid.Row="1"
+                       Grid.ColumnSpan="2"
+                       Margin="0,10,0,0"
+                       Style="{StaticResource CaptionText}"
+                       Foreground="{StaticResource WarningTextBrush}"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed"/>
         </Grid>
 
         <Grid Grid.Row="1" MinHeight="250">
@@ -185,6 +200,92 @@
                         Margin="0,10,0,0"
                         IsCancel="True"
                         Click="CancelButton_Click"/>
+
+                <!-- Только для тестового API -->
+                <Border x:Name="JwtLoginPanel"
+                        Style="{StaticResource InsetPanel}"
+                        Margin="0,22,0,0"
+                        Visibility="Collapsed">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="&#xE8D7;" Style="{StaticResource IconGlyph}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                            <TextBlock Text="Тест: войти по JWT" Style="{StaticResource CardTitle}" FontSize="13"/>
+                        </StackPanel>
+                        <TextBlock Text="Access-токен сотрудника тестового API. Пароль не сохраняется."
+                                   Style="{StaticResource CaptionText}"
+                                   Margin="0,0,0,10"/>
+                        <TextBox x:Name="JwtTextBox"
+                                 Style="{StaticResource ModernInputField}"
+                                 Height="72"
+                                 Padding="12,8"
+                                 FontFamily="Consolas, Segoe UI"
+                                 FontSize="12"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 VerticalContentAlignment="Top"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Margin="0,0,0,10"/>
+                        <Button x:Name="JwtLoginButton"
+                                Content="Войти по JWT"
+                                Style="{StaticResource ModernSecondaryButton}"
+                                HorizontalAlignment="Stretch"
+                                Click="JwtLoginButton_Click"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Скрытая панель: адрес API для разработки (localhost и т.п.). -->
+            <StackPanel x:Name="DevApiPanel" Visibility="Collapsed">
+                <TextBlock Text="Для разработки" Style="{StaticResource ProductOverline}"/>
+                <TextBlock Text="Адрес API" Style="{StaticResource Heading1}"/>
+                <TextBlock x:Name="DevApiCurrentTextBlock"
+                           Style="{StaticResource BodyText}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,16"/>
+
+                <TextBlock Text="Origin" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="DevApiUrlTextBox"
+                         Style="{StaticResource ModernInputField}"
+                         Height="40"
+                         FontFamily="Consolas, Segoe UI"
+                         Margin="0,0,0,10"/>
+
+                <WrapPanel Margin="0,0,0,16">
+                    <Button Content="localhost:8000" Style="{StaticResource GhostButton}" Tag="http://localhost:8000" Click="DevApiPreset_Click" Margin="0,0,6,0"/>
+                    <Button Content="Тест" Style="{StaticResource GhostButton}" Tag="https://office-testapi.smart-remont.kz" Click="DevApiPreset_Click" Margin="0,0,6,0"/>
+                    <Button Content="Прод" Style="{StaticResource GhostButton}" Tag="https://myspace-api.smartremont.kz" Click="DevApiPreset_Click"/>
+                </WrapPanel>
+
+                <Border x:Name="DevApiErrorBorder"
+                        Style="{StaticResource CalloutError}"
+                        Margin="0,0,0,16"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="DevApiErrorTextBlock"
+                               FontSize="13"
+                               Foreground="{StaticResource ErrorTextBrush}"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <Button Content="Сохранить и проверить версию"
+                        Style="{StaticResource ModernPrimaryButton}"
+                        Height="42"
+                        Click="DevApiSave_Click"/>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0"
+                            Content="Сбросить (app.config)"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            Click="DevApiReset_Click"/>
+                    <Button Grid.Column="2"
+                            Content="Назад"
+                            Style="{StaticResource ModernSecondaryButton}"
+                            Click="DevApiBack_Click"/>
+                </Grid>
             </StackPanel>
         </Grid>
     </Grid>

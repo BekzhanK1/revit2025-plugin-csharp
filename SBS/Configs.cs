@@ -31,6 +31,14 @@ namespace SmartRemont.ExportRooms
                 if (_useTestApi.HasValue)
                     return _useTestApi.Value;
 
+                // Адрес из секретной панели: всё, что не prod, считаем тестом (вход по JWT и пометка TEST).
+                var localOverride = ApiOriginOverride;
+                if (localOverride != null)
+                {
+                    _useTestApi = !string.Equals(localOverride, ProductionApiOriginUrl, StringComparison.OrdinalIgnoreCase);
+                    return _useTestApi.Value;
+                }
+
                 var fromToggle = ReadAppSetting(UseTestApiKey);
                 if (!string.IsNullOrWhiteSpace(fromToggle))
                 {
@@ -55,8 +63,44 @@ namespace SmartRemont.ExportRooms
         }
 
         /// <summary>
-        /// Базовый URL API (origin). По умолчанию из пресетов test/prod (useTestApi).
-        /// Необязательный apiOriginUrl переопределяет пресет.
+        /// Адрес API из секретной панели (5 кликов по чипу версии в окне входа).
+        /// Хранится в %APPDATA%\SmartRemont\RevitPlugin\settings.json, переживает перезапуск Revit.
+        /// </summary>
+        public static string ApiOriginOverride
+        {
+            get
+            {
+                var value = Services.LocalSettingsService.Load().ApiOriginOverride;
+                return string.IsNullOrWhiteSpace(value) ? null : NormalizeOrigin(value);
+            }
+        }
+
+        /// <summary>Проверяет и сохраняет адрес API (null или пусто — сброс). Действует сразу, без перезапуска Revit.</summary>
+        public static void SetApiOriginOverride(string url)
+        {
+            string normalized = null;
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                normalized = NormalizeOrigin(url);
+                if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
+                    || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    throw new ArgumentException("Адрес должен начинаться с http:// или https://, например http://localhost:8000");
+                }
+            }
+
+            var settings = Services.LocalSettingsService.Load();
+            settings.ApiOriginOverride = normalized;
+            Services.LocalSettingsService.Save(settings);
+
+            _apiOriginUrl = null;
+            _useTestApi = null;
+            ExportRoomsApplication._logger?.Information(
+                "API origin override set: {ApiOrigin}", normalized ?? "(сброшен)");
+        }
+
+        /// <summary>
+        /// Базовый URL API (origin). Порядок: секретная панель → apiOriginUrl из app.config → пресет test/prod (useTestApi).
         /// </summary>
         public static string ApiOriginUrl
         {
@@ -64,6 +108,13 @@ namespace SmartRemont.ExportRooms
             {
                 if (_apiOriginUrl != null)
                     return _apiOriginUrl;
+
+                var localOverride = ApiOriginOverride;
+                if (localOverride != null)
+                {
+                    _apiOriginUrl = localOverride;
+                    return _apiOriginUrl;
+                }
 
                 var overrideUrl = ReadAppSetting(ApiOriginUrlKey);
                 if (!string.IsNullOrWhiteSpace(overrideUrl))
@@ -88,7 +139,7 @@ namespace SmartRemont.ExportRooms
                     return _s3OriginUrl;
 
                 var fromConfig = ReadAppSetting(S3OriginUrlKey);
-                _s3OriginUrl = NormalizeOrigin(
+                _s3OriginUrl = NormalizeBaseUrl(
                     string.IsNullOrWhiteSpace(fromConfig) ? DefaultS3OriginUrl : fromConfig);
                 return _s3OriginUrl;
             }
@@ -106,12 +157,11 @@ namespace SmartRemont.ExportRooms
             if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absolute)
                 && (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
             {
-                return trimmed;
+                return EnsureS3BucketPrefix(trimmed);
             }
 
-            return trimmed.StartsWith("/", StringComparison.Ordinal)
-                ? S3OriginUrl + trimmed
-                : S3OriginUrl + "/" + trimmed;
+            var relative = trimmed.StartsWith("/", StringComparison.Ordinal) ? trimmed : "/" + trimmed;
+            return EnsureS3BucketPrefix(S3OriginUrl + relative);
         }
 
         public static string PluginVersionCheckUrl(int revitYear, string clientVersion) =>
@@ -121,12 +171,23 @@ namespace SmartRemont.ExportRooms
 
         public static string AuthRefreshUrl => $"{ApiOriginUrl}/auth/token/refresh/";
 
-        public static string QuickSearchUrl => $"{ApiOriginUrl}/client_request/quick_search/";
+        public static string QuickSearchUrl => $"{ApiOriginUrl}/revit/plugin/client-request/search/";
+
+        public static string ProjectTemplateCheckUrl(int gradeId, string fileHash = null)
+        {
+            var url = $"{ApiOriginUrl}/revit/project-template/check/?grade_id={gradeId}";
+            if (!string.IsNullOrWhiteSpace(fileHash))
+                url += "&file_hash=" + Uri.EscapeDataString(fileHash.Trim());
+            return url;
+        }
 
         public static string MaterialValidationUrl => $"{ApiOriginUrl}/common/catalog/validate_material_ids/";
 
         public static string RevitMaterialReadUrl(int clientRequestId) =>
             $"{ApiOriginUrl}/revit/plugin/material/read/?client_request_id={clientRequestId}";
+
+        public static string RevitMaterialFlagsUrl(int clientRequestId) =>
+            $"{ApiOriginUrl}/revit/plugin/material/flags/?client_request_id={clientRequestId}";
 
         // Единый неймспейс /revit/plugin/ — display + apply, primary key client_request_id (PLUGIN_API.md).
         public static string TkReadUrl(int clientRequestId) =>
@@ -152,8 +213,8 @@ namespace SmartRemont.ExportRooms
         public static string ClientRequestDsUrl(int clientRequestId, int dsId) =>
             $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/{dsId}/";
 
-        public static string ClientRequestDsTkChangeSetItemCntUrl(int clientRequestId) =>
-            $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/tk_change_set_item_cnt/";
+        // Все объёмы ДС ТК одной транзакцией: либо записано всё, либо ничего.
+        public static string DsTkChangeApplyUrl => $"{ApiOriginUrl}/revit/plugin/ds/tk-change/apply/";
 
         public static string ClientRequestDsTkMaterialUrl(int clientRequestId, int dsId) =>
             $"{ApiOriginUrl}/client_request/{clientRequestId}/ds/{dsId}/tk_material/";
@@ -184,12 +245,9 @@ namespace SmartRemont.ExportRooms
 
         static string NormalizeOrigin(string url)
         {
-            if (string.IsNullOrWhiteSpace(url))
+            var cleaned = CleanUrl(url);
+            if (cleaned == null)
                 return url;
-
-            // Drop accidental non-ASCII (e.g. Cyrillic ё pasted into .kz) — DNS then fails with "хост неизвестен".
-            var cleaned = new string(url.Trim().Where(c => c < 127 && !char.IsControl(c)).ToArray())
-                .TrimEnd('/');
 
             if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
@@ -199,6 +257,64 @@ namespace SmartRemont.ExportRooms
             }
 
             return cleaned;
+        }
+
+        /// <summary>
+        /// Как origin, но сохраняет путь. Для S3 это бакет: https://s3.smartremont.kz/smartremont.
+        /// </summary>
+        static string NormalizeBaseUrl(string url)
+        {
+            var cleaned = CleanUrl(url);
+            if (cleaned == null)
+                return url;
+
+            if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                && !string.IsNullOrEmpty(uri.Host))
+            {
+                var path = (uri.AbsolutePath ?? string.Empty).TrimEnd('/');
+                var authority = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+                if (string.IsNullOrEmpty(path) || path == "/")
+                    return authority;
+
+                return authority + path;
+            }
+
+            return cleaned;
+        }
+
+        static string EnsureS3BucketPrefix(string absoluteUrl)
+        {
+            if (!Uri.TryCreate(absoluteUrl, UriKind.Absolute, out var uri))
+                return absoluteUrl;
+            if (!Uri.TryCreate(S3OriginUrl, UriKind.Absolute, out var s3Base))
+                return absoluteUrl;
+            if (!string.Equals(uri.Host, s3Base.Host, StringComparison.OrdinalIgnoreCase))
+                return absoluteUrl;
+
+            var bucketPath = (s3Base.AbsolutePath ?? string.Empty).TrimEnd('/');
+            if (string.IsNullOrEmpty(bucketPath) || bucketPath == "/")
+                return absoluteUrl;
+
+            var pathAndQuery = uri.PathAndQuery ?? "/";
+            if (pathAndQuery.Equals(bucketPath, StringComparison.OrdinalIgnoreCase)
+                || pathAndQuery.StartsWith(bucketPath + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return absoluteUrl;
+            }
+
+            var authority = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+            return authority + bucketPath + pathAndQuery;
+        }
+
+        static string CleanUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return null;
+
+            // Drop accidental non-ASCII (e.g. Cyrillic ё pasted into .kz) — DNS then fails with "хост неизвестен".
+            return new string(url.Trim().Where(c => c < 127 && !char.IsControl(c)).ToArray())
+                .TrimEnd('/');
         }
     }
 }

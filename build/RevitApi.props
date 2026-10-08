@@ -1,0 +1,49 @@
+<Project>
+  <!--
+    Откуда брать Revit API и куда раскладывать add-in. Подключается в SBS.csproj и SmartRemont.ExportSpecifications.csproj.
+
+    Плагин всегда собирается против API Revit 2025 и для сервера представляется как 2025
+    (PluginVersionCheckService.RevitYear). Готовая DLL раскладывается в Addins каждого года из RevitDeployYears,
+    поэтому её можно запускать и в Revit 2027.
+
+      dotnet build SBS.sln -c Release                                   # Revit 2025 есть → его DLL, нет → NuGet
+      dotnet build SBS.sln -c Release -p:DeployToRevit=true             # + копия в Addins\2025 и Addins\2027
+      dotnet build SBS.sln -c Release -p:DeployToRevit=true -p:RevitDeployYears=2027
+      dotnet build SBS.sln -c Release -p:RevitApiSource=NuGet           # принудительно без установленного Revit
+  -->
+  <PropertyGroup>
+    <RevitApiYear Condition="'$(RevitApiYear)' == ''">2025</RevitApiYear>
+    <RevitInstallDir Condition="'$(RevitInstallDir)' == ''">C:\Program Files\Autodesk\Revit $(RevitApiYear)\</RevitInstallDir>
+
+    <!-- Local — DLL установленного Revit; NuGet — reference assemblies из Nice3point.Revit.Api.* (Revit не нужен). -->
+    <RevitApiSource Condition="'$(RevitApiSource)' == '' and Exists('$(RevitInstallDir)RevitAPI.dll')">Local</RevitApiSource>
+    <RevitApiSource Condition="'$(RevitApiSource)' == ''">NuGet</RevitApiSource>
+
+    <RevitDeployYears Condition="'$(RevitDeployYears)' == ''">2025;2027</RevitDeployYears>
+    <RevitAddinsRoot Condition="'$(RevitAddinsRoot)' == ''">C:\ProgramData\Autodesk\Revit\Addins\</RevitAddinsRoot>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(RevitApiSource)' == 'Local'">
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitInstallDir)RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitInstallDir)RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RevitApiSource)' == 'NuGet'">
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitApiYear).*" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitApiYear).*" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RevitDeployYear Include="$(RevitDeployYears)" />
+  </ItemGroup>
+
+  <Target Name="ReportRevitApiSource" BeforeTargets="Build">
+    <Message Importance="high" Text="$(MSBuildProjectName): Revit API $(RevitApiYear) ($(RevitApiSource)), deploy → $(RevitDeployYears)" />
+  </Target>
+</Project>

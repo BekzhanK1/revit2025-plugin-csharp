@@ -3,6 +3,7 @@ using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using System;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,6 +50,116 @@ namespace SmartRemont.ExportRooms.Services
             AuthStorage.Save(session);
             ExportRoomsApplication.CurrentSession = session;
             return session;
+        }
+
+        /// <summary>
+        /// Вход чужим access JWT. Только тестовый API: на проде метод не сохраняет сессию.
+        /// Refresh-токена нет, пароль в Credential Manager не пишется.
+        /// </summary>
+        public static async Task<AuthSession> LoginWithAccessTokenAsync(string rawToken)
+        {
+            if (!Configs.UseTestApi || !Configs.IsTestApi)
+                throw new InvalidOperationException("Вход по JWT доступен только на тестовом API.");
+
+            var accessToken = NormalizeAccessToken(rawToken);
+            var employeeId = ReadEmployeeId(accessToken);
+            EnsureNotExpired(accessToken);
+            await EnsureServerAcceptsTokenAsync(accessToken).ConfigureAwait(false);
+
+            var session = new AuthSession
+            {
+                AccessToken = accessToken,
+                User = new UserDto
+                {
+                    EmployeeId = employeeId,
+                    Fio = "сотрудник #" + employeeId
+                }
+            };
+
+            if (!session.IsValid)
+                throw new InvalidOperationException("Не удалось собрать сессию из JWT.");
+
+            AuthStorage.Save(session);
+            ExportRoomsApplication.CurrentSession = session;
+            ExportRoomsApplication._logger?.Information(
+                "Test JWT login: employee_id={EmployeeId}, api={Api}",
+                employeeId,
+                Configs.ApiOriginUrl);
+            return session;
+        }
+
+        static string NormalizeAccessToken(string rawToken)
+        {
+            var token = (rawToken ?? string.Empty).Trim().Trim('"');
+            if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                token = token.Substring("Bearer ".Length).Trim();
+
+            var parts = token.Split('.');
+            if (parts.Length != 3 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+                throw new InvalidOperationException("Это не JWT. Вставьте access-токен целиком.");
+
+            return token;
+        }
+
+        static int ReadEmployeeId(string accessToken)
+        {
+            var payload = ReadPayload(accessToken);
+            var raw = payload?["user_id"]?.ToString();
+            if (!int.TryParse(raw, out var employeeId) || employeeId <= 0)
+                throw new InvalidOperationException("В JWT нет user_id сотрудника.");
+
+            return employeeId;
+        }
+
+        static void EnsureNotExpired(string accessToken)
+        {
+            var payload = ReadPayload(accessToken);
+            var rawExp = payload?["exp"]?.ToString();
+            if (!long.TryParse(rawExp, out var exp))
+                return;
+
+            var expiresAt = DateTimeOffset.FromUnixTimeSeconds(exp);
+            if (expiresAt <= DateTimeOffset.UtcNow)
+                throw new InvalidOperationException("JWT истёк.");
+        }
+
+        static async Task EnsureServerAcceptsTokenAsync(string accessToken)
+        {
+            var body = JsonConvert.SerializeObject(new QuickSearchRequest { ClientRequestId = 1 });
+            using var request = new HttpRequestMessage(HttpMethod.Post, Configs.QuickSearchUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+            using var response = await Http.SendAsync(request).ConfigureAwait(false);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new InvalidOperationException("Сервер не принял JWT. Нужен access-токен тестового API.");
+
+            if ((int)response.StatusCode >= 500)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                throw new InvalidOperationException(
+                    TryReadErrorMessage(responseBody) ?? "Тестовый API не ответил на проверку JWT.");
+            }
+        }
+
+        static Newtonsoft.Json.Linq.JObject ReadPayload(string accessToken)
+        {
+            try
+            {
+                var payload = accessToken.Split('.')[1].Replace('-', '+').Replace('_', '/');
+                switch (payload.Length % 4)
+                {
+                    case 2: payload += "=="; break;
+                    case 3: payload += "="; break;
+                }
+
+                var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+                return Newtonsoft.Json.Linq.JObject.Parse(json);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Не удалось прочитать JWT.", ex);
+            }
         }
 
         static string TryReadErrorMessage(string responseBody)

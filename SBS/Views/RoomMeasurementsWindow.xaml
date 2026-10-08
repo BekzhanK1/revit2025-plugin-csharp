@@ -88,6 +88,7 @@
                         Click="OpenSettingsButton_Click"
                         Style="{StaticResource ModernSecondaryButton}"
                         VerticalAlignment="Center"
+                        Visibility="Collapsed"
                         ToolTip="Указать, из каких спецификаций Revit брать каждый параметр">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE713;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>

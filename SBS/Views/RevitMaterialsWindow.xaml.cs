@@ -20,6 +20,7 @@ namespace SmartRemont.ExportRooms.Views
         bool _syncInProgress;
         string _surfacesFileUrl;
         string _surfacesFileHash;
+        string _tkFlagsError;
         List<RevitMaterialRowVm> _rows = new();
 
         public RevitMaterialsWindow(int clientRequestId, Document doc)
@@ -88,6 +89,7 @@ namespace SmartRemont.ExportRooms.Views
                 ShowData(_rows);
                 UpdateSummaryStatus();
                 SyncButton.IsEnabled = _rows.Any(CanSyncRow);
+                await ApplyTkFlagsAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -105,6 +107,27 @@ namespace SmartRemont.ExportRooms.Views
             finally
             {
                 _loadInProgress = false;
+            }
+        }
+
+        /// <summary>Метки ТК (подбор / наличие). Ошибка не мешает работе окна — колонка остаётся пустой.</summary>
+        async Task ApplyTkFlagsAsync()
+        {
+            var flags = await ClientMaterialFlagsService.TryReadAsync(_clientRequestId).ConfigureAwait(true);
+            _tkFlagsError = flags.Status ? null : flags.Error;
+            if (!flags.Status)
+            {
+                UpdateSummaryStatus();
+                return;
+            }
+
+            var byMaterial = ClientMaterialFlagsService.BuildByMaterial(flags.Data);
+            foreach (var row in _rows)
+            {
+                if (row.Source?.MaterialId is int materialId && byMaterial.TryGetValue(materialId, out var info))
+                    row.ApplyTkFlag(info.Tone, info.Text);
+                else
+                    row.ApplyTkFlag(MaterialFlagTone.None, null);
             }
         }
 
@@ -155,6 +178,8 @@ namespace SmartRemont.ExportRooms.Views
             var inProject = _rows.Count(r => r.IsInProject);
             var missing = _rows.Count - inProject;
             var text = $"В проекте: {inProject} · Нет в проекте: {missing}";
+            if (!string.IsNullOrWhiteSpace(_tkFlagsError))
+                text += $" · Подбор / наличие недоступны: {_tkFlagsError}";
 
             if (syncResult == null)
             {
@@ -433,6 +458,43 @@ namespace SmartRemont.ExportRooms.Views
                 _srIdInRevitDisplay = value;
                 OnPropertyChanged();
             }
+        }
+
+        string _tkFlagDisplay = "—";
+        string _tkFlagTone = nameof(MaterialFlagTone.None);
+
+        /// <summary>Метка ТК: «Заменён в подборе → 18947», «Нет в наличии» и т.п.</summary>
+        public string TkFlagDisplay
+        {
+            get => _tkFlagDisplay;
+            private set
+            {
+                if (_tkFlagDisplay == value)
+                    return;
+
+                _tkFlagDisplay = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>None | Mute | Warn | Bad — для DataTrigger в XAML.</summary>
+        public string TkFlagTone
+        {
+            get => _tkFlagTone;
+            private set
+            {
+                if (_tkFlagTone == value)
+                    return;
+
+                _tkFlagTone = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void ApplyTkFlag(MaterialFlagTone tone, string text)
+        {
+            TkFlagTone = tone.ToString();
+            TkFlagDisplay = string.IsNullOrWhiteSpace(text) ? "—" : text;
         }
 
         public void ApplyPresence(bool isInProject, string revitLabel, int? srId)
