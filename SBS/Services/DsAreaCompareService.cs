@@ -11,7 +11,9 @@ namespace SmartRemont.ExportRooms.Services
         Mismatch,
         SystemOnly,
         RevitOnly,
-        BothEmpty
+        BothEmpty,
+        /// <summary>Системе не с чем сравнить: нет ни ДС, ни площадей планировки.</summary>
+        NoSystemData
     }
 
     public static class DsAreaCompareService

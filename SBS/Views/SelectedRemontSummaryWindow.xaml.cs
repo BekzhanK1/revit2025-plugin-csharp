@@ -18,7 +18,8 @@ namespace SmartRemont.ExportRooms.Views
         public double AreaM2 { get; set; }
         public double WallHeightM { get; set; }
         public double? SystemAreaM2 { get; set; }
-        public DsAreaCompareStatus AreaCompareStatus { get; set; }
+        /// <summary>До сравнения с системой — «нет данных», а не «совпадает» (Match — значение enum по умолчанию).</summary>
+        public DsAreaCompareStatus AreaCompareStatus { get; set; } = DsAreaCompareStatus.NoSystemData;
         public bool IsPayloadHeight { get; set; }
 
         public string AreaDisplay =>
@@ -65,6 +66,9 @@ namespace SmartRemont.ExportRooms.Views
         double? _systemWallHeightM;
         DsAreaCompareStatus? _wallHeightCompareStatus;
         Dictionary<string, int> _roomIdsByKey = new();
+        /// <summary>FLOOR_AREA текущей планировки (measures/read → room_area): система, пока ДС площади нет.</summary>
+        Dictionary<string, double?> _planAreaByKey = new(StringComparer.OrdinalIgnoreCase);
+        List<(string Name, double Area)> _planRooms = new();
         bool _isDsAccepted;
 
         public string LastSuccessMessage { get; private set; }
@@ -160,10 +164,23 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (system == null || !system.HasData)
             {
-                SystemDsInfoText.Text = system?.EmptyMessage
-                    ?? "В системе пока нет ДС по изменению площадей для этого ремонта.";
                 _isDsAccepted = false;
-                ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
+                // ДС ещё нет: сравниваем с площадями текущей планировки — их ДС и будет менять.
+                if (_planRooms.Count > 0)
+                {
+                    SystemDsInfoText.Text = "ДС на изменение площадей ещё нет. «Система» — площади текущей планировки заявки.";
+                    ApplyAreaComparison(_planAreaByKey, _planRooms);
+                }
+                else
+                {
+                    SystemDsInfoText.Text = (system?.EmptyMessage
+                        ?? "В системе пока нет ДС по изменению площадей для этого ремонта.")
+                        + " Площади планировки сервер не вернул — сравнивать не с чем.";
+                    ApplyPayloadWallHeightUi(ResolvePayloadWallHeight(_allRows), _allRows, null);
+                    ApplyRowsView();
+                    UpdateCompareStatusSummary();
+                }
+
                 UpdateSendButtonState();
                 return;
             }
@@ -185,7 +202,18 @@ namespace SmartRemont.ExportRooms.Views
             ApplyFinancialSummary(system.Sum);
 
             _systemWallHeightM = system.WallHeightM;
-            var systemByKey = DsAreaCompareService.BuildSystemAreaByKey(system.Rooms);
+            ApplyAreaComparison(
+                DsAreaCompareService.BuildSystemAreaByKey(system.Rooms),
+                (system.Rooms ?? Enumerable.Empty<DsRoomChangeRoomDto>())
+                    .Where(r => r != null && !string.IsNullOrWhiteSpace(r.RoomName) && r.RoomArea is > 0d)
+                    .Select(r => (r.RoomName.Trim(), Math.Round(r.RoomArea!.Value, 2)))
+                    .ToList());
+            UpdateSendButtonState();
+        }
+
+        /// <summary>Сравнивает строки модели с площадями системы (ДС или планировки) и обновляет таблицу.</summary>
+        void ApplyAreaComparison(Dictionary<string, double?> systemByKey, List<(string Name, double Area)> systemRooms)
+        {
             var revitKeys = new HashSet<string>(
                 _allRows.Select(r => DsAreaCompareService.GetRoomCompareKey(r.RoomName)),
                 StringComparer.OrdinalIgnoreCase);
@@ -199,22 +227,15 @@ namespace SmartRemont.ExportRooms.Views
                     row.AreaM2 > 0d ? row.AreaM2 : (double?)null);
             }
 
-            foreach (var systemRoom in system.Rooms ?? Enumerable.Empty<DsRoomChangeRoomDto>())
+            foreach (var (name, area) in systemRooms)
             {
-                if (systemRoom == null || string.IsNullOrWhiteSpace(systemRoom.RoomName))
-                    continue;
-
-                var key = DsAreaCompareService.GetRoomCompareKey(systemRoom.RoomName.Trim());
-                if (revitKeys.Contains(key))
-                    continue;
-
-                if (!systemRoom.RoomArea.HasValue || systemRoom.RoomArea.Value <= 0d)
+                if (!revitKeys.Add(DsAreaCompareService.GetRoomCompareKey(name)))
                     continue;
 
                 _allRows.Add(new RoomAreaRowVm
                 {
-                    RoomName = systemRoom.RoomName.Trim(),
-                    SystemAreaM2 = Math.Round(systemRoom.RoomArea.Value, 2),
+                    RoomName = name,
+                    SystemAreaM2 = area,
                     AreaCompareStatus = DsAreaCompareStatus.SystemOnly
                 });
             }
@@ -226,7 +247,6 @@ namespace SmartRemont.ExportRooms.Views
             ApplyRowsView();
             UpdateTotals();
             UpdateCompareStatusSummary();
-            UpdateSendButtonState();
         }
 
         void ApplyRowsView()
@@ -280,10 +300,12 @@ namespace SmartRemont.ExportRooms.Views
             if (_allRows.Count == 0)
                 return;
 
-            var compared = _allRows.Where(r => r.AreaCompareStatus != DsAreaCompareStatus.BothEmpty).ToList();
+            var compared = _allRows
+                .Where(r => r.AreaCompareStatus is not (DsAreaCompareStatus.BothEmpty or DsAreaCompareStatus.NoSystemData))
+                .ToList();
             if (compared.Count == 0)
             {
-                SetStatus("Revit-данные загружены.", isError: false);
+                SetStatus("Revit-данные загружены. Сравнить с системой не удалось.", isError: false);
                 return;
             }
 
@@ -329,6 +351,13 @@ namespace SmartRemont.ExportRooms.Views
             {
                 var rooms = await MeasuresService.ReadAsync(remont.ClientRequestId).ConfigureAwait(true);
                 _roomIdsByKey = MeasuresService.BuildRoomIdsByKey(rooms);
+                _planRooms = (rooms ?? new List<MeasureRoomInfoDto>())
+                    .Where(r => !string.IsNullOrWhiteSpace(r?.RoomName) && r.RoomArea is > 0d)
+                    .Select(r => (r.RoomName.Trim(), Math.Round(r.RoomArea!.Value, 2)))
+                    .ToList();
+                _planAreaByKey = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (name, area) in _planRooms)
+                    _planAreaByKey[DsAreaCompareService.GetRoomCompareKey(name)] = area;
             }
             catch (Exception ex)
             {

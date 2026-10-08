@@ -315,6 +315,12 @@
                                                 <Setter TargetName="ActionText" Property="Text" Value="Нет в проекте"/>
                                                 <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding AreaCompareStatus}" Value="NoSystemData">
+                                                <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                                <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+                                                <Setter TargetName="ActionText" Property="Text" Value="Нет данных"/>
+                                                <Setter TargetName="ActionText" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding AreaCompareStatus}" Value="RevitOnly">
                                                 <Setter TargetName="ActionBadge" Property="Background" Value="{StaticResource InfoSoftBrush}"/>
                                                 <Setter TargetName="ActionBadge" Property="BorderBrush" Value="{StaticResource InfoBorderBrush}"/>
