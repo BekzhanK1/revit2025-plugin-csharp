@@ -24,6 +24,10 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("parameters")]
         public List<MeasureApplyParamDto> CurrentParameters { get; set; }
+
+        /// <summary>Площадь пола в текущей планировке (FLOOR_AREA); null — нет или старый бэкенд.</summary>
+        [JsonProperty("room_area")]
+        public double? RoomArea { get; set; }
     }
 
     public class MeasuresReadResponse

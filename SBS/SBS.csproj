@@ -84,6 +84,7 @@
     <Compile Include="Services\RoomPaintScheduleService.cs" />
     <Compile Include="Services\TypeParameterChangeService.cs" />
     <Compile Include="Services\UiYield.cs" />
+    <Compile Include="Services\HubProcessService.cs" />
     <Compile Include="Services\RoomNameMatcher.cs" />
     <Compile Include="Services\MeasuresService.cs" />
     <Compile Include="Services\DsRoomChangeService.cs" />
@@ -162,6 +163,9 @@
     </Compile>
     <Compile Include="Views\LoadingOverlay.xaml.cs">
       <DependentUpon>LoadingOverlay.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ProcessStepView.xaml.cs">
+      <DependentUpon>ProcessStepView.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\WindowLayoutHelper.cs" />
     <Compile Include="Views\ScrollBehavior.cs" />
@@ -263,6 +267,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\LoadingOverlay.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ProcessStepView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

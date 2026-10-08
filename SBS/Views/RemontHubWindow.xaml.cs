@@ -3,6 +3,7 @@ using SmartRemont.ExportRooms.DTO;
 using SmartRemont.ExportRooms.Models;
 using SmartRemont.ExportRooms.Services;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -14,29 +15,30 @@ using System.Windows.Media;
 
 namespace SmartRemont.ExportRooms.Views
 {
+    /// <summary>
+    /// Хаб заявки: процесс по этапам (проект → ДС квадратуры → замеры → ДС ТК) и материалы.
+    /// Состояние этапов считает <see cref="HubProcessService"/>, здесь — загрузка данных и отрисовка.
+    /// </summary>
     public partial class RemontHubWindow : Window
     {
         readonly Document _doc;
 
-        const string InitProjectSubtitle = "Проект из шаблона .rte по грейду, метаданные и материалы";
-        const string BindWithoutInitSubtitle = "Записать заявку в открытый файл без шаблона и материалов";
-        const string DsAreaSubtitle = "Отправка площадей помещений в Smart Remont";
-        const string MeasuresSubtitle = "Отправка замеров из ведомостей Revit";
-        const string MeasuresFromCodeSubtitle = "Площадь стен из модели Revit";
-        const string MeasuresCompareSubtitle = "Спецификация и код — в одной таблице с подсветкой";
-        const string RoomMaterialsSubtitle = "Сверка с договором (ТК) и привязка ДС TK_CHANGE";
-        const string RevitMaterialsSubtitle = "Загрузка RFA и surface-типов из Smart Remont";
-        const string TypeParametersSubtitle = "ID материала и ID типа материала выбранного типа";
-
         bool _initInProgress;
         bool _showInitOverlay;
+        bool _refreshInProgress;
         CancellationTokenSource _initCts;
 
-        // Скрытая карточка «Привязать заявку без шаблона»: 5 кликов по заголовку раздела за 3 секунды.
+        // Скрытая кнопка «Привязать без шаблона»: 5 кликов по заголовку процесса за 3 секунды.
         const int BindWithoutInitClickCount = 5;
         static readonly TimeSpan BindWithoutInitClickWindow = TimeSpan.FromSeconds(3);
-        readonly System.Collections.Generic.List<DateTime> _sectionLabelClicks = new();
+        readonly List<DateTime> _sectionLabelClicks = new();
         bool _bindWithoutInitRevealed;
+
+        // Последние загруженные статусы — из них собирается процесс.
+        bool _statesLoaded;
+        (DsRoomChangeSnapshot Data, bool Status, string Error, int? RemontId) _ds;
+        (List<MeasureRoomInfoDto> Data, bool Status, string Error) _measures;
+        (DsTkChangeBindState State, bool Ok, string Error) _tk;
 
         public RemontHubWindow(Document doc)
         {
@@ -44,7 +46,14 @@ namespace SmartRemont.ExportRooms.Views
             BrandAssets.TryApplyCompanyLogo(CompanyLogoImage);
             WindowLayoutHelper.UseFullWorkAreaHeight(this);
             _doc = doc;
-            ApplyHubMenuVisibility(ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc));
+
+            StepProject.PrimaryClick += (_, _) => InitProjectButton_Click(this, new RoutedEventArgs());
+            StepProject.SecondaryClick += (_, _) => BindWithoutInitButton_Click(this, new RoutedEventArgs());
+            StepDsArea.PrimaryClick += (_, _) => DsAreaChangeButton_Click(this, new RoutedEventArgs());
+            StepMeasures.PrimaryClick += (_, _) => MeasuresButton_Click(this, new RoutedEventArgs());
+            StepDsTk.PrimaryClick += (_, _) => RoomMaterialsButton_Click(this, new RoutedEventArgs());
+
+            RenderProcess();
             Loaded += RemontHubWindow_Loaded;
             Closing += (_, e) =>
             {
@@ -65,219 +74,193 @@ namespace SmartRemont.ExportRooms.Views
 
         async void RemontHubWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            SetupFeatureButtons();
             BindRemontInfo(ExportRoomsApplication.SelectedRemont);
             RefreshProjectInitState();
             await EnrichSelectedRemontIfNeededAsync().ConfigureAwait(true);
             RefreshProjectInitState();
-            
+
             if (ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
             {
                 await FetchAsyncStates().ConfigureAwait(true);
             }
         }
 
+        async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
+            {
+                RefreshProjectInitState();
+                return;
+            }
+
+            await FetchAsyncStates().ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Перечитывает статусы этапов и материалов. Ошибки не всплывают окнами — показываются
+        /// на своём этапе (или в карточке материалов), чтобы было видно, что именно не загрузилось.
+        /// </summary>
         async Task FetchAsyncStates()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
             var clientRequestId = remont?.ClientRequestId ?? 0;
-            if (clientRequestId <= 0) return;
+            if (clientRequestId <= 0 || _refreshInProgress) return;
 
-            SetStatus("Обновление статусов...", true);
+            _refreshInProgress = true;
+            RefreshButton.IsEnabled = false;
+            RefreshButtonText.Text = "Обновление…";
+            SetStatus("Обновление статусов…", true);
 
             try
             {
-                // Сначала только /revit/plugin/* — office DS list не должен блокировать хаб.
                 var dsTask = DsRoomChangeService.TryReadAsync(clientRequestId);
                 var measuresTask = MeasuresService.TryReadAsync(clientRequestId);
                 var materialsTask = RevitMaterialsService.TryReadAsync(clientRequestId);
                 var flagsTask = ClientMaterialFlagsService.TryReadAsync(clientRequestId);
+                var tkTask = TryListTkAsync(clientRequestId);
 
-                await Task.WhenAll(dsTask, measuresTask, materialsTask, flagsTask).ConfigureAwait(true);
+                await Task.WhenAll(dsTask, measuresTask, materialsTask, flagsTask, tkTask).ConfigureAwait(true);
 
-                var ds = await dsTask;
-                var measures = await measuresTask;
+                _ds = await dsTask;
+                _measures = await measuresTask;
+                _tk = await tkTask;
+                _statesLoaded = true;
+
                 var materials = await materialsTask;
                 var flags = await flagsTask;
-
                 ApplyMaterialsState(materials.Data, materials.Status, materials.Error, clientRequestId);
-                // Метки ТК — вспомогательные: ошибка не попадает в окно проблем, только в лог (внутри сервиса).
+                // Метки ТК — вспомогательные: ошибка не показывается, только в лог (внутри сервиса).
                 if (materials.Status && flags.Status)
                     ApplyMaterialFlagsState(flags.Data, clientRequestId);
-                ApplyMeasuresState(measures.Data, measures.Status, measures.Error);
 
-                var resolvedRemontId = remont?.RemontId ?? ds.RemontId;
-                ApplyDsState(ds.Data, ds.Status, resolvedRemontId);
+                if (!_tk.Ok && !string.IsNullOrWhiteSpace(_tk.Error))
+                    ExportRoomsApplication._logger?.Warning("Hub: DS TK list failed: {Error}", _tk.Error);
 
-                var problems = new System.Collections.Generic.List<string>();
-                if (!materials.Status)
-                    problems.Add("Материалы: " + (materials.Error ?? "ошибка"));
-                else if (materials.Data?.Data == null || materials.Data.Data.Count == 0)
-                    problems.Add(
-                        "Материалы: API вернул 0 строк.\n"
-                        + $"Сейчас apiOriginUrl = {Configs.ApiOriginUrl}\n"
-                        + "На testapi у этой заявки часто нет каталога — нужен prod (myspace-api.smartremont.kz).");
-
-                if (!ds.Status)
-                    problems.Add("ДС площади: " + (ds.Error ?? "ошибка"));
-
-                if (!measures.Status
-                    && measures.Error?.IndexOf("планировк", StringComparison.OrdinalIgnoreCase) < 0
-                    && measures.Error?.IndexOf("plan", StringComparison.OrdinalIgnoreCase) < 0)
-                    problems.Add("Замеры: " + (measures.Error ?? "ошибка"));
-
-                // Отдельно и с коротким timeout — бейдж ТК ДС.
-                try
-                {
-                    var tkDs = await DsTkChangeService.TryListAsync(clientRequestId).ConfigureAwait(true);
-                    ApplyTkDsState(tkDs.State, tkDs.Ok, tkDs.Error);
-                    if (!tkDs.Ok && !string.IsNullOrWhiteSpace(tkDs.Error))
-                        problems.Add("ДС ТК (список): " + tkDs.Error);
-                }
-                catch (Exception tkEx)
-                {
-                    ExportRoomsApplication._logger?.Warning(tkEx, "Hub TK DS badge failed");
-                    ApplyBadge(RoomMaterialsButton, "Сверка", "#F1F5F9", "#475569", "Список ДС недоступен: " + tkEx.Message);
-                    RoomMaterialsButton.IsEnabled = true;
-                    problems.Add("ДС ТК (список): " + tkEx.Message);
-                }
-
-                if (problems.Count > 0)
-                {
-                    AppMessageBox.Show(
-                        this,
-                        string.Join("\n\n", problems) + $"\n\nAPI: {Configs.ApiOriginUrl}",
-                        "Smart Remont — проблемы загрузки",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    SetStatus("Есть ошибки загрузки — см. окно", false);
-                    return;
-                }
+                RenderProcess();
+                SetStatus($"Статусы обновлены · {DateTime.Now:HH:mm}", true);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Warning(ex, "Hub FetchAsyncStates failed");
-                SetStatus("Ошибка обновления статусов: " + ex.Message, true);
-                AppMessageBox.Show(
-                    this,
-                    ex.Message + $"\n\nAPI: {Configs.ApiOriginUrl}",
-                    "Ошибка обновления статусов",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                return;
+                SetStatus("Не удалось обновить статусы: " + ex.Message, false);
             }
-
-            SetStatus(string.Empty, true);
+            finally
+            {
+                _refreshInProgress = false;
+                RefreshButton.IsEnabled = !_initInProgress;
+                RefreshButtonText.Text = "Обновить";
+            }
         }
 
-        void ApplyTkDsState(DsTkChangeBindState state, bool ok, string error)
+        static async Task<(DsTkChangeBindState State, bool Ok, string Error)> TryListTkAsync(int clientRequestId)
         {
-            RoomMaterialsButton.IsEnabled = true;
-
-            if (!ok)
+            try
             {
-                // Список office DS часто недоступен без MySpace-грантов — сверку не блокируем.
-                ApplyBadge(
-                    RoomMaterialsButton,
-                    "Сверка",
-                    "#F1F5F9",
-                    "#475569",
-                    string.IsNullOrWhiteSpace(error)
-                        ? "Сверка доступна; список ДС не загрузился"
-                        : "Сверка доступна. ДС: " + error);
-                return;
+                return await DsTkChangeService.TryListAsync(clientRequestId).ConfigureAwait(true);
             }
-
-            var items = state?.Items ?? new System.Collections.Generic.List<DsTkChangeItem>();
-            if (items.Count == 0)
+            catch (Exception ex)
             {
-                ApplyBadge(
-                    RoomMaterialsButton,
-                    "Не создана",
-                    "#F1F5F9",
-                    "#475569",
-                    "Откройте сверку и создайте пустую ДС или выберите существующую");
-                return;
+                ExportRoomsApplication._logger?.Warning(ex, "Hub: DS TK list failed");
+                return (null, false, ex.Message);
             }
-
-            var editableCount = items.Count(i => i.CanEdit);
-            if (editableCount > 1)
-            {
-                ApplyBadge(
-                    RoomMaterialsButton,
-                    $"• {editableCount} черновика",
-                    "#FEF9C3",
-                    "#A16207",
-                    "Несколько черновиков TK_CHANGE — выберите в окне сверки");
-                return;
-            }
-
-            var badgeItem = DsTkChangeBindState.PreferHubBadge(items);
-            if (badgeItem == null)
-            {
-                ApplyBadge(RoomMaterialsButton, "Не создана", "#F1F5F9", "#475569");
-                return;
-            }
-
-            if (badgeItem.IsAccept == 1)
-            {
-                ApplyBadge(
-                    RoomMaterialsButton,
-                    $"✔ Утверждена №{badgeItem.DsId}",
-                    "#DCFCE7",
-                    "#166534",
-                    "ДС утверждена — сверка доступна");
-                return;
-            }
-
-            if (badgeItem.IsAccept == 2)
-            {
-                ApplyBadge(
-                    RoomMaterialsButton,
-                    $"× Отказана №{badgeItem.DsId}",
-                    "#FEF2F2",
-                    "#DC2626",
-                    "ДС отказана");
-                return;
-            }
-
-            if (badgeItem.CardId != null)
-            {
-                ApplyBadge(
-                    RoomMaterialsButton,
-                    $"• На согласовании №{badgeItem.DsId}",
-                    "#DBEAFE",
-                    "#1D4ED8",
-                    "ДС на согласовании — сверка доступна, правки только в MySpace после решения");
-                return;
-            }
-
-            ApplyBadge(
-                RoomMaterialsButton,
-                $"• Черновик №{badgeItem.DsId}",
-                "#FEF9C3",
-                "#A16207",
-                "Черновик привязан — сверка и (скоро) правки объёмов");
         }
+
+        /// <summary>Пересобирает процесс из последних загруженных статусов и модели.</summary>
+        void RenderProcess()
+        {
+            var remont = ExportRoomsApplication.SelectedRemont;
+            var isInitialized = ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
+            var session = ExportRoomsApplication.CurrentSession;
+
+            var input = new HubProcessInput
+            {
+                IsInitialized = isInitialized,
+                ProjectPath = _doc?.PathName,
+                RemontId = remont?.RemontId ?? _ds.RemontId,
+                HasDsAddGrant = session?.HasGrant("OA__RemontFormDSAdd") ?? false,
+                HasDsEditGrant = session?.HasGrant("OA__RemontFormDSEdit") ?? false,
+                DsLoaded = _statesLoaded && _ds.Status,
+                Ds = _ds.Data,
+                DsError = _statesLoaded ? _ds.Error : "статусы ещё загружаются",
+                MeasuresLoaded = _statesLoaded && _measures.Status,
+                MeasureRooms = _measures.Data,
+                MeasuresError = _statesLoaded ? _measures.Error : "статусы ещё загружаются",
+                RevitRooms = isInitialized ? TryCollectRevitRooms() : null,
+                TkLoaded = _statesLoaded && _tk.Ok,
+                Tk = _tk.State,
+                TkError = _tk.Error
+            };
+
+            var process = HubProcessService.Build(input);
+            var projectApproved = remont?.ProjectAccepted == 1;
+            var actionsEnabled = !_initInProgress && !projectApproved;
+
+            // Пока статусы не пришли, этапы после проекта не показываем как ошибку загрузки.
+            var loading = isInitialized && !_statesLoaded;
+            StepProject.Apply(process.Project, actionsEnabled && (remont?.ClientRequestId ?? 0) > 0);
+            StepProject.SecondaryText = !isInitialized && _bindWithoutInitRevealed ? "Привязать без шаблона" : null;
+            StepDsArea.Apply(loading ? Loading() : process.DsArea, actionsEnabled);
+            StepMeasures.Apply(loading ? Locked("Откроется после утверждения ДС на изменение квадратуры.") : process.Measures, actionsEnabled);
+            StepDsTk.Apply(loading ? Locked("Откроется после подтверждения замеров.") : process.DsTk, actionsEnabled);
+
+            ProcessProgressText.Text = process.AllPassed
+                ? "Все этапы пройдены"
+                : $"Этап {process.CurrentStepNumber} из 4";
+
+            ProjectApprovedOverlay.Visibility = projectApproved ? Visibility.Visible : Visibility.Collapsed;
+            MaterialsPanel.Visibility = isInitialized ? Visibility.Visible : Visibility.Collapsed;
+            RevitMaterialsButton.IsEnabled = !_initInProgress;
+        }
+
+        static HubStepStatus Loading() => new()
+        {
+            State = HubStepState.Waiting,
+            Chip = "Загрузка…",
+            Hint = "Получаем статус из MySpace."
+        };
+
+        static HubStepStatus Locked(string hint) => new()
+        {
+            State = HubStepState.Locked,
+            Hint = hint
+        };
+
+        IReadOnlyList<RoomAreaItem> TryCollectRevitRooms()
+        {
+            try
+            {
+                return RoomAreaService.GetPreferredPhase(_doc) == null
+                    ? null
+                    : RoomAreaService.CollectRooms(_doc);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Hub: could not read Revit rooms");
+                return null;
+            }
+        }
+
         void ApplyMaterialsState(RevitMaterialReadResponse data, bool status, string error, int clientRequestId)
         {
             if (!status)
             {
-                ApplyBadge(RevitMaterialsButton, $"× Ошибка: {error}", "#FEF2F2", "#DC2626");
+                ApplyMaterialsChip("Не загрузились", "ErrorBackgroundBrush", "ErrorBorderBrush", "ErrorTextBrush",
+                    error ?? "Ошибка загрузки списка материалов.");
                 return;
             }
-            
-            var lastSync = LocalSettingsService.GetLastMaterialSyncTime(clientRequestId);
-            var timeStr = lastSync.HasValue ? $" · {lastSync.Value:HH:mm}" : "";
 
             if (data?.Data == null || data.Data.Count == 0)
             {
-                ApplyBadge(RevitMaterialsButton, "Не синхронизировано", "#F1F5F9", "#475569");
+                ApplyMaterialsChip("Нет материалов", "SurfaceHoverBrush", "CardBorderBrush", "TextSecondaryBrush",
+                    $"Сервер вернул пустой список. API: {Configs.ApiOriginUrl}");
+                return;
             }
-            else
-            {
-                ApplyBadge(RevitMaterialsButton, $"✔ Синхронизировано{timeStr}", "#DCFCE7", "#166534");
-            }
+
+            var lastSync = LocalSettingsService.GetLastMaterialSyncTime(clientRequestId);
+            ApplyMaterialsChip(
+                lastSync.HasValue ? $"Синхронизировано · {lastSync.Value:HH:mm}" : "Список загружен",
+                "SuccessSoftBrush", "SuccessBorderBrush", "SuccessTextBrush",
+                $"Материалов в списке: {data.Data.Count}.");
         }
 
         void ApplyMaterialFlagsState(ClientMaterialFlagsResponse flags, int clientRequestId)
@@ -287,176 +270,24 @@ namespace SmartRemont.ExportRooms.Views
             if (stale == 0 && unavailable == 0)
                 return;
 
-            var parts = new System.Collections.Generic.List<string>();
+            var parts = new List<string>();
             if (stale > 0) parts.Add($"{stale} неактуальны");
             if (unavailable > 0) parts.Add($"{unavailable} нет в наличии");
 
-            var lastSync = LocalSettingsService.GetLastMaterialSyncTime(clientRequestId);
-            var syncText = lastSync.HasValue ? $"Синхронизировано · {lastSync.Value:HH:mm}. " : string.Empty;
-
-            ApplyBadge(
-                RevitMaterialsButton,
-                "⚠ " + string.Join(" · ", parts),
-                "#FFF8EB",
-                "#92400E",
-                syncText + "Позиции ТК отличаются от подбора или недоступны. Замена — в MySpace через ДС.");
+            ApplyMaterialsChip(
+                string.Join(" · ", parts),
+                "WarningSoftBrush", "WarningBorderBrush", "WarningTextBrush",
+                "Позиции ТК отличаются от подбора или недоступны. Замена — в MySpace через ДС.");
         }
 
-        void ApplyMeasuresState(System.Collections.Generic.List<SmartRemont.ExportRooms.DTO.MeasureRoomInfoDto> data, bool status, string error)
+        void ApplyMaterialsChip(string text, string bgKey, string borderKey, string fgKey, string hint)
         {
-            if (!status && (error?.Contains("планировк") == true || error?.Contains("plan") == true))
-            {
-                ApplyBadge(MeasuresButton, "Нет планировки", "#F1F5F9", "#475569", "У заявки нет планировки");
-                MeasuresButton.IsEnabled = false;
-                return;
-            }
-            
-            RoomMeasurementsSnapshot snapshot;
-            try
-            {
-                snapshot = RoomMeasurementsService.Collect(_doc);
-            }
-            catch (Exception ex)
-            {
-                ApplyBadge(MeasuresButton, "Ошибка замеров", "#FEE2E2", "#991B1B", ex.Message);
-                return;
-            }
-
-            if (snapshot.Rooms.Count == 0)
-            {
-                ApplyBadge(MeasuresButton, "Нет замеров", "#F1F5F9", "#475569", "В ведомостях нет комнат");
-                return;
-            }
-
-            int notInPlan = 0;
-            if (data == null || data.Count == 0)
-            {
-                notInPlan = snapshot.Rooms.Count;
-            }
-            else
-            {
-                var backendRoomsByBaseName = new System.Collections.Generic.Dictionary<string, SmartRemont.ExportRooms.DTO.MeasureRoomInfoDto>(System.StringComparer.OrdinalIgnoreCase);
-                foreach(var r in data)
-                {
-                    if (r == null || string.IsNullOrWhiteSpace(r.RoomName)) continue;
-                    var baseName = SmartRemont.ExportRooms.Services.RoomNameMatcher.GetBaseName(r.RoomName);
-                    if (!backendRoomsByBaseName.ContainsKey(baseName))
-                        backendRoomsByBaseName[baseName] = r;
-                }
-
-                foreach(var room in snapshot.Rooms)
-                {
-                    var baseName = SmartRemont.ExportRooms.Services.RoomNameMatcher.GetBaseName(room.RoomName);
-                    if (!backendRoomsByBaseName.TryGetValue(baseName, out var backendRoom) || backendRoom.PlanirovkaRoomId == 0)
-                    {
-                        notInPlan++;
-                    }
-                }
-            }
-
-            var measuresConfirmed = data != null && data.Any(r => r != null && r.IsMeasureConfirm == 1);
-
-            if (notInPlan > 0)
-            {
-                ApplyBadge(MeasuresButton, $"• {notInPlan} комнат не в планировке", "#FEF9C3", "#A16207");
-            }
-            else if (measuresConfirmed)
-            {
-                ApplyBadge(MeasuresButton, "Уже отправлено", "#DCFCE7", "#166534", "В MySpace отмечено «Замеры подтверждены»");
-            }
-            else
-            {
-                ApplyBadge(MeasuresButton, "Готово к отправке", "#F1F5F9", "#475569");
-            }
-        }
-
-        void ApplyDsState(DsRoomChangeSnapshot data, bool status, int? remontId)
-        {
-            if (remontId == null || remontId <= 0)
-            {
-                ApplyBadge(DsAreaChangeButton, "Нет ремонта", "#F1F5F9", "#475569", "Ремонт ещё не создан по заявке");
-                DsAreaChangeButton.IsEnabled = false;
-                return;
-            }
-
-            var session = ExportRoomsApplication.CurrentSession;
-            bool hasAddGrant = session?.HasGrant("OA__RemontFormDSAdd") ?? false;
-            bool hasEditGrant = session?.HasGrant("OA__RemontFormDSEdit") ?? false;
-
-            if (data == null || data.DsId == null)
-            {
-                if (hasAddGrant)
-                {
-                    ApplyBadge(DsAreaChangeButton, "Не создана", "#F1F5F9", "#475569", "При отправке будет создана ДС на изменение площади");
-                }
-                else
-                {
-                    ApplyBadge(DsAreaChangeButton, "Нет прав", "#F1F5F9", "#475569");
-                    DsAreaChangeButton.IsEnabled = false;
-                }
-                return;
-            }
-
-            var isAccept = data.Header?.IsAccept;
-            if (data.Header?.CardId != null)
-            {
-                ApplyBadge(DsAreaChangeButton, $"• На согласовании №{data.DsId}", "#DBEAFE", "#1D4ED8", "ДС отправлена в канбан на согласование");
-                DsAreaChangeButton.IsEnabled = false;
-                return;
-            }
-            
-            if (isAccept == 1)
-            {
-                ApplyBadge(DsAreaChangeButton, $"✔ Утверждена №{data.DsId}", "#DCFCE7", "#166534", "ДС утверждена — изменения только через MySpace");
-                DsAreaChangeButton.IsEnabled = false;
-                return;
-            }
-
-            if (isAccept == 2)
-            {
-                ApplyBadge(DsAreaChangeButton, $"× Отказана №{data.DsId}", "#FEF2F2", "#DC2626", "ДС отказана");
-                DsAreaChangeButton.IsEnabled = false;
-                return;
-            }
-
-            if (hasEditGrant)
-            {
-                ApplyBadge(DsAreaChangeButton, $"• Черновик №{data.DsId}", "#FEF9C3", "#A16207", "Можно обновить площади");
-            }
-            else
-            {
-                ApplyBadge(DsAreaChangeButton, "Нет прав", "#F1F5F9", "#475569");
-                DsAreaChangeButton.IsEnabled = false;
-            }
-        }
-
-        static void ApplyBadge(Button button, string text, string bgHex, string fgHex, string explanation = null)
-        {
-            button.ApplyTemplate();
-            var badge = button.Template.FindName("DynamicBadge", button) as Border;
-            var badgeText = button.Template.FindName("DynamicBadgeText", button) as TextBlock;
-            var explText = button.Template.FindName("StatusExplanationText", button) as TextBlock;
-
-            if (badge != null && badgeText != null)
-            {
-                badge.Visibility = System.Windows.Visibility.Visible;
-                badgeText.Text = text;
-                badge.Background = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(bgHex));
-                badgeText.Foreground = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString(fgHex));
-            }
-
-            if (explText != null)
-            {
-                if (!string.IsNullOrWhiteSpace(explanation))
-                {
-                    explText.Visibility = System.Windows.Visibility.Visible;
-                    explText.Text = explanation;
-                }
-                else
-                {
-                    explText.Visibility = System.Windows.Visibility.Collapsed;
-                }
-            }
+            MaterialsChip.Visibility = Visibility.Visible;
+            MaterialsChip.Background = (Brush)FindResource(bgKey);
+            MaterialsChip.BorderBrush = (Brush)FindResource(borderKey);
+            MaterialsChipText.Foreground = (Brush)FindResource(fgKey);
+            MaterialsChipText.Text = text;
+            MaterialsHintText.Text = hint;
         }
 
         async Task EnrichSelectedRemontIfNeededAsync()
@@ -480,14 +311,7 @@ namespace SmartRemont.ExportRooms.Views
             BindRemontInfo(remont);
 
             if (!ok)
-            {
-                AppMessageBox.Show(
-                    this,
-                    error ?? "Не удалось загрузить карточку заявки.",
-                    "Ошибка загрузки заявки",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
+                SetStatus(error ?? "Не удалось загрузить карточку заявки.", isSuccess: false);
         }
 
         static bool IsPlaceholderRemontName(RemontOption remont)
@@ -502,27 +326,6 @@ namespace SmartRemont.ExportRooms.Views
 
             return string.Equals(name, $"Заявка #{remont.ClientRequestId}", StringComparison.Ordinal);
         }
-        void SetupFeatureButtons()
-        {
-            ConfigureFeatureButton(InitProjectButton, "\uE8C8", InitProjectSubtitle);
-            ConfigureFeatureButton(BindWithoutInitButton, "\uE71B", BindWithoutInitSubtitle);
-            ConfigureFeatureButton(RevitMaterialsButton, "\uE7B8", RevitMaterialsSubtitle);
-            ConfigureFeatureButton(RoomMaterialsButton, "\uE719", RoomMaterialsSubtitle);
-            ConfigureFeatureButton(DsAreaChangeButton, "\uE8A7", DsAreaSubtitle);
-            ConfigureFeatureButton(MeasuresButton, "\uE8B7", MeasuresSubtitle);
-            ConfigureFeatureButton(MeasuresFromCodeButton, "\uE8F1", MeasuresFromCodeSubtitle);
-            ConfigureFeatureButton(MeasuresCompareButton, "\uE8AB", MeasuresCompareSubtitle);
-            ConfigureFeatureButton(TypeParametersButton, "\uE8B9", TypeParametersSubtitle);
-        }
-
-        static void ConfigureFeatureButton(Button button, string iconGlyph, string subtitle)
-        {
-            button.ApplyTemplate();
-            if (button.Template.FindName("FeatureIcon", button) is TextBlock icon)
-                icon.Text = iconGlyph;
-            if (button.Template.FindName("FeatureSubtitle", button) is TextBlock sub)
-                sub.Text = subtitle;
-        }
 
         void BindRemontInfo(RemontOption remont)
         {
@@ -530,13 +333,11 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ClientRequestIdHeroText.Text = "Заявка #—";
                 RemontIdHeroText.Text = string.Empty;
-                RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
-                RemontNameText.Text = string.Empty;
-                RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
-                ClientNameText.Text = "—";
-                ResidentNameText.Text = "—";
-                FlatNumText.Text = "—";
-                PresetNameText.Text = "—";
+                RemontIdHeroText.Visibility = Visibility.Collapsed;
+                ClientNameText.Text = "Клиент не указан";
+                ResidentNameText.Text = "ЖК —";
+                FlatNumText.Text = "кв. —";
+                PresetNameText.Text = "пакет —";
                 UpdateProjectInitializedBadge(null);
                 return;
             }
@@ -548,62 +349,49 @@ namespace SmartRemont.ExportRooms.Views
             if (remont.RemontId is int remontId && remontId > 0)
             {
                 RemontIdHeroText.Text = $"Ремонт #{remontId}";
-                RemontIdHeroText.Visibility = System.Windows.Visibility.Visible;
+                RemontIdHeroText.Visibility = Visibility.Visible;
             }
             else
             {
                 RemontIdHeroText.Text = string.Empty;
-                RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
+                RemontIdHeroText.Visibility = Visibility.Collapsed;
             }
 
-            RemontNameText.Text = string.Empty;
-            RemontNameText.Visibility = System.Windows.Visibility.Collapsed;
-
-            ClientNameText.Text = DisplayOrDash(remont.ClientName);
-            ResidentNameText.Text = DisplayOrDash(remont.ResidentName);
-            FlatNumText.Text = DisplayOrDash(remont.FlatNum);
+            ClientNameText.Text = string.IsNullOrWhiteSpace(remont.ClientName) ? "Клиент не указан" : remont.ClientName.Trim();
+            ResidentNameText.Text = "ЖК " + DisplayOrDash(remont.ResidentName);
+            FlatNumText.Text = "кв. " + DisplayOrDash(remont.FlatNum);
             PresetNameText.Text = DisplayOrDash(string.IsNullOrEmpty(remont.PresetKitName) ? remont.PresetName : remont.PresetKitName);
 
-            bool isProjectApproved = remont.ProjectAccepted == 1;
-            if (isProjectApproved)
-            {
-                ProjectApprovedOverlay.Visibility = System.Windows.Visibility.Visible;
-            }
-            else
-            {
-                ProjectApprovedOverlay.Visibility = System.Windows.Visibility.Collapsed;
-            }
-
             var metadata = ProjectRemontMetadataService.TryRead(_doc);
-            UpdateProjectInitializedBadge(
-                ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc) ? metadata : null);
-            UpdateInitializedProjectPanel(
-                ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc) ? metadata : null);
+            var canUse = ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
+            UpdateProjectInitializedBadge(canUse ? metadata : null);
+            UpdateInitializedProjectPanel(canUse ? metadata : null);
+            RenderProcess();
         }
 
         void UpdateInitializedProjectPanel(ProjectRemontMetadata metadata)
         {
             if (metadata == null || metadata.ClientRequestId <= 0)
             {
-                InitializedProjectPanel.Visibility = System.Windows.Visibility.Collapsed;
+                InitializedProjectPanel.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            InitializedProjectPanel.Visibility = System.Windows.Visibility.Visible;
+            InitializedProjectPanel.Visibility = Visibility.Visible;
             InitializedProjectPathText.Text = string.IsNullOrWhiteSpace(_doc?.PathName)
                 ? "Путь к файлу не сохранён — выполните Save."
-                : _doc.PathName;
+                : Path.GetFileName(_doc.PathName);
+            InitializedProjectPathText.ToolTip = _doc?.PathName;
 
             var initializedAt = metadata.InitializedAt;
             if (!string.IsNullOrWhiteSpace(initializedAt)
                 && DateTime.TryParse(initializedAt, out var parsed))
             {
-                InitializedProjectMetaText.Text =
-                    $"Инициализирован: {parsed.ToLocalTime():dd.MM.yyyy HH:mm} · заявка #{metadata.ClientRequestId}";
+                InitializedProjectMetaText.Text = $"Инициализирован {parsed.ToLocalTime():dd.MM.yyyy HH:mm}";
             }
             else
             {
-                InitializedProjectMetaText.Text = $"Заявка #{metadata.ClientRequestId}";
+                InitializedProjectMetaText.Text = "Привязан к заявке";
             }
 
             ResyncMaterialsButton.IsEnabled = !_initInProgress;
@@ -613,16 +401,13 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (metadata == null || metadata.ClientRequestId <= 0)
             {
-                ProjectInitializedBadge.Visibility = System.Windows.Visibility.Collapsed;
+                ProjectInitializedBadge.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            ProjectInitializedBadge.Visibility = System.Windows.Visibility.Visible;
-            ProjectInitializedBadgeText.Text = $"Проект инициализирован · #{metadata.ClientRequestId}";
+            ProjectInitializedBadge.Visibility = Visibility.Visible;
+            ProjectInitializedBadgeText.Text = $"#{metadata.ClientRequestId}";
         }
-
-        static string BuildSubtitle(RemontOption remont) =>
-            string.IsNullOrWhiteSpace(remont?.Name) ? string.Empty : remont.Name.Trim();
 
         static string DisplayOrDash(string value) =>
             string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
@@ -634,88 +419,20 @@ namespace SmartRemont.ExportRooms.Views
             var isInitialized = ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc);
 
             CloseButton.IsEnabled = !_initInProgress;
-            ApplyHubMenuVisibility(isInitialized);
+            RefreshButton.IsEnabled = !_initInProgress && !_refreshInProgress;
 
-            if (!isInitialized)
-            {
-                ApplyInitFeatureBadge(InitProjectButton, null);
-                InitProjectButton.IsEnabled = !_initInProgress && selectedClientRequestId > 0;
-                BindWithoutInitButton.IsEnabled = !_initInProgress && selectedClientRequestId > 0;
-                return;
-            }
-
-            var metadata = ProjectRemontMetadataService.TryRead(_doc);
-            ApplyInitFeatureBadge(InitProjectButton, metadata?.ClientRequestId);
+            var metadata = isInitialized ? ProjectRemontMetadataService.TryRead(_doc) : null;
+            UpdateProjectInitializedBadge(metadata);
             UpdateInitializedProjectPanel(metadata);
+            RenderProcess();
 
-            if (selectedClientRequestId > 0 && metadata != null && metadata.ClientRequestId != selectedClientRequestId)
+            if (isInitialized && selectedClientRequestId > 0 && metadata != null
+                && metadata.ClientRequestId != selectedClientRequestId)
             {
                 SetStatus(
                     $"Проект привязан к заявке #{metadata.ClientRequestId}. Выбрана заявка #{selectedClientRequestId}.",
                     isSuccess: false);
             }
-        }
-
-        void ApplyHubMenuVisibility(bool isInitialized)
-        {
-            InitProjectButton.Visibility = isInitialized
-                ? System.Windows.Visibility.Collapsed
-                : System.Windows.Visibility.Visible;
-            BindWithoutInitButton.Visibility = !isInitialized && _bindWithoutInitRevealed
-                ? System.Windows.Visibility.Visible
-                : System.Windows.Visibility.Collapsed;
-
-            // После init — все функции доступны через client_request_id (PLUGIN_API.md).
-            // ДС «изменение площади» дополнительно требует remont_id — гейтится внутри окна.
-            var workButtons = new[]
-            {
-                RevitMaterialsButton,
-                RoomMaterialsButton,
-                DsAreaChangeButton,
-                MeasuresButton
-            };
-
-            foreach (var button in workButtons)
-            {
-                button.Visibility = isInitialized
-                    ? System.Windows.Visibility.Visible
-                    : System.Windows.Visibility.Collapsed;
-            }
-
-            FunctionsSectionLabel.Text = isInitialized ? "ФУНКЦИИ" : "ИНИЦИАЛИЗАЦИЯ";
-        }
-
-        static void ApplyInitFeatureBadge(Button button, int? clientRequestId)
-        {
-            button.ApplyTemplate();
-
-            var badge = button.Template.FindName("SentBadge", button) as Border;
-            var badgeText = button.Template.FindName("SentBadgeText", button) as TextBlock;
-            if (badge == null || badgeText == null)
-                return;
-
-            if (clientRequestId == null || clientRequestId <= 0)
-            {
-                badge.Visibility = System.Windows.Visibility.Collapsed;
-                return;
-            }
-
-            badge.Visibility = System.Windows.Visibility.Visible;
-            badgeText.Text = $"Инициализирован #{clientRequestId.Value}";
-            badge.Background = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#DCFCE7"));
-            badge.BorderBrush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#BBF7D0"));
-            badgeText.Foreground = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#166534"));
-        }
-
-        static string ResolveResidentName(RemontOption remont)
-        {
-            if (!string.IsNullOrWhiteSpace(remont?.ResidentName))
-                return remont.ResidentName.Trim();
-
-            if (!string.IsNullOrWhiteSpace(remont?.Name))
-                return remont.Name.Trim();
-
-            return null;
         }
 
         void FunctionsSectionLabel_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -926,9 +643,9 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             _initInProgress = true;
-            InitProjectButton.IsEnabled = false;
             CloseButton.IsEnabled = false;
             ResyncMaterialsButton.IsEnabled = false;
+            RenderProcess();
             BeginInitProgress("Подготовка к инициализации...", indeterminate: true);
 
             var progress = new Progress<ProjectInitProgress>(UpdateInitProgress);
@@ -1126,6 +843,7 @@ namespace SmartRemont.ExportRooms.Views
             _initInProgress = true;
             ResyncMaterialsButton.IsEnabled = false;
             CloseButton.IsEnabled = false;
+            RenderProcess();
             BeginInitProgress("Re-sync материалов...", indeterminate: true);
 
             var progress = new Progress<ProjectInitProgress>(UpdateInitProgress);
@@ -1209,14 +927,12 @@ namespace SmartRemont.ExportRooms.Views
             summaryWindow.Owner = this;
             summaryWindow.ShowDialog();
 
+            // Статусы перечитываем всегда: этап мог измениться, даже если окно закрыли без отправки.
+            if (ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
+                await FetchAsyncStates().ConfigureAwait(true);
+
             if (summaryWindow.DialogResult == true)
-            {
                 SetStatus(summaryWindow.LastSuccessMessage ?? "Площади отправлены", isSuccess: true);
-                if (ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
-                {
-                    await FetchAsyncStates().ConfigureAwait(true);
-                }
-            }
         }
 
         void SetStatus(string message, bool isSuccess)
@@ -1241,14 +957,11 @@ namespace SmartRemont.ExportRooms.Views
             window.Owner = this;
             window.ShowDialog();
 
+            if (ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
+                await FetchAsyncStates().ConfigureAwait(true);
+
             if (window.DialogResult == true)
-            {
                 SetStatus(window.LastSuccessMessage ?? "Замеры отправлены", isSuccess: true);
-                if (ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
-                {
-                    await FetchAsyncStates().ConfigureAwait(true);
-                }
-            }
         }
 
         void MeasuresFromCodeButton_Click(object sender, RoutedEventArgs e)
@@ -1268,11 +981,14 @@ namespace SmartRemont.ExportRooms.Views
             window.ShowDialog();
         }
 
-        void RoomMaterialsButton_Click(object sender, RoutedEventArgs e)
+        async void RoomMaterialsButton_Click(object sender, RoutedEventArgs e)
         {
             var window = new DsTkChangeWindow(_doc);
             window.Owner = this;
             window.ShowDialog();
+
+            if (ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc))
+                await FetchAsyncStates().ConfigureAwait(true);
         }
 
         async void RevitMaterialsButton_Click(object sender, RoutedEventArgs e)

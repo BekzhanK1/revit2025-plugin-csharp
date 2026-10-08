@@ -319,6 +319,9 @@ namespace SmartRemont.ExportRooms.Services
             var snapshot = new DsRoomChangeSnapshot();
             var body = parsed.Data;
             var wallHeight = ResolveWallHeight(body);
+            // Номер и статус ДС нужны хабу и тогда, когда в ДС ещё нет помещений (пустой черновик).
+            snapshot.DsId = parsed.DsId ?? body?.DsInfo?.DsId;
+            snapshot.Header = parsed.Header ?? body?.Header;
 
             if (parsed.DsId == null && (body?.Rooms == null || body.Rooms.Count == 0) && wallHeight == null)
             {
