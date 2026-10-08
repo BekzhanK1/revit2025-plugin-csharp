@@ -243,15 +243,32 @@
                         </RadioButton>
                     </StackPanel>
                 </Border>
-                <CheckBox x:Name="ProblemsOnlyCheckBox"
-                          Content="Только проблемы"
-                          ToolTip="Нет в модели, лишнее в модели и объёмы, которые не уйдут в ДС"
-                          IsChecked="True"
-                          HorizontalAlignment="Right"
-                          VerticalAlignment="Center"
-                          Visibility="Collapsed"
-                          Checked="ProblemsOnlyCheckBox_Changed"
-                          Unchecked="ProblemsOnlyCheckBox_Changed"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <CheckBox x:Name="ProblemsOnlyCheckBox"
+                              Content="Только проблемы"
+                              ToolTip="Нет в модели, лишнее в модели и объёмы, которые не уйдут в ДС"
+                              IsChecked="True"
+                              VerticalAlignment="Center"
+                              Margin="0,0,12,0"
+                              Visibility="Collapsed"
+                              Checked="ProblemsOnlyCheckBox_Changed"
+                              Unchecked="ProblemsOnlyCheckBox_Changed"/>
+                    <!-- Выгрузки для разбора: таблица сверки с расчётом и все ведомости модели как есть -->
+                    <Button Style="{StaticResource GhostButton}"
+                            Padding="10,0"
+                            ToolTip="Скачать таблицу сверки (JSON)"
+                            Click="ExportJsonButton_Click">
+                        <TextBlock Text="&#xE896;" Style="{StaticResource IconGlyph}" FontSize="15"/>
+                    </Button>
+                    <Button Style="{StaticResource GhostButton}"
+                            Padding="10,0"
+                            ToolTip="Скачать спецификации (JSON)"
+                            Click="DownloadSchedulesButton_Click">
+                        <TextBlock Text="&#xE8A5;" Style="{StaticResource IconGlyph}" FontSize="15"/>
+                    </Button>
+                </StackPanel>
             </Grid>
 
             <Grid Grid.Row="3">

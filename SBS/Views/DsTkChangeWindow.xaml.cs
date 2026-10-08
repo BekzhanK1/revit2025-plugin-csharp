@@ -185,7 +185,7 @@ namespace SmartRemont.ExportRooms.Views
 
             var dlg = new SaveFileDialog
             {
-                Title = "Сохранить JSON сверки ДС ТК",
+                Title = "Сохранить таблицу сверки ДС ТК",
                 Filter = "JSON (*.json)|*.json",
                 FileName = $"ds_tk_compare_{_clientRequestId}_{DateTime.Now:yyyyMMdd_HHmmss}.json",
                 DefaultExt = ".json",
@@ -204,6 +204,34 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK JSON export failed");
                 StatusText.Text = "Не удалось сохранить JSON: " + ex.Message;
+            }
+        }
+
+        void DownloadSchedulesButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new SaveFileDialog
+            {
+                Title = "Сохранить спецификации модели",
+                Filter = "JSON (*.json)|*.json",
+                FileName = $"schedules_{_clientRequestId}_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+                DefaultExt = ".json",
+                AddExtension = true
+            };
+
+            if (dlg.ShowDialog(this) != true)
+                return;
+
+            try
+            {
+                var dump = ScheduleDumpService.Build(_doc);
+                dump["client_request_id"] = _clientRequestId;
+                File.WriteAllText(dlg.FileName, dump.ToString(Formatting.Indented));
+                StatusText.Text = $"Спецификации сохранены ({dump["schedule_count"]}): {dlg.FileName}";
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "DS TK schedules export failed");
+                StatusText.Text = "Не удалось сохранить спецификации: " + ex.Message;
             }
         }
 
@@ -285,6 +313,31 @@ namespace SmartRemont.ExportRooms.Views
 
             root["rooms"] = rooms;
             root["tk"] = BuildExportTk(_tkFlattened ?? _tkSnapshot);
+
+            // Расчёт ДС ТК по строкам и что плагин прочитал из ведомостей — чтобы разобрать «почему так».
+            if (_target != null)
+                root["target"] = DsTkTargetService.BuildDebugJson(_target);
+            if (_scheduleQty != null)
+            {
+                root["schedule_lines"] = new JArray(_scheduleQty.Lines.Select(l => new JObject
+                {
+                    ["source"] = l.SourceCode,
+                    ["schedule"] = l.ScheduleName,
+                    ["room_name"] = l.RoomName,
+                    ["material_id"] = l.MaterialId,
+                    ["material_name"] = l.MaterialName,
+                    ["qty"] = l.Quantity,
+                    ["unit"] = l.Unit
+                }));
+                root["schedule_rows_without_id"] = new JArray(_scheduleQty.SkippedRows.Select(r => new JObject
+                {
+                    ["source"] = r.SourceCode,
+                    ["schedule"] = r.ScheduleName,
+                    ["room_name"] = r.RoomName,
+                    ["text"] = r.Text,
+                    ["qty"] = r.Quantity
+                }));
+            }
             return root;
         }
 
