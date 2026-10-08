@@ -21,11 +21,20 @@ namespace SmartRemont.ExportRooms.Views
         public double? CurrentValue { get; set; }
         public string SourceHint { get; set; }
 
-        public string param_value_display => Format(param_value);
+        /// <summary>
+        /// Отправить 0: в системе пусто, в Revit пусто, но ведомость найдена — значит, в комнате
+        /// этого действительно нет. Без этого MySpace не считает замеры подтверждёнными.
+        /// </summary>
+        public bool ZeroFill { get; set; }
+
+        /// <summary>Что уйдёт в систему: значение из Revit или 0 для ZeroFill.</summary>
+        public double? OutgoingValue => param_value ?? (ZeroFill ? 0d : null);
+
+        public string param_value_display => Format(OutgoingValue);
         public string CurrentValueDisplay => Format(CurrentValue);
 
-        public bool WillSend => param_value.HasValue &&
-            (!CurrentValue.HasValue || Math.Abs(param_value.Value - CurrentValue.Value) > 0.001);
+        public bool WillSend => ZeroFill || (param_value.HasValue &&
+            (!CurrentValue.HasValue || Math.Abs(param_value.Value - CurrentValue.Value) > 0.001));
 
         public bool IsMatch => param_value.HasValue && CurrentValue.HasValue &&
             Math.Abs(param_value.Value - CurrentValue.Value) <= 0.001;
@@ -34,6 +43,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             get
             {
+                if (ZeroFill) return "0 — нет в Revit";
                 if (!param_value.HasValue && !CurrentValue.HasValue) return "—";
                 if (!param_value.HasValue) return "нет в Revit";
                 if (!CurrentValue.HasValue) return "новое";
@@ -86,6 +96,8 @@ namespace SmartRemont.ExportRooms.Views
         RoomMeasurementsSnapshot _snapshot;
         Dictionary<string, int> _roomIdsByKey = new();
         Dictionary<string, MeasureRoomInfoDto> _backendRoomsByKey = new();
+        // Комнаты, которые есть только в системе (в модели их нет) — им 0 не отправляем.
+        HashSet<string> _systemOnlyRoomKeys = new(StringComparer.OrdinalIgnoreCase);
         List<RoomMeasuresRoomVm> _roomVms = new();
 
         public string LastSuccessMessage { get; private set; }
@@ -133,6 +145,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void MergeMissingSystemRooms()
         {
+            _systemOnlyRoomKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (_backendRoomsByKey == null || _backendRoomsByKey.Count == 0)
                 return;
 
@@ -145,6 +158,7 @@ namespace SmartRemont.ExportRooms.Views
                 if (!existing.Add(kvp.Key))
                     continue;
 
+                _systemOnlyRoomKeys.Add(kvp.Key);
                 _snapshot.Rooms.Add(new RoomMeasurementsRoomRow
                 {
                     RoomName = kvp.Key,
@@ -175,7 +189,7 @@ namespace SmartRemont.ExportRooms.Views
         void UpdateSendButtonState()
         {
             var remont = ExportRoomsApplication.SelectedRemont;
-            var hasValues = HasAnyParamValues(_snapshot);
+            var hasValues = HasAnythingToSend();
             SendButton.IsEnabled = (remont?.ClientRequestId ?? 0) > 0 && hasValues;
 
             if ((remont?.ClientRequestId ?? 0) <= 0)
@@ -209,10 +223,25 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        static bool HasAnyParamValues(RoomMeasurementsSnapshot snapshot) =>
-            snapshot?.Rooms?.Any(r =>
-                r.Parameters != null &&
-                r.Parameters.Any(p => p.param_value.HasValue)) == true;
+        bool HasAnythingToSend() =>
+            _roomVms?.Any(r => r.Parameters != null && r.Parameters.Any(p => p.OutgoingValue.HasValue)) == true;
+
+        /// <summary>Комнаты для отправки: значения Revit плюс 0 там, где ZeroFill.</summary>
+        List<RoomMeasurementsRoomRow> BuildRoomsToSend() =>
+            _roomVms
+                .Select(r => new RoomMeasurementsRoomRow
+                {
+                    RoomName = r.RoomName,
+                    Parameters = r.Parameters
+                        .Select(p => new RoomMeasurementParamItem
+                        {
+                            param_code = p.param_code,
+                            param_name = p.param_name,
+                            param_value = p.OutgoingValue
+                        })
+                        .ToList()
+                })
+                .ToList();
 
         async void SendButton_Click(object sender, RoutedEventArgs e) =>
             await SendMeasuresAsync();
@@ -233,7 +262,7 @@ namespace SmartRemont.ExportRooms.Views
             try
             {
                 var result = await MeasuresService
-                    .ApplyAsync(remont.ClientRequestId, _snapshot.Rooms, _roomIdsByKey)
+                    .ApplyAsync(remont.ClientRequestId, BuildRoomsToSend(), _roomIdsByKey)
                     .ConfigureAwait(true);
 
                 SetStatus(
@@ -265,7 +294,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void SetBusy(bool isBusy)
         {
-            var hasValues = HasAnyParamValues(_snapshot);
+            var hasValues = HasAnythingToSend();
             SendButton.IsEnabled = !isBusy &&
                 (ExportRoomsApplication.SelectedRemont?.ClientRequestId ?? 0) > 0 &&
                 hasValues;
@@ -285,6 +314,7 @@ namespace SmartRemont.ExportRooms.Views
         {
             var baseName = RoomNameMatcher.GetBaseName(r.RoomName);
             _backendRoomsByKey.TryGetValue(baseName, out var backendRoom);
+            var inRevit = !_systemOnlyRoomKeys.Contains(baseName);
             var currentParams = backendRoom?.CurrentParameters;
             var sourcesByCode = (_snapshot?.Sources ?? new List<RoomMeasurementSourceInfo>())
                 .GroupBy(s => s.param_code, StringComparer.OrdinalIgnoreCase)
@@ -311,13 +341,22 @@ namespace SmartRemont.ExportRooms.Views
                                 ? $"из «{source.schedule_name_found}»"
                                 : $"ведомость «{source.schedule_name_expected}» не найдена";
 
+                        // 0 только в параметр, который у комнаты в системе есть и пуст: иначе
+                        // бэкенд отклонит всю отправку («Параметр недоступен для этой комнаты»).
+                        var zeroFill = inRevit
+                                       && !p.param_value.HasValue
+                                       && source?.Found == true
+                                       && currentParam != null
+                                       && string.IsNullOrWhiteSpace(currentParam.ParamValue);
+
                         return new RoomMeasurementParamVm
                         {
                             param_code = p.param_code,
                             param_name = p.param_name,
                             param_value = p.param_value,
                             CurrentValue = currentVal,
-                            SourceHint = sourceHint
+                            SourceHint = sourceHint,
+                            ZeroFill = zeroFill
                         };
                     })
                     .ToList()
@@ -329,12 +368,18 @@ namespace SmartRemont.ExportRooms.Views
             var items = new List<MeasurePreviewItemVm>();
             foreach (var room in _roomVms)
             {
-                foreach (var p in room.Parameters.Where(x => x.param_value.HasValue || x.CurrentValue.HasValue))
+                foreach (var p in room.Parameters.Where(x => x.OutgoingValue.HasValue || x.CurrentValue.HasValue))
                 {
                     string action;
                     string bg;
                     string fg;
-                    if (p.WillSend && !p.CurrentValue.HasValue)
+                    if (p.ZeroFill)
+                    {
+                        action = "0 → система (нет в Revit)";
+                        bg = "#FEF3C7";
+                        fg = "#B45309";
+                    }
+                    else if (p.WillSend && !p.CurrentValue.HasValue)
                     {
                         action = "новое → система";
                         bg = "#DBEAFE";
@@ -377,16 +422,18 @@ namespace SmartRemont.ExportRooms.Views
             PreviewItemsControl.ItemsSource = items
                 .OrderBy(i => i.ActionLabel.StartsWith("обновит") ? 0
                     : i.ActionLabel.StartsWith("новое") ? 1
-                    : i.ActionLabel.StartsWith("без") ? 2 : 3)
+                    : i.ActionLabel.StartsWith("0 →") ? 2
+                    : i.ActionLabel.StartsWith("без") ? 3 : 4)
                 .ThenBy(i => i.RoomName)
                 .ThenBy(i => i.ParamName)
                 .ToList();
 
             var sendCount = items.Count(i =>
                 i.ActionLabel.Contains("обновит", StringComparison.Ordinal) ||
-                i.ActionLabel.Contains("новое", StringComparison.Ordinal));
+                i.ActionLabel.Contains("новое", StringComparison.Ordinal) ||
+                i.ActionLabel.StartsWith("0 →", StringComparison.Ordinal));
             PreviewSummaryText.Text = sendCount > 0
-                ? $"В систему уйдёт {sendCount} значений (новые или отличающиеся). Остальные строки — для справки."
+                ? $"В систему уйдёт {sendCount} значений (новые, отличающиеся и 0 там, где в системе и в Revit пусто). Остальные строки — для справки."
                 : "Сейчас нечего менять в системе: либо Revit совпадает с системой, либо в ведомостях нет значений.";
         }
 
