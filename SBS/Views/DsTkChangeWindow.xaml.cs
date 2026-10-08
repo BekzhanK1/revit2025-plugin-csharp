@@ -545,14 +545,13 @@ namespace SmartRemont.ExportRooms.Views
             var blockedCauses = GroupByReason(_target.Blocked);
             if (blockedCauses.Count > 0)
             {
+                var places = blockedCauses.Sum(c => Math.Max(1, c.Lines.Count));
                 groups.Add(new WarningGroupVm
                 {
                     IsBlocking = true,
-                    IssueCount = blockedCauses.Count,
-                    Title = $"Исправьте модель: {blockedCauses.Count} "
-                            + Plural(blockedCauses.Count, "проблема", "проблемы", "проблем")
-                            + $" ({_target.Blocked.Count} поз.)",
-                    Hint = "Отправка остановлена. Исправьте в Revit и нажмите «Обновить».",
+                    IssueCount = places,
+                    Title = "Чтобы отправить, исправьте",
+                    Hint = $"Ждут исправления {_target.Blocked.Count} поз. После правок в Revit нажмите «Обновить».",
                     Items = LimitItems(blockedCauses)
                 });
             }
@@ -563,8 +562,8 @@ namespace SmartRemont.ExportRooms.Views
                 groups.Add(new WarningGroupVm
                 {
                     IssueCount = skippedCauses.Count,
-                    Title = $"Не уйдёт из модели: {_target.Skipped.Count} поз.",
-                    Hint = "Объём правится вручную в MySpace. Отправку остальных не останавливает.",
+                    Title = "Поправьте вручную в MySpace",
+                    Hint = $"Эти {_target.Skipped.Count} поз. из модели не уйдут. Отправку остальных не останавливают.",
                     Items = LimitItems(skippedCauses)
                 });
             }
@@ -582,8 +581,8 @@ namespace SmartRemont.ExportRooms.Views
                 groups.Add(new WarningGroupVm
                 {
                     IssueCount = extra.Count,
-                    Title = $"В модели есть, в ТК нет: {extra.Count}",
-                    Hint = "Замените или добавьте материал в MySpace — или уберите его из модели. Отправку не останавливает.",
+                    Title = "Материалы модели, которых нет в ТК",
+                    Hint = "Добавьте или замените материал в MySpace либо уберите его из модели. Отправку не останавливают.",
                     Items = LimitItems(extra)
                 });
             }
@@ -602,8 +601,8 @@ namespace SmartRemont.ExportRooms.Views
                 groups.Add(new WarningGroupVm
                 {
                     IssueCount = unassigned.Count,
-                    Title = $"Строки ведомостей без помещения: {unassigned.Count}",
-                    Hint = "Их объём никуда не попал. Укажите помещение в Revit.",
+                    Title = "Укажите помещение у строк ведомостей",
+                    Hint = "Их объём никуда не попал. Отправку не останавливают.",
                     Items = LimitItems(unassigned)
                 });
             }
@@ -611,24 +610,52 @@ namespace SmartRemont.ExportRooms.Views
             return groups;
         }
 
-        /// <summary>Одна причина + одни и те же строки модели — один пункт со списком затронутых позиций.</summary>
+        /// <summary>
+        /// Один пункт списка дел на причину. Заголовок — что сделать (часть причины после «—»),
+        /// ниже — в чём проблема, под ним по строке на каждое место: что в модели, что в ДС, комнаты.
+        /// </summary>
         static List<WarningItemVm> GroupByReason(IEnumerable<DsTkTargetPosition> positions) =>
             positions
-                .GroupBy(p => (p.Reason ?? "—", p.ReasonDetail ?? string.Empty))
+                .GroupBy(p => p.Reason ?? "—")
                 .Select(g =>
                 {
-                    var item = new WarningItemVm { Text = Capitalize(g.Key.Item1) };
-                    if (!string.IsNullOrWhiteSpace(g.Key.Item2))
-                        item.Lines.Add(Capitalize(g.Key.Item2));
+                    var (problem, action) = SplitReason(g.Key);
+                    var item = new WarningItemVm
+                    {
+                        Text = Capitalize(action ?? problem),
+                        Problem = action == null ? null : Capitalize(problem)
+                    };
 
-                    var materials = g.Select(p => StripId(p.MaterialName)).Distinct().ToList();
-                    var rooms = JoinRooms(g.Select(p => p.RoomName));
-                    item.Lines.Add(materials.Count == 1
-                        ? $"В ДС: {materials[0]} — {rooms}"
-                        : $"Затронуто {g.Count()} поз.: {rooms}");
+                    foreach (var place in g.GroupBy(p => p.ReasonDetail ?? string.Empty))
+                    {
+                        var parts = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(place.Key))
+                            parts.Add(Capitalize(place.Key.Replace("\n", "; ").Trim()));
+
+                        var materials = place.Select(p => StripId(p.MaterialName)).Distinct().ToList();
+                        if (materials.Count == 1)
+                            parts.Add("в ДС: " + materials[0]);
+
+                        parts.Add(JoinRooms(place.Select(p => p.RoomName)));
+                        item.Lines.Add(string.Join(" · ", parts));
+                    }
+
                     return item;
                 })
                 .ToList();
+
+        /// <summary>«Проблема — что сделать» → (проблема, действие); без «—» действие null.</summary>
+        static (string Problem, string Action) SplitReason(string reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+                return ("—", null);
+
+            var index = reason.LastIndexOf(" — ", StringComparison.Ordinal);
+            if (index <= 0 || index + 3 >= reason.Length)
+                return (reason.Trim(), null);
+
+            return (reason.Substring(0, index).Trim(), reason.Substring(index + 3).Trim());
+        }
 
         static List<WarningItemVm> LimitItems(List<WarningItemVm> items)
         {
@@ -1287,8 +1314,9 @@ namespace SmartRemont.ExportRooms.Views
                 var causes = GroupByReason(_target.Blocked);
                 if (brief)
                 {
-                    return $"Отправка недоступна: {causes.Count} {Plural(causes.Count, "проблема", "проблемы", "проблем")} "
-                           + $"в модели ({_target.Blocked.Count} поз.) — вкладка «Исправить».";
+                    var places = causes.Sum(c => Math.Max(1, c.Lines.Count));
+                    return $"Отправка недоступна: исправьте {places} {Plural(places, "пункт", "пункта", "пунктов")} "
+                           + "на вкладке «Исправить».";
                 }
                 return "Есть позиции, которые нельзя посчитать по модели. Исправьте модель и нажмите «Обновить»:\n\n"
                        + string.Join("\n", causes.Take(10).Select(c =>
@@ -1457,7 +1485,10 @@ namespace SmartRemont.ExportRooms.Views
 
         sealed class WarningItemVm
         {
+            /// <summary>Что сделать — жирная строка пункта.</summary>
             public string Text { get; init; }
+            /// <summary>В чём проблема — серым под ним; null — не показываем.</summary>
+            public string Problem { get; init; }
             public List<string> Lines { get; } = new();
         }
 
