@@ -49,7 +49,8 @@ namespace SmartRemont.ExportRooms.Services
                 return null;
             }
 
-            ExportRoomsApplication._logger?.Information(
+            // Debug: TryRead вызывается по несколько раз на каждое обновление хаба.
+            ExportRoomsApplication._logger?.Debug(
                 "Project remont metadata read: remont_id={RemontId}, client_request_id={ClientRequestId}, initialized_at={InitializedAt}, plugin_version={PluginVersion}",
                 metadata.RemontId,
                 metadata.ClientRequestId,

@@ -23,8 +23,95 @@ namespace SmartRemont.ExportRooms.Views
             PluginVersionTextBlock.Text = _pluginVersion;
             LoginHeaderVersionTextBlock.Text = _pluginVersion;
             Title = AppBranding.FormatLoginTitle(_pluginVersion);
+            RefreshApiOverrideIndicator();
 
             Loaded += AuthLoginWindow_Loaded;
+        }
+
+        // Секретная панель адреса API: 5 кликов по чипу версии за 3 секунды.
+        const int DevPanelClickCount = 5;
+        static readonly TimeSpan DevPanelClickWindow = TimeSpan.FromSeconds(3);
+        readonly System.Collections.Generic.List<DateTime> _versionChipClicks = new();
+
+        void VersionChip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            var now = DateTime.UtcNow;
+            _versionChipClicks.RemoveAll(t => now - t > DevPanelClickWindow);
+            _versionChipClicks.Add(now);
+            if (_versionChipClicks.Count < DevPanelClickCount)
+                return;
+
+            _versionChipClicks.Clear();
+            ShowDevApiPanel();
+        }
+
+        void ShowDevApiPanel()
+        {
+            VersionCheckPanel.Visibility = Visibility.Collapsed;
+            LoginPanel.Visibility = Visibility.Collapsed;
+            DevApiPanel.Visibility = Visibility.Visible;
+            DevApiErrorBorder.Visibility = Visibility.Collapsed;
+
+            var source = Configs.ApiOriginOverride != null ? "задан здесь" : "из app.config";
+            DevApiCurrentTextBlock.Text = $"Сейчас: {Configs.ApiOriginUrl} ({source}). Действует сразу и сохраняется до сброса.";
+            DevApiUrlTextBox.Text = Configs.ApiOriginUrl;
+            DevApiUrlTextBox.Focus();
+            DevApiUrlTextBox.SelectAll();
+        }
+
+        void DevApiPreset_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.Tag is string url)
+                DevApiUrlTextBox.Text = url;
+        }
+
+        async void DevApiSave_Click(object sender, RoutedEventArgs e) =>
+            await ApplyApiOriginAsync(DevApiUrlTextBox.Text).ConfigureAwait(true);
+
+        async void DevApiReset_Click(object sender, RoutedEventArgs e) =>
+            await ApplyApiOriginAsync(null).ConfigureAwait(true);
+
+        void DevApiBack_Click(object sender, RoutedEventArgs e)
+        {
+            DevApiPanel.Visibility = Visibility.Collapsed;
+            if (_versionCheckPassed)
+            {
+                LoginPanel.Visibility = Visibility.Visible;
+                LoginPanel.Opacity = 1;
+            }
+            else
+            {
+                VersionCheckPanel.Visibility = Visibility.Visible;
+            }
+        }
+
+        async Task ApplyApiOriginAsync(string url)
+        {
+            try
+            {
+                Configs.SetApiOriginOverride(url);
+            }
+            catch (ArgumentException ex)
+            {
+                DevApiErrorTextBlock.Text = ex.Message;
+                DevApiErrorBorder.Visibility = Visibility.Visible;
+                return;
+            }
+
+            // Токены прошлого окружения не должны уйти на новый адрес.
+            AuthService.Logout();
+            RefreshApiOverrideIndicator();
+            WindowLayoutHelper.ApplyEnvironmentBranding(this);
+
+            DevApiPanel.Visibility = Visibility.Collapsed;
+            await RunVersionCheckAsync().ConfigureAwait(true);
+        }
+
+        void RefreshApiOverrideIndicator()
+        {
+            var overrideUrl = Configs.ApiOriginOverride;
+            ApiOverrideTextBlock.Text = overrideUrl == null ? string.Empty : $"API: {overrideUrl} (задан вручную)";
+            ApiOverrideTextBlock.Visibility = overrideUrl == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
         async void AuthLoginWindow_Loaded(object sender, RoutedEventArgs e)
@@ -62,6 +149,7 @@ namespace SmartRemont.ExportRooms.Views
         async Task RunVersionCheckAsync()
         {
             _versionCheckPassed = false;
+            DevApiPanel.Visibility = Visibility.Collapsed;
             VersionCheckPanel.Visibility = Visibility.Visible;
             LoginPanel.Visibility = Visibility.Collapsed;
             LoginPanel.Opacity = 0;

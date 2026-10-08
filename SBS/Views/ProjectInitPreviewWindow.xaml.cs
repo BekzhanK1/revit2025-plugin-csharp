@@ -77,7 +77,9 @@ namespace SmartRemont.ExportRooms.Views
 
             {
 
-                OverwriteWarningTextBlock.Text = "Файл уже существует и будет перезаписан.";
+                OverwriteWarningTextBlock.Text =
+                    "Файл уже существует. Он не удаляется: перед созданием нового проекта "
+                    + "старый файл переименуется в резервную копию (.backup-дата.rvt) в той же папке.";
 
                 OverwriteWarningTextBlock.Visibility = System.Windows.Visibility.Visible;
 
@@ -157,7 +159,13 @@ namespace SmartRemont.ExportRooms.Views
 
             Loaded += async (_, _) => await RunPreflightAsync().ConfigureAwait(true);
 
-            Closed += (_, _) => _preflightCts.Cancel();
+            Closed += (_, _) =>
+            {
+                _preflightCts.Cancel();
+                // Init не подтвердили — фоновое скачивание больше не нужно.
+                if (DialogResult != true)
+                    RevitMaterialsSyncOrchestrator.CancelBackgroundPreDownload();
+            };
 
         }
 

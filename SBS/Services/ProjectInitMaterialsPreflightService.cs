@@ -29,7 +29,7 @@ namespace SmartRemont.ExportRooms.Services
             RevitMaterialsSyncOrchestrator.CountSyncableMaterials(materials);
 
         public static string BuildZeroSyncableMessage() =>
-            "Нет материалов для загрузки в Revit: все позиции помечены как no_model/none или у RFA нет файла на сервере. "
+            "Нет материалов для загрузки в Revit: в ТК заявки нет позиций с моделью — все помечены как no_model/none или у RFA нет файла на сервере. "
             + "Инициализация возможна только когда есть 3D (RFA) или surface с URL.";
 
         public static async Task<ProjectInitPreflightResult> RunAsync(
@@ -82,16 +82,24 @@ namespace SmartRemont.ExportRooms.Services
             // Индекс SR_ID строится ОДИН раз на весь preflight, а не на каждый материал —
             // BuildSrIdIndex сканирует весь документ (FamilySymbol/ElementType/Material),
             // повтор на N материалов давал N полных сканов и заметный лаг открытия preview.
-            var srIdIndex = doc != null
+            // При init из превью (ignoreHostProject) открытый проект не важен — проект создаётся
+            // из шаблона, поэтому полный скан текущего документа не нужен.
+            var srIdIndex = doc != null && !ignoreHostProject
                 ? RevitMaterialPresenceService.BuildSrIdIndex(doc)
                 : new Dictionary<int, string>();
 
+            var checkedCount = 0;
             foreach (var row in rfaRows)
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var materialId = row.MaterialId!.Value;
                 var label = string.IsNullOrWhiteSpace(row.MaterialName) ? $"#{materialId}" : row.MaterialName.Trim();
-                progress?.Report($"Проверка SR_ID: {label}");
+                checkedCount++;
+                progress?.Report($"Проверка SR_ID {checkedCount} из {rfaRows.Count}: {label}");
+
+                // Открытие RFA в Revit синхронное и долгое — между файлами даём окну
+                // перерисоваться и закрыться (иначе превью «висит» всю проверку).
+                await UiYield.ToUiAsync().ConfigureAwait(true);
+                cancellationToken.ThrowIfCancellationRequested();
 
                 if (!ignoreHostProject
                     && doc != null
@@ -185,6 +193,8 @@ namespace SmartRemont.ExportRooms.Services
                     if (surfaceIdsToValidate.Count > 0 && doc != null)
                     {
                         progress?.Report("Проверка SR_ID в surfaces.rvt…");
+                        await UiYield.ToUiAsync().ConfigureAwait(true);
+                        cancellationToken.ThrowIfCancellationRequested();
                         var validation = RevitSurfaceImportService.ValidateMaterialsInLibrary(
                             doc.Application,
                             surfacesPath,

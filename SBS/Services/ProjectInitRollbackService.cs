@@ -28,6 +28,71 @@ namespace SmartRemont.ExportRooms.Services
             return deletedMain;
         }
 
+        /// <summary>
+        /// Переименовывает существующий файл проекта в «имя.backup-yyyyMMdd-HHmmss.rvt» рядом с ним,
+        /// чтобы init не затёр рабочий проект. Возвращает путь копии или null + текст ошибки.
+        /// </summary>
+        public static string TryBackupExistingFile(string targetPath, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
+                return null;
+
+            var directory = Path.GetDirectoryName(targetPath) ?? string.Empty;
+            var baseName = Path.GetFileNameWithoutExtension(targetPath);
+            var extension = Path.GetExtension(targetPath);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var backupPath = Path.Combine(directory, $"{baseName}.backup-{stamp}{extension}");
+            for (var i = 2; File.Exists(backupPath); i++)
+                backupPath = Path.Combine(directory, $"{baseName}.backup-{stamp}-{i}{extension}");
+
+            try
+            {
+                var attributes = File.GetAttributes(targetPath);
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(targetPath, attributes & ~FileAttributes.ReadOnly);
+
+                File.Move(targetPath, backupPath);
+                ExportRoomsApplication._logger?.Information(
+                    "Project init: existing project backed up {Target} -> {Backup}",
+                    targetPath,
+                    backupPath);
+                return backupPath;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project init: could not back up {Path}", targetPath);
+                error = "Файл проекта уже существует и занят (возможно, открыт в другом Revit): "
+                        + targetPath + ". Закройте его и повторите. " + ex.Message;
+                return null;
+            }
+        }
+
+        /// <summary>Возвращает резервную копию на место, если нового файла там нет.</summary>
+        public static bool TryRestoreBackup(string backupPath, string targetPath)
+        {
+            if (string.IsNullOrWhiteSpace(backupPath) || !File.Exists(backupPath)
+                || string.IsNullOrWhiteSpace(targetPath) || File.Exists(targetPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                File.Move(backupPath, targetPath);
+                ExportRoomsApplication._logger?.Information(
+                    "Project init rollback: restored {Backup} -> {Target}",
+                    backupPath,
+                    targetPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project init rollback: could not restore {Backup}", backupPath);
+                return false;
+            }
+        }
+
         public static void CleanupVersionBackups(string targetPath)
         {
             if (string.IsNullOrWhiteSpace(targetPath))

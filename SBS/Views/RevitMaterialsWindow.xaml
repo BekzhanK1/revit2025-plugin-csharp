@@ -168,6 +168,55 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Подбор / наличие" Width="1.5*" MinWidth="180">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="9,2" CornerRadius="10" BorderThickness="1" HorizontalAlignment="Left"
+                                                ToolTip="{Binding TkFlagDisplay}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="BorderBrush" Value="Transparent"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding TkFlagTone}" Value="Mute">
+                                                            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TkFlagTone}" Value="Warn">
+                                                            <Setter Property="Background" Value="{StaticResource WarningSoftBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="{StaticResource WarningBorderBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding TkFlagTone}" Value="Bad">
+                                                            <Setter Property="Background" Value="{StaticResource ErrorBackgroundBrush}"/>
+                                                            <Setter Property="BorderBrush" Value="{StaticResource ErrorBorderBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding TkFlagDisplay}" TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                                        <Setter Property="FontSize" Value="11"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding TkFlagTone}" Value="Mute">
+                                                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding TkFlagTone}" Value="Warn">
+                                                                <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding TkFlagTone}" Value="Bad">
+                                                                <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Детали" Binding="{Binding DetailDisplay}" Width="2*" MinWidth="220">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">

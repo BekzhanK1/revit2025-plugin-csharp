@@ -10,7 +10,6 @@
     <EnableDefaultItems>false</EnableDefaultItems>
     <Nullable>disable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <RevitAddinDeployDir>C:\ProgramData\Autodesk\Revit\Addins\2025\SmartRemont.ExportSpecifications\</RevitAddinDeployDir>
     <DeployToRevit Condition="'$(DeployToRevit)' == ''">false</DeployToRevit>
   </PropertyGroup>
 
@@ -19,16 +18,8 @@
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="RevitAPI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="RevitAPIUI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
+  <!-- Revit API 2025 (установленный Revit или NuGet) и годы деплоя — см. build/RevitApi.props. -->
+  <Import Project="..\build\RevitApi.props" />
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -59,19 +50,24 @@
     <Resource Include="Resources\logo.png" />
   </ItemGroup>
 
+  <!-- Раскладывает add-in в Addins\<год>\ для каждого года из RevitDeployYears (по умолчанию 2025 и 2027). -->
   <Target Name="DeployToRevitAddins" AfterTargets="Build" Condition="'$(DeployToRevit)' == 'true'">
-    <MakeDir Directories="$(RevitAddinDeployDir)" />
-    <MakeDir Directories="$(RevitAddinDeployDir)Resources\" />
     <ItemGroup>
       <_DeployFiles Include="$(TargetDir)*.dll" />
       <_DeployResourceFiles Include="Resources\*.png" />
+      <_AddinManifest Include="$(MSBuildProjectDirectory)\..\deploy\SmartRemont.ExportSpecifications.addin" />
     </ItemGroup>
+    <MakeDir Directories="$(RevitAddinsRoot)%(RevitDeployYear.Identity)\SmartRemont.ExportSpecifications\Resources\" />
+    <Copy SourceFiles="@(_AddinManifest)"
+          DestinationFolder="$(RevitAddinsRoot)%(RevitDeployYear.Identity)\"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
     <Copy SourceFiles="@(_DeployResourceFiles)"
-          DestinationFolder="$(RevitAddinDeployDir)Resources\"
+          DestinationFolder="$(RevitAddinsRoot)%(RevitDeployYear.Identity)\SmartRemont.ExportSpecifications\Resources\"
           SkipUnchangedFiles="true"
           ContinueOnError="true" />
     <Copy SourceFiles="@(_DeployFiles)"
-          DestinationFolder="$(RevitAddinDeployDir)"
+          DestinationFolder="$(RevitAddinsRoot)%(RevitDeployYear.Identity)\SmartRemont.ExportSpecifications\"
           SkipUnchangedFiles="true"
           ContinueOnError="true" />
   </Target>

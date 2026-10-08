@@ -30,6 +30,8 @@ namespace SmartRemont.ExportRooms.Services
         public bool RemontConflict { get; set; }
         public bool RolledBack { get; set; }
         public bool Cancelled { get; set; }
+        /// <summary>Куда переименован прежний файл проекта (если он был).</summary>
+        public string BackupPath { get; set; }
     }
 
     public static class ProjectInitService
@@ -134,8 +136,21 @@ namespace SmartRemont.ExportRooms.Services
                 return Fail("Шаблон с worksharing не поддерживается. Нужен локальный .rte без центральной модели.");
             }
 
+            // Существующий файл не перезаписываем: переименовываем в резервную копию, при ошибке
+            // init возвращаем на место. Иначе SaveAs затирал рабочий проект, а откат удалял его.
+            string backupPath = null;
+            if (overwriteExistingFile && File.Exists(targetPath))
+            {
+                backupPath = ProjectInitRollbackService.TryBackupExistingFile(targetPath, out var backupError);
+                if (backupPath == null)
+                {
+                    TryCloseWithoutSaving(created);
+                    return Fail(backupError ?? "Не удалось сохранить резервную копию существующего файла.");
+                }
+            }
+
             var copySw = Stopwatch.StartNew();
-            var copyResult = ProjectCopyService.SaveCopyAs(created, targetPath, overwriteExistingFile);
+            var copyResult = ProjectCopyService.SaveCopyAs(created, targetPath, overwrite: false);
             copySw.Stop();
             ExportRoomsApplication._logger?.Information(
                 "Project init phase save_from_template: elapsed_ms={ElapsedMs}, success={Success}, grade_id={GradeId}",
@@ -152,7 +167,7 @@ namespace SmartRemont.ExportRooms.Services
                     NewFilePath = copyResult.TargetPath,
                     FileAlreadyExists = copyResult.FileAlreadyExists,
                     IsWorksharedWarning = copyResult.IsWorksharedWarning,
-                    ErrorMessage = copyResult.ErrorMessage
+                    ErrorMessage = copyResult.ErrorMessage + BuildBackupNote(backupPath, targetPath)
                 };
             }
 
@@ -172,7 +187,8 @@ namespace SmartRemont.ExportRooms.Services
                         BuildStrictSyncFailureMessage(syncResult),
                         copyResult,
                         syncResult,
-                        createdDocument: created);
+                        createdDocument: created,
+                        backupPath: backupPath);
                 }
 
                 Report(progress, "Запись метаданных заявки...", indeterminate: true);
@@ -207,18 +223,19 @@ namespace SmartRemont.ExportRooms.Services
                     MaterialsLoaded = syncResult.MaterialsLoaded,
                     Errors = partialErrors,
                     IsWorksharedWarning = copyResult.IsWorksharedWarning,
+                    BackupPath = backupPath,
                     ErrorMessage = BuildInitSuccessWarning(copyResult, syncResult, ignorePreflightValidation)
                 };
             }
             catch (OperationCanceledException)
             {
                 ExportRoomsApplication._logger?.Warning("Project init cancelled by user");
-                return FailAfterCopy("Инициализация отменена.", copyResult, cancelled: true, createdDocument: created);
+                return FailAfterCopy("Инициализация отменена.", copyResult, cancelled: true, createdDocument: created, backupPath: backupPath);
             }
             catch (Exception ex)
             {
                 ExportRoomsApplication._logger?.Error(ex, "Project init failed");
-                return FailAfterCopy(ex.Message, copyResult, createdDocument: created);
+                return FailAfterCopy(ex.Message, copyResult, createdDocument: created, backupPath: backupPath);
             }
         }
 
@@ -493,13 +510,15 @@ namespace SmartRemont.ExportRooms.Services
             ProjectCopyResult copyResult,
             RevitMaterialsSyncResult syncResult = null,
             bool cancelled = false,
-            Document createdDocument = null)
+            Document createdDocument = null,
+            string backupPath = null)
         {
             // Сначала закрываем новый документ, иначе файл на диске занят и откат не удалит его.
             TryCloseWithoutSaving(createdDocument);
 
             var hasCopy = !string.IsNullOrWhiteSpace(copyResult?.TargetPath);
             var rolledBack = hasCopy && ProjectInitRollbackService.TryRollbackInitCopy(copyResult.TargetPath);
+            var backupNote = hasCopy ? BuildBackupNote(backupPath, copyResult.TargetPath) : string.Empty;
 
             var fullMessage = message;
             if (hasCopy)
@@ -514,6 +533,8 @@ namespace SmartRemont.ExportRooms.Services
                       + ProjectInitRollbackService.CloseWithoutSavingHint;
             }
 
+            fullMessage += backupNote;
+
             return new ProjectInitResult
             {
                 Success = false,
@@ -525,6 +546,17 @@ namespace SmartRemont.ExportRooms.Services
                 RolledBack = rolledBack,
                 ErrorMessage = fullMessage
             };
+        }
+
+        /// <summary>Возвращает прежний файл на место после неудачного init и пишет, где он.</summary>
+        static string BuildBackupNote(string backupPath, string targetPath)
+        {
+            if (string.IsNullOrWhiteSpace(backupPath))
+                return string.Empty;
+
+            return ProjectInitRollbackService.TryRestoreBackup(backupPath, targetPath)
+                ? "\n\nПрежний файл проекта возвращён на место."
+                : $"\n\nПрежний файл проекта сохранён как: {backupPath}";
         }
 
         static void Report(IProgress<ProjectInitProgress> progress, string message, bool indeterminate = false) =>

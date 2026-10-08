@@ -391,7 +391,7 @@
                     <TextBlock x:Name="QtyModeHintText"
                                Style="{StaticResource CaptionText}"
                                Margin="0,4,0,0"
-                               Text="В ДС уходят только объёмы, которые в MySpace можно править вручную. Пока состав проекта не совпадает с договором, отправка выключена."/>
+                               Text="Уходят замеры комнат и объёмы строк, которые в MySpace вводят вручную, — в последний черновик ДС. Работы и сумму MySpace посчитает сам. Лишнее или недостающее в модели меняйте в MySpace."/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

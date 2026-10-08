@@ -323,10 +323,15 @@ namespace SmartRemont.ExportRooms.Services
                 }
             }).ToList();
 
-            var results = (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
-
-            SaveManifest(manifest);
-            return results;
+            try
+            {
+                return (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
+            }
+            finally
+            {
+                // И при отмене: уже скачанные файлы должны попасть в манифест кэша.
+                SaveManifest(manifest);
+            }
         }
 
         static async Task<DownloadResult> SyncOneAsync(

@@ -64,31 +64,20 @@ namespace SmartRemont.ExportRooms.Services
             Items.Where(i => i.CanEdit).ToList();
 
         /// <summary>
-        /// Автовыбор: ровно один редактируемый черновик; иначе null (пользователь выбирает).
+        /// Автовыбор: последний черновик. Лишние черновики удаляют в MySpace.
         /// </summary>
-        public static DsTkChangeItem PreferAutoSelect(IReadOnlyList<DsTkChangeItem> items)
-        {
-            var editable = items?.Where(i => i != null && i.CanEdit).ToList()
-                ?? new List<DsTkChangeItem>();
-            return editable.Count == 1 ? editable[0] : null;
-        }
+        public static DsTkChangeItem PreferAutoSelect(IReadOnlyList<DsTkChangeItem> items) =>
+            items?.Where(i => i != null && i.CanEdit).OrderByDescending(i => i.DsId).FirstOrDefault();
 
         /// <summary>
-        /// Для бейджа хаба: один черновик, иначе самый «интересный» статус (согласование / утверждена / …).
+        /// Для бейджа хаба: последний черновик, иначе самая свежая ДС в любом статусе.
         /// </summary>
         public static DsTkChangeItem PreferHubBadge(IReadOnlyList<DsTkChangeItem> items)
         {
             if (items == null || items.Count == 0)
                 return null;
 
-            var editable = items.Where(i => i.CanEdit).OrderByDescending(i => i.DsId).ToList();
-            if (editable.Count == 1)
-                return editable[0];
-            if (editable.Count > 1)
-                return null; // несколько черновиков — «выбрать в окне»
-
-            // Нет черновиков — покажем самый свежий locked
-            return items.OrderByDescending(i => i.DsId).FirstOrDefault();
+            return PreferAutoSelect(items) ?? items.OrderByDescending(i => i.DsId).FirstOrDefault();
         }
     }
 
@@ -104,6 +93,8 @@ namespace SmartRemont.ExportRooms.Services
 
     public sealed class DsTkQtyApplyCandidate
     {
+        /// <summary>Откуда число: «нет в модели → 0», «по числу дверей» и т.п.</summary>
+        public string Note { get; init; }
         public int ClientMaterialId { get; init; }
         public int? MaterialSetId { get; init; }
         public int MaterialId { get; init; }
@@ -174,16 +165,24 @@ namespace SmartRemont.ExportRooms.Services
         public string ModeHint => Mode switch
         {
             DsTkQtyApplyMode.EditableOnly =>
-                "Из Revit в ДС уходят только объёмы. Удалить, добавить или заменить материал можно только в MySpace.",
+                "Сначала уйдут замеры комнат, затем объёмы строк с полем ввода. Работы и сумму ДС MySpace пересчитает сам. "
+                + "Удалить, добавить или заменить материал можно только в MySpace.",
             DsTkQtyApplyMode.All =>
                 "В ДС только позиции с полем ввода. Алерты проекта остаются в сверке.",
             _ => "Объёмы не отправляются."
         };
+
+        /// <summary>Позиций ДС (client_material), которые изменятся.</summary>
+        public int PositionCount { get; init; }
+
+        /// <summary>Строк с полем ввода, которые остаются как в ДС: не из модели или правятся в MySpace.</summary>
+        public int UntouchedCount { get; init; }
     }
 
     public sealed class DsTkQtyApplyResult
     {
         public int Applied { get; init; }
+        public int MeasureRooms { get; init; }
         /// <summary>Объём совпал с договором — сервер убрал изменение из ДС.</summary>
         public int RevertedToContract { get; init; }
     }
@@ -195,6 +194,8 @@ namespace SmartRemont.ExportRooms.Services
     {
         public const string TkChangeTypeCode = "TK_CHANGE";
         public const string QtyUpdGrant = "OA__RemontFormDSTkUpd";
+        public const string MeasureSaveGrant = "OA__RemontFormMeasureSave";
+        public const string RoomChangeTypeCode = "ROOM_CHANGE";
 
         static readonly HttpClient Http = new HttpClient
         {
@@ -247,6 +248,35 @@ namespace SmartRemont.ExportRooms.Services
                 .OrderByDescending(i => i.DsId)
                 .ToList();
         }
+
+        /// <summary>Все ДС заявки (любого типа) — для проверки ДС «Изменение площади».</summary>
+        public static async Task<List<DsTkChangeItem>> ListAllDsAsync(int clientRequestId)
+        {
+            EnsureRequest(clientRequestId);
+            var session = RequireSession();
+
+            using var httpRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                Configs.ClientRequestDsListUrl(clientRequestId));
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+            using var response = await Http.SendAsync(httpRequest).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            EnsureSuccess(response, body, "списка ДС");
+
+            return ParseDsList(body).OrderByDescending(i => i.DsId).ToList();
+        }
+
+        /// <summary>
+        /// ДС площади, которая ещё не утверждена: при утверждении она пересчитает ТК по формулам
+        /// и затрёт объёмы, отправленные в ДС ТК. null — такой нет.
+        /// </summary>
+        public static DsTkChangeItem FindOpenRoomChange(IEnumerable<DsTkChangeItem> allDs) =>
+            allDs?.FirstOrDefault(i =>
+                i != null
+                && string.Equals(i.DsTypeCode, RoomChangeTypeCode, StringComparison.OrdinalIgnoreCase)
+                && i.IsAccept != 1
+                && i.IsAccept != 2);
 
         static bool IsTkChangeRow(DsTkChangeItem item)
         {
@@ -396,8 +426,11 @@ namespace SmartRemont.ExportRooms.Services
             public int ClientMaterialId { get; init; }
             public int? MaterialId { get; init; }
             public int? MaterialSetId { get; init; }
+            public int? RoomId { get; init; }
+            public int? WorkSetId { get; init; }
             public string RoomName { get; init; }
             public string MaterialName { get; init; }
+            public string SetName { get; init; }
             public string WorkSetName { get; init; }
             public double? MaterialCnt { get; init; }
             public bool IsMaterialCntInput { get; init; }
@@ -545,8 +578,11 @@ namespace SmartRemont.ExportRooms.Services
                     ClientMaterialId = cm,
                     MaterialId = ReadInt(token["material_id"]),
                     MaterialSetId = ReadInt(token["material_set_id"]),
+                    RoomId = ReadInt(token["room_id"]),
+                    WorkSetId = ReadInt(token["work_set_id"]),
                     RoomName = ReadString(token["room_name"]),
                     MaterialName = ReadString(token["material_name"]),
+                    SetName = ReadString(token["set_name"]),
                     WorkSetName = ReadString(token["work_set_name"]),
                     MaterialCnt = ReadDouble(token["material_cnt"]),
                     IsMaterialCntInput = ReadBool(token["is_material_cnt_input"]) == true,
@@ -601,148 +637,94 @@ namespace SmartRemont.ExportRooms.Services
             return null;
         }
 
-        public static IReadOnlyList<DsTkQtyApplyCandidate> CollectQtyCandidates(
-            DsTkCompareResult compare,
-            DsTkQtyApplyMode mode)
+        /// <summary>Превью «было → станет»: шапка и изменённые материалы набора каждой позиции.</summary>
+        public static DsTkQtyApplyPreview BuildPreview(DsTkTargetResult target)
         {
-            return BuildQtyApplyPreview(compare, mode).Candidates;
-        }
-
-        public static DsTkQtyApplyPreview BuildQtyApplyPreview(
-            DsTkCompareResult compare,
-            DsTkQtyApplyMode mode)
-        {
-            if (compare?.Rooms == null)
+            var candidates = new List<DsTkQtyApplyCandidate>();
+            var positions = target?.ToSend ?? Array.Empty<DsTkTargetPosition>();
+            foreach (var position in positions)
             {
-                return new DsTkQtyApplyPreview
+                foreach (var line in new[] { position.Head }.Concat(position.Members))
                 {
-                    Mode = mode,
-                    Candidates = Array.Empty<DsTkQtyApplyCandidate>(),
-                    TotalQtyMismatch = 0,
-                    SkippedNotEditable = 0,
-                    ProjectAlertCount = 0
-                };
-            }
-
-            var projectAlerts = compare.QtyProjectAlertCount;
-            var allEligible = new List<DsTkQtyApplyCandidate>();
-            foreach (var room in compare.Rooms)
-            {
-                if (room?.Rows == null)
-                    continue;
-
-                foreach (var row in room.Rows)
-                {
-                    // В ДС шлём только то, что MySpace позволяет править.
-                    if (row == null || row.QtyStatusKey != "qty_mismatch")
-                        continue;
-                    if (!row.IsMaterialCntInput)
-                        continue;
-                    if (row.ClientMaterialId is not > 0)
-                        continue;
-                    if (row.ScheduleQty == null)
+                    if (line == null || !line.IsChanged)
                         continue;
 
-                    allEligible.Add(new DsTkQtyApplyCandidate
+                    candidates.Add(new DsTkQtyApplyCandidate
                     {
-                        ClientMaterialId = row.ClientMaterialId.Value,
-                        MaterialSetId = row.MaterialSetId is > 0 ? row.MaterialSetId : null,
-                        MaterialId = row.MaterialId,
-                        IsSetMember = row.IsSetMember,
-                        TkChangeId = row.TkChangeId,
-                        HeadMaterialCnt = FindHeadQty(compare, row.ClientMaterialId.Value),
-                        MaterialName = row.MaterialName,
-                        RoomName = room.RoomName,
-                        WorkSetName = row.WorkSetName,
-                        QtyUnit = row.QtyUnit,
-                        MyspaceUnit = row.MyspaceUnit,
-                        TkQty = row.TkQty,
-                        ScheduleQty = row.ScheduleQty.Value,
-                        IsMaterialCntInput = true
+                        ClientMaterialId = position.ClientMaterialId,
+                        MaterialSetId = position.MaterialSetId,
+                        MaterialId = line.MaterialId,
+                        IsSetMember = line.IsSetMember,
+                        MaterialName = line.IsSetMember
+                            ? "  └ " + (line.MaterialName ?? $"material_id={line.MaterialId}")
+                            : line.MaterialName,
+                        RoomName = position.RoomName,
+                        WorkSetName = position.WorkSetName,
+                        QtyUnit = line.RevitUnit,
+                        MyspaceUnit = line.MyspaceUnit,
+                        TkQty = line.CurrentQty,
+                        ScheduleQty = line.TargetQty ?? 0d,
+                        IsMaterialCntInput = true,
+                        Note = line.Note
                     });
                 }
             }
 
-            // Шапка и элемент набора — разные позиции (один cm, разные material_id).
-            allEligible = allEligible
-                .GroupBy(c => (c.ClientMaterialId, c.MaterialId))
-                .Select(g => g.First())
-                .OrderBy(c => c.RoomDisplay, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(c => c.MaterialDisplay, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var total = allEligible.Count;
-            if (mode == DsTkQtyApplyMode.Skip)
-            {
-                return new DsTkQtyApplyPreview
-                {
-                    Mode = mode,
-                    Candidates = Array.Empty<DsTkQtyApplyCandidate>(),
-                    TotalQtyMismatch = total,
-                    SkippedNotEditable = 0,
-                    ProjectAlertCount = projectAlerts
-                };
-            }
-
-            // All и EditableOnly — одно и то же: только MySpace-input.
+            var untouched = (target?.NotFromModel.Count ?? 0) + (target?.Skipped.Count ?? 0);
             return new DsTkQtyApplyPreview
             {
-                Mode = mode,
-                Candidates = allEligible,
-                TotalQtyMismatch = total,
-                SkippedNotEditable = projectAlerts,
-                ProjectAlertCount = projectAlerts
+                Mode = DsTkQtyApplyMode.EditableOnly,
+                Candidates = candidates,
+                TotalQtyMismatch = candidates.Count,
+                PositionCount = positions.Count,
+                UntouchedCount = untouched,
+                SkippedNotEditable = untouched,
+                ProjectAlertCount = 0
             };
         }
 
-        static double? FindHeadQty(DsTkCompareResult compare, int clientMaterialId)
-        {
-            foreach (var room in compare?.Rooms ?? Enumerable.Empty<DsTkCompareRoom>())
-            {
-                var head = room.Rows?.FirstOrDefault(r =>
-                    r.ClientMaterialId == clientMaterialId && !r.IsSetMember);
-                if (head != null)
-                    return head.TkQty;
-            }
-
-            return null;
-        }
-
         /// <summary>
-        /// Отправляет все объёмы одним запросом. Сервер проверяет каждую позицию и пишет
-        /// их в одной транзакции: при любой ошибке в ДС не записывается ничего.
+        /// Одним запросом: замеры комнат, затем объёмы ДС. Сервер пишет всё в одной транзакции —
+        /// при любой ошибке не записывается ни замер, ни объём.
         /// </summary>
-        public static async Task<DsTkQtyApplyResult> ApplyQtyAsync(
+        public static async Task<DsTkQtyApplyResult> ApplyFromModelAsync(
             int clientRequestId,
             int dsId,
-            IReadOnlyList<DsTkQtyApplyCandidate> candidates)
+            IReadOnlyList<DsTkTargetPosition> positions,
+            IReadOnlyList<MeasureApplyRoomDto> measureRooms)
         {
             EnsureRequest(clientRequestId);
             if (dsId <= 0)
                 throw new InvalidOperationException("Не указан ID ДС");
-            if (candidates == null || candidates.Count == 0)
+            if (positions == null || positions.Count == 0)
                 throw new InvalidOperationException("Нет объёмов к отправке");
+            if (measureRooms == null || measureRooms.Count == 0)
+                throw new InvalidOperationException("Нет замеров комнат: без них MySpace посчитает работы по старым замерам");
 
             var session = RequireSession();
             if (!session.HasGrant(QtyUpdGrant))
                 throw new InvalidOperationException("Нет права менять объёмы в ДС на изменение ТК.");
+            if (!session.HasGrant(MeasureSaveGrant))
+                throw new InvalidOperationException("Нет права сохранять замеры.");
 
             var payload = new JObject
             {
                 ["client_request_id"] = clientRequestId,
                 ["ds_id"] = dsId,
-                ["items"] = BuildApplyItems(candidates)
+                ["measure_rooms"] = JArray.FromObject(measureRooms),
+                ["items"] = DsTkTargetService.BuildApplyItems(positions)
             };
             var payloadJson = payload.ToString(Formatting.None);
             var url = Configs.DsTkChangeApplyUrl;
 
             ExportRoomsApplication._logger?.Information(
-                "DS TK qty apply REQUEST cr={ClientRequestId} ds={DsId} count={Count} url={Url} body={Body}",
+                "DS TK apply REQUEST cr={ClientRequestId} ds={DsId} positions={Count} rooms={Rooms} url={Url} body={Body}",
                 clientRequestId,
                 dsId,
-                candidates.Count,
+                positions.Count,
+                measureRooms.Count,
                 url,
-                TruncateForLog(payloadJson, 6000));
+                TruncateForLog(payloadJson, 12000));
 
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
@@ -752,12 +734,12 @@ namespace SmartRemont.ExportRooms.Services
             var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             ExportRoomsApplication._logger?.Information(
-                "DS TK qty apply RESPONSE HTTP {StatusCode} ds={DsId} body={Body}",
+                "DS TK apply RESPONSE HTTP {StatusCode} ds={DsId} body={Body}",
                 (int)response.StatusCode,
                 dsId,
                 TruncateForLog(body, 6000));
 
-            EnsureSuccess(response, body, "изменения объёмов в ДС");
+            EnsureSuccess(response, body, "отправки замеров и объёмов в ДС");
 
             JObject root;
             try
@@ -782,45 +764,9 @@ namespace SmartRemont.ExportRooms.Services
             return new DsTkQtyApplyResult
             {
                 Applied = applied.Value,
-                RevertedToContract = ReadInt(data["reverted_to_contract"]) ?? 0
+                RevertedToContract = ReadInt(data["reverted_to_contract"]) ?? 0,
+                MeasureRooms = ReadInt(data["measures"]?["applied_rooms"]) ?? 0
             };
-        }
-
-        /// <summary>
-        /// Одна позиция client_material_id → один элемент. Для набора: шапка — material_cnt,
-        /// материалы набора — set_items. Остальной состав набора сервер берёт из ДС сам.
-        /// </summary>
-        static JArray BuildApplyItems(IReadOnlyList<DsTkQtyApplyCandidate> candidates)
-        {
-            var items = new JArray();
-            foreach (var group in candidates.GroupBy(c => c.ClientMaterialId))
-            {
-                var head = group.FirstOrDefault(c => !c.IsSetMember);
-                var members = group.Where(c => c.IsSetMember && c.MaterialId > 0).ToList();
-
-                var item = new JObject
-                {
-                    ["client_material_id"] = group.Key,
-                    ["material_cnt"] = head != null ? new JValue(head.ScheduleQty) : JValue.CreateNull(),
-                    ["expected_material_cnt"] = head?.TkQty,
-                    ["unit"] = head?.QtyUnit
-                };
-
-                if (members.Count > 0)
-                {
-                    item["set_items"] = new JArray(members.Select(m => new JObject
-                    {
-                        ["material_id"] = m.MaterialId,
-                        ["material_cnt"] = m.ScheduleQty,
-                        ["expected_material_cnt"] = m.TkQty,
-                        ["unit"] = m.QtyUnit
-                    }));
-                }
-
-                items.Add(item);
-            }
-
-            return items;
         }
 
         static string TruncateForLog(string value, int maxChars)

@@ -8,6 +8,9 @@ namespace SmartRemont.ExportRooms.Services
     public class PluginSettings
     {
         public Dictionary<int, DateTime> LastMaterialSyncTimes { get; set; } = new();
+
+        /// <summary>Адрес API из секретной панели окна входа. Важнее app.config. null — не задан.</summary>
+        public string ApiOriginOverride { get; set; }
     }
 
     public static class LocalSettingsService
