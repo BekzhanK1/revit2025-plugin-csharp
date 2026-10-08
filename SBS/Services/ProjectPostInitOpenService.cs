@@ -27,40 +27,41 @@ namespace SmartRemont.ExportRooms.Services
         }
 
         /// <summary>
-        /// OpenAndActivateDocument нельзя вызывать, пока открыт модальный диалог плагина и идёт
-        /// внешняя команда, поэтому откладываем до первого Idling.
+        /// Вызывать из IExternalCommand.Execute после закрытия окон плагина. Из Idling нельзя:
+        /// Revit бросает «Switching active documents is not allowed during API event handling».
+        /// Остальные документы закрываются уже в Idling — там активный документ не переключается.
         /// </summary>
-        public static void ScheduleOpenProject(UIApplication uiApp, string projectPath)
+        public static void OpenProject(UIApplication uiApp, string projectPath)
         {
             if (uiApp == null)
                 return;
 
+            if (!TryOpenProject(uiApp, projectPath, out var error))
+            {
+                TaskDialog.Show(
+                    "Smart Remont",
+                    "Проект создан и сохранён, но Revit не смог открыть его автоматически.\n\n"
+                    + "Откройте файл через Файл → Открыть:\n" + NormalizePath(projectPath)
+                    + (string.IsNullOrWhiteSpace(error) ? string.Empty : "\n\nПричина: " + error));
+                return;
+            }
+
+            ExportRoomsApplication._logger?.Information(
+                "Project init: opened initialized project {Path}",
+                projectPath);
+
             void OnIdling(object sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
             {
                 uiApp.Idling -= OnIdling;
-
                 try
                 {
-                    if (!OpenProject(uiApp, projectPath))
-                    {
-                        TaskDialog.Show(
-                            "Smart Remont",
-                            "Проект создан и сохранён, но Revit не смог открыть его автоматически.\n\n"
-                            + "Откройте файл через Файл → Открыть:\n" + NormalizePath(projectPath));
-                        return;
-                    }
-
                     CloseOtherDocuments(uiApp, projectPath);
-                    ExportRoomsApplication._logger?.Information(
-                        "Project init: opened initialized project {Path}",
-                        projectPath);
                 }
                 catch (Exception ex)
                 {
                     ExportRoomsApplication._logger?.Warning(
                         ex,
-                        "Could not open project after init: {Path}",
-                        projectPath);
+                        "Could not close other documents after project init");
                 }
             }
 
@@ -71,16 +72,20 @@ namespace SmartRemont.ExportRooms.Services
         /// Новый проект после init уже открыт в памяти (без окна) — OpenAndActivateDocument
         /// показывает его. Если не вышло, закрываем копию в памяти и открываем файл с диска.
         /// </summary>
-        static bool OpenProject(UIApplication uiApp, string projectPath)
+        static bool TryOpenProject(UIApplication uiApp, string projectPath, out string error)
         {
+            error = null;
             if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
+            {
+                error = "файл не найден";
                 return false;
+            }
 
             // Путь как его видит Windows: без точек и пробелов в конце имён папок.
             // Revit по «сырому» пути с такой папкой файл не находит.
             projectPath = NormalizePath(projectPath);
 
-            if (TryOpenAndActivate(uiApp, projectPath))
+            if (TryOpenAndActivate(uiApp, projectPath, out error))
                 return true;
 
             var inMemory = FindDocument(uiApp, projectPath);
@@ -100,16 +105,21 @@ namespace SmartRemont.ExportRooms.Services
                 }
             }
 
-            return TryOpenAndActivate(uiApp, projectPath);
+            return TryOpenAndActivate(uiApp, projectPath, out error);
         }
 
-        static bool TryOpenAndActivate(UIApplication uiApp, string projectPath)
+        static bool TryOpenAndActivate(UIApplication uiApp, string projectPath, out string error)
         {
+            error = null;
             try
             {
                 var modelPath = ModelPathUtils.ConvertUserVisiblePathToModelPath(projectPath);
                 uiApp.OpenAndActivateDocument(modelPath, new OpenOptions(), false);
-                return IsActivePath(uiApp, projectPath);
+                if (IsActivePath(uiApp, projectPath))
+                    return true;
+
+                error = "после открытия активным остался другой документ";
+                return false;
             }
             catch (Exception ex)
             {
@@ -117,6 +127,7 @@ namespace SmartRemont.ExportRooms.Services
                     ex,
                     "OpenAndActivateDocument failed for {Path}",
                     projectPath);
+                error = ex.Message;
                 return false;
             }
         }
@@ -164,7 +175,7 @@ namespace SmartRemont.ExportRooms.Services
             if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
                 return;
 
-            TryOpenAndActivate(uiApp, projectPath);
+            TryOpenAndActivate(uiApp, projectPath, out _);
         }
 
         static Document FindDocument(UIApplication uiApp, string projectPath)

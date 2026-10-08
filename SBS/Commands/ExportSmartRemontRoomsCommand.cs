@@ -43,7 +43,7 @@ namespace SmartRemont.ExportRooms.Commands
                     return Result.Cancelled;
 
                 if (ProjectPostInitOpenService.TryConsumeOpenRequest(out var initializedPath))
-                    ProjectPostInitOpenService.ScheduleOpenProject(uiApp, initializedPath);
+                    ProjectPostInitOpenService.OpenProject(uiApp, initializedPath);
 
                 // ExportSmartRemontRoomsWindow — полный экспорт, временно не используется
                 return Result.Succeeded;
