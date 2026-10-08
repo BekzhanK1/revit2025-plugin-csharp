@@ -101,44 +101,65 @@ namespace SmartRemont.ExportRooms.Services
                     continue;
                 }
 
-                if (!TryPickReadableSchedule(
-                        schedules,
-                        entry,
-                        out var schedule,
-                        out var headers,
-                        out var rowCount,
-                        out var colId,
-                        out var colName,
-                        out var colQty,
-                        out var qtyHeader,
-                        out var colRoom,
-                        out var pickError))
+                // Обычно ведомость источника одна (имена в конфиге — варианты одного имени).
+                // CombineSchedules: разные ведомости дополняют друг друга (покраска стен комнат +
+                // покраска стен балкона) — читаем каждую и складываем строки.
+                var groups = entry.CombineSchedules == true
+                    ? schedules.GroupBy(s => NormalizeName(s.Name).TrimEnd('.'), StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.ToList())
+                        .ToList()
+                    : new List<List<ViewSchedule>> { schedules };
+
+                var lines = new List<TkQtyScheduleLine>();
+                var readNames = new List<string>();
+                string firstError = null;
+                foreach (var group in groups)
                 {
-                    source.Found = true;
+                    if (!TryPickReadableSchedule(
+                            group,
+                            entry,
+                            out var schedule,
+                            out var headers,
+                            out var rowCount,
+                            out var colId,
+                            out var colName,
+                            out var colQty,
+                            out var qtyHeader,
+                            out var colRoom,
+                            out var pickError))
+                    {
+                        firstError ??= $"{group[0].Name}: {pickError}";
+                        continue;
+                    }
+
+                    readNames.Add(schedule.Name);
+
+                    // Если qty-колонка в мм, а scale=1 — применяем 0.001; если уже «м» / «шт» — не трогаем scale из конфига.
+                    var effectiveScale = ResolveEffectiveScale(entry.QuantityScale, qtyHeader, entry.QuantityUnit);
+
+                    if (entry.Mode == TkQtyScheduleMapping.ParseMode.FlatByRoomColumn
+                        && colRoom != null
+                        && colId != null)
+                    {
+                        lines.AddRange(ParseFlat(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom.Value, effectiveScale, snapshot.SkippedRows));
+                    }
+                    else
+                    {
+                        lines.AddRange(ParseGrouped(schedule, rowCount, headers, entry, colId, colName, colQty, colRoom, effectiveScale, snapshot.SkippedRows));
+                    }
+                }
+
+                source.Found = true;
+                if (readNames.Count == 0)
+                {
                     source.ScheduleNameFound = schedules[0].Name;
-                    source.Message = pickError;
+                    source.Message = firstError;
                     snapshot.Sources.Add(source);
                     continue;
                 }
 
-                source.ScheduleNameFound = schedule.Name;
-                source.Found = true;
+                source.ScheduleNameFound = string.Join(" + ", readNames);
                 source.Readable = true;
-
-                // Если qty-колонка в мм, а scale=1 — применяем 0.001; если уже «м» / «шт» — не трогаем scale из конфига.
-                var effectiveScale = ResolveEffectiveScale(entry.QuantityScale, qtyHeader, entry.QuantityUnit);
-
-                List<TkQtyScheduleLine> lines;
-                if (entry.Mode == TkQtyScheduleMapping.ParseMode.FlatByRoomColumn
-                    && colRoom != null
-                    && colId != null)
-                {
-                    lines = ParseFlat(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom.Value, effectiveScale, snapshot.SkippedRows);
-                }
-                else
-                {
-                    lines = ParseGrouped(schedule, rowCount, headers, entry, colId, colName, colQty, colRoom, effectiveScale, snapshot.SkippedRows);
-                }
 
                 source.LineCount = lines.Count;
                 source.Message = lines.Count > 0

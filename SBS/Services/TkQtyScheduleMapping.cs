@@ -70,6 +70,12 @@ namespace SmartRemont.ExportRooms.Services
             /// </summary>
             public bool? IdFromNameOnly { get; set; }
 
+            /// <summary>
+            /// Разные ведомости источника дополняют друг друга (не варианты одного имени) —
+            /// читать все и складывать строки. Без флага берётся одна ведомость.
+            /// </summary>
+            public bool? CombineSchedules { get; set; }
+
             [JsonIgnore]
             public bool IsDerived => !string.IsNullOrWhiteSpace(CountFromCode);
         }
@@ -163,6 +169,9 @@ namespace SmartRemont.ExportRooms.Services
                 changed = true;
 
             if (MergeMissingIdFromName(loaded, defaults))
+                changed = true;
+
+            if (MergeMissingCombineSchedules(loaded, defaults))
                 changed = true;
 
             if (changed)
@@ -270,6 +279,26 @@ namespace SmartRemont.ExportRooms.Services
             return changed;
         }
 
+        /// <summary>Старый AppData-конфиг без CombineSchedules получает его из дефолтов.</summary>
+        static bool MergeMissingCombineSchedules(List<Entry> loaded, List<Entry> defaults)
+        {
+            var changed = false;
+            foreach (var entry in loaded)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Code) || entry.CombineSchedules != null)
+                    continue;
+                var def = defaults.FirstOrDefault(d =>
+                    string.Equals(d?.Code, entry.Code.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (def?.CombineSchedules == null)
+                    continue;
+
+                entry.CombineSchedules = def.CombineSchedules;
+                changed = true;
+            }
+
+            return changed;
+        }
+
         /// <summary>Источники, привязанные к конструктиву.</summary>
         public static IReadOnlyList<Entry> ForWorkSet(int workSetId) =>
             All.Where(e => e.Enabled && e.WorkSetIds != null && e.WorkSetIds.Contains(workSetId)).ToList();
@@ -371,6 +400,7 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "WALLS_PAINT",
+                CombineSchedules = true,
                 Title = "Обои / покраска стен",
                 ScheduleNamesExact = new List<string>
                 {
