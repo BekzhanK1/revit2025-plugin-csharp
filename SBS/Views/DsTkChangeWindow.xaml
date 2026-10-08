@@ -184,7 +184,7 @@
                         <TextBlock x:Name="StatQtyMismatchValue" Style="{StaticResource StatValue}" Foreground="{StaticResource InfoTextBrush}" Text="—"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                             <Border Style="{StaticResource StatDot}" Background="{StaticResource InfoBrush}"/>
-                            <TextBlock x:Name="StatQtyMismatchLabel" Text="позиций к отправке" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="StatQtyMismatchLabel" Text="строк к отправке" Style="{StaticResource StatLabel}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -576,7 +576,7 @@
                             <TextBlock x:Name="QtyCandidateBadgeText"
                                        Style="{StaticResource ChipText}"
                                        Foreground="{StaticResource InfoTextBrush}"
-                                       Text="0 позиций"/>
+                                       Text="0 строк"/>
                         </Border>
                     </StackPanel>
                     <TextBlock x:Name="QtyModeHintText"
@@ -600,6 +600,14 @@
                             Margin="0,0,10,0"
                             IsCancel="True"
                             Click="CloseButton_Click"/>
+                    <!-- Только для теста: отправляет готовые позиции, когда остальные заблокированы. -->
+                    <Button x:Name="ForceSendButton"
+                            Content="Отправить всё равно (тест)"
+                            Style="{StaticResource DangerGhostButton}"
+                            Margin="0,0,10,0"
+                            Visibility="Collapsed"
+                            ToolTip="Только для теста: в ДС уйдут готовые позиции, проблемные пропускаются"
+                            Click="ForceSendButton_Click"/>
                     <Button x:Name="ApplyQtyButton"
                             Content="Проверить и отправить"
                             Style="{StaticResource ModernPrimaryButton}"

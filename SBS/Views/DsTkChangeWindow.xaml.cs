@@ -495,17 +495,18 @@ namespace SmartRemont.ExportRooms.Views
             else
             {
                 var positions = _target.ToSend.Count;
+                var sendText = DescribeToSend();
                 var stopped = _target.Blocked.Count > 0 || _openRoomChange != null;
                 if (stopped)
                 {
                     StatusText.Text = positions > 0
-                        ? $"Отправка остановлена — см. «Исправить». Готово к отправке в ДС №{_boundDs.DsId}: {positions} поз."
+                        ? $"Отправка остановлена — см. «Исправить». Готово к отправке в ДС №{_boundDs.DsId}: {sendText}."
                         : "Отправка остановлена — см. «Исправить».";
                 }
                 else
                 {
                     StatusText.Text = positions > 0
-                        ? $"Уйдёт в ДС №{_boundDs.DsId}: {positions} поз. ({_target.ChangedLineCount} строк) + замеры комнат."
+                        ? $"Уйдёт в ДС №{_boundDs.DsId}: {sendText} + замеры комнат."
                         : $"Объёмы модели совпадают с ДС №{_boundDs.DsId}.";
                 }
             }
@@ -734,9 +735,10 @@ namespace SmartRemont.ExportRooms.Views
             }
 
             SendGrid.ItemsSource = rows;
+            // Счётчик — по строкам, как в таблице: одна позиция ТК (набор) — несколько строк.
             SendTabCountText.Text = _target == null
                 ? "—"
-                : _target.ToSend.Count.ToString(CultureInfo.InvariantCulture);
+                : _target.ChangedLineCount.ToString(CultureInfo.InvariantCulture);
 
             var empty = rows.Count == 0;
             SendGrid.Visibility = empty ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
@@ -744,6 +746,15 @@ namespace SmartRemont.ExportRooms.Views
             SendEmptyText.Text = _target == null
                 ? "Расчёт ещё не готов — привяжите черновик ДС или нажмите «Обновить»."
                 : "Объёмы модели совпадают с ДС — отправлять нечего.";
+        }
+
+        /// <summary>«14 строк в 5 позициях»: позиция ТК (например, набор электрики) — несколько строк.</summary>
+        string DescribeToSend()
+        {
+            var lines = _target?.ChangedLineCount ?? 0;
+            var positions = _target?.ToSend.Count ?? 0;
+            return $"{lines} {Plural(lines, "строка", "строки", "строк")} в {positions} "
+                   + Plural(positions, "позиции", "позициях", "позициях");
         }
 
         static string FormatQty(double? value) =>
@@ -1095,16 +1106,71 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
-        async void ApplyQtyButton_Click(object sender, RoutedEventArgs e)
+        async void ApplyQtyButton_Click(object sender, RoutedEventArgs e) =>
+            await SendAsync(testOverride: false).ConfigureAwait(true);
+
+        async void ForceSendButton_Click(object sender, RoutedEventArgs e) =>
+            await SendAsync(testOverride: true).ConfigureAwait(true);
+
+        /// <summary>Обычная отправка закрыта только проблемами модели или неутверждённой ДС площади.</summary>
+        bool IsSoftBlocked() =>
+            _target != null && (_target.Blocked.Count > 0 || _openRoomChange != null);
+
+        /// <summary>
+        /// Что мешает тестовой отправке: права, черновик, расчёт и пустой список — их не обойти.
+        /// Проблемы модели и неутверждённая ДС площади тестовую отправку не останавливают.
+        /// </summary>
+        string ResolveForceSendBlockReason()
+        {
+            var session = ExportRoomsApplication.CurrentSession;
+            if (session?.HasGrant(DsTkChangeService.QtyUpdGrant) != true)
+                return "Нет права менять объёмы в ДС на изменение ТК.";
+            if (session.HasGrant(DsTkChangeService.MeasureSaveGrant) != true)
+                return "Нет права сохранять замеры: ДС ТК отправляется вместе с ними.";
+            if (_boundDs == null || !_boundDs.CanEdit)
+                return "Нет черновика ДС на изменение ТК — создайте его.";
+            if (_target == null)
+                return "Объёмы ДС не прочитаны — нажмите «Обновить».";
+            if (_target.ToSend.Count == 0)
+                return NothingToSendReason;
+            return null;
+        }
+
+        async Task SendAsync(bool testOverride)
         {
             if (_dsBusy || _loading || _clientRequestId <= 0)
                 return;
 
-            var blockReason = ResolveSendBlockReason();
+            var blockReason = testOverride ? ResolveForceSendBlockReason() : ResolveSendBlockReason();
             if (blockReason != null)
             {
                 AppMessageBox.Show(this, blockReason, "Отправка недоступна", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
+            }
+
+            if (testOverride)
+            {
+                var skipped = new List<string>();
+                if (_target.Blocked.Count > 0)
+                    skipped.Add($"— позиции с проблемами в модели ({_target.Blocked.Count}) не уйдут, в ДС останутся прежние объёмы;");
+                if (_openRoomChange != null)
+                    skipped.Add($"— ДС «Изменение площади» №{_openRoomChange.DsId} не утверждена: при утверждении она "
+                                + "пересчитает ТК и затрёт отправленное;");
+
+                var question = "ТОЛЬКО ДЛЯ ТЕСТА. На рабочих заявках не используйте.\n\n"
+                               + $"В ДС №{_boundDs.DsId} уйдут готовые {DescribeToSend()} и замеры комнат.\n"
+                               + string.Join("\n", skipped)
+                               + "\n\nПродолжить?";
+                if (AppMessageBox.Show(this, question, "Тестовая отправка", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                    != MessageBoxResult.Yes)
+                    return;
+
+                ExportRoomsApplication._logger?.Warning(
+                    "DS TK test send despite blockers: ds_id={DsId}, to_send={ToSend}, blocked={Blocked}, open_room_change={RoomChange}",
+                    _boundDs.DsId,
+                    _target.ToSend.Count,
+                    _target.Blocked.Count,
+                    _openRoomChange?.DsId);
             }
 
             // Замеры уходят вместе с объёмами: работы ДС MySpace считает по замерам комнат.
@@ -1238,8 +1304,6 @@ namespace SmartRemont.ExportRooms.Views
             var hasRequest = _clientRequestId > 0;
             var hasDraft = _dsItems.Any(i => i.CanEdit);
             var hasAny = _dsItems.Count > 0;
-            var lines = _target?.ChangedLineCount ?? 0;
-            var positions = _target?.ToSend.Count ?? 0;
 
             CreateDsButton.IsEnabled = hasRequest && hasAdd && !busy && !hasDraft;
             PickDsButton.IsEnabled = hasRequest && !busy && hasAny;
@@ -1252,10 +1316,8 @@ namespace SmartRemont.ExportRooms.Views
 
             if (QtyCandidateBadgeText != null)
             {
-                QtyCandidateBadgeText.Text = _target == null
-                    ? "—"
-                    : positions == 1 ? "1 позиция" : $"{positions} позиций";
-                QtyCandidateBadgeText.ToolTip = _target == null ? null : $"строк с изменением: {lines}";
+                QtyCandidateBadgeText.Text = _target == null ? "—" : DescribeToSend();
+                QtyCandidateBadgeText.ToolTip = null;
             }
 
             if (ApplyQtyButton != null)
@@ -1266,7 +1328,18 @@ namespace SmartRemont.ExportRooms.Views
                     ? $"Отправить в ДС №{_boundDs.DsId}…"
                     : "Отправить в ДС…";
                 ApplyQtyButton.ToolTip = reason
-                    ?? $"Предпросмотр, затем отправка: замеры комнат + {positions} поз. в ДС №{_boundDs?.DsId}";
+                    ?? $"Предпросмотр, затем отправка: замеры комнат + {DescribeToSend()} в ДС №{_boundDs?.DsId}";
+            }
+
+            if (ForceSendButton != null)
+            {
+                // Видна, только когда обычная отправка закрыта проблемами модели или ДС площади,
+                // а готовые позиции есть.
+                var forceAvailable = _result != null && IsSoftBlocked() && ResolveForceSendBlockReason() == null;
+                ForceSendButton.Visibility = forceAvailable
+                    ? System.Windows.Visibility.Visible
+                    : System.Windows.Visibility.Collapsed;
+                ForceSendButton.IsEnabled = hasRequest && !busy;
             }
 
             if (SendBlockText != null)
@@ -1315,7 +1388,8 @@ namespace SmartRemont.ExportRooms.Views
             StatExtraValue.Text = _result.ExtraInRevitCount.ToString(CultureInfo.InvariantCulture);
             StatQtyMismatchValue.Text = _target == null
                 ? "—"
-                : _target.ToSend.Count.ToString(CultureInfo.InvariantCulture);
+                : _target.ChangedLineCount.ToString(CultureInfo.InvariantCulture);
+            StatQtyMismatchValue.ToolTip = _target == null ? null : DescribeToSend();
         }
 
         void BindRooms()
