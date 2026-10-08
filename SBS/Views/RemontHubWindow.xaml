@@ -343,5 +343,13 @@
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
                               Panel.ZIndex="1000"/>
+
+        <!-- Обновление статусов: закрывает весь хаб, пока не придут ответы MySpace -->
+        <views:LoadingOverlay x:Name="RefreshOverlay"
+                              Grid.RowSpan="3"
+                              Visibility="Collapsed"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Panel.ZIndex="900"/>
     </Grid>
 </Window>

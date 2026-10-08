@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace SmartRemont.ExportRooms.Views
@@ -28,6 +29,29 @@ namespace SmartRemont.ExportRooms.Views
             if (indeterminate)
                 OverlayProgressBar.Value = 0;
             CancelButton.Visibility = allowCancel ? Visibility.Visible : Visibility.Collapsed;
+            StopSpinner();
+            OverlayProgressBar.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>Короткое ожидание без прогресса: крутящийся спиннер вместо полосы, без «Отмены».</summary>
+        public void ShowSpinner(string message)
+        {
+            Show(message, indeterminate: false, allowCancel: false);
+            OverlayProgressBar.Visibility = Visibility.Collapsed;
+            SpinnerHost.Visibility = Visibility.Visible;
+            SpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = new Duration(TimeSpan.FromMilliseconds(900)),
+                RepeatBehavior = RepeatBehavior.Forever
+            });
+        }
+
+        void StopSpinner()
+        {
+            SpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+            SpinnerHost.Visibility = Visibility.Collapsed;
         }
 
         void CancelButton_Click(object sender, RoutedEventArgs e) => CancelRequested?.Invoke(this, EventArgs.Empty);
@@ -60,6 +84,8 @@ namespace SmartRemont.ExportRooms.Views
 
         public void HideImmediate()
         {
+            StopSpinner();
+            OverlayProgressBar.Visibility = Visibility.Visible;
             OverlayProgressBar.IsIndeterminate = false;
             OverlayProgressBar.Value = 0;
             ProgressDetailTextBlock.Visibility = Visibility.Collapsed;

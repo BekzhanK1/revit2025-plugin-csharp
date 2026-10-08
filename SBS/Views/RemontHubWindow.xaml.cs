@@ -55,6 +55,12 @@ namespace SmartRemont.ExportRooms.Views
 
             RenderProcess();
             Loaded += RemontHubWindow_Loaded;
+            // Оверлей обновления закрывает только мышь: Tab/Enter/Esc тоже глушим, пока идёт обновление.
+            PreviewKeyDown += (_, e) =>
+            {
+                if (_refreshInProgress)
+                    e.Handled = true;
+            };
             Closing += (_, e) =>
             {
                 // Крестик / Alt+F4 во время init или re-sync: окно не закрываем, иначе процесс
@@ -110,6 +116,8 @@ namespace SmartRemont.ExportRooms.Views
             RefreshButton.IsEnabled = false;
             RefreshButtonText.Text = "Обновление…";
             SetStatus("Обновление статусов…", true);
+            // Пока статусы не пришли, кнопки этапов показывают старое состояние — закрываем хаб целиком.
+            RefreshOverlay.ShowSpinner("Обновляем статусы из MySpace…");
 
             try
             {
@@ -147,6 +155,7 @@ namespace SmartRemont.ExportRooms.Views
             finally
             {
                 _refreshInProgress = false;
+                RefreshOverlay.HideImmediate();
                 RefreshButton.IsEnabled = !_initInProgress;
                 RefreshButtonText.Text = "Обновить";
             }
