@@ -432,7 +432,7 @@ namespace SmartRemont.ExportRooms.Services
                     {
                         case DsTkTargetStatus.Blocked when changed || worst.Head?.TargetQty == null:
                             key = "qty_blocked";
-                            display = "не отправляется: " + worst.Reason;
+                            display = "не отправляется: " + worst.FullReason;
                             blocked++;
                             break;
                         case DsTkTargetStatus.Skipped when changed:

@@ -129,6 +129,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -189,100 +190,236 @@
                 </Border>
             </Grid>
 
-            <!-- Предупреждение по составу + статус -->
-            <StackPanel Grid.Row="1" Margin="0,0,0,12">
-                <Border x:Name="MismatchWarningPanel"
-                        Style="{StaticResource CalloutWarning}"
-                        Margin="0,0,0,8"
-                        Visibility="Collapsed">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="&#xE7BA;" Style="{StaticResource CalloutIcon}" Foreground="{StaticResource WarningBrush}"/>
-                        <ScrollViewer Grid.Column="1"
-                                      MaxHeight="200"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="WarningGroupsItemsControl">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,0,0,8">
-                                            <TextBlock Text="{Binding Title}"
-                                                       FontSize="13"
-                                                       FontWeight="SemiBold"
-                                                       TextWrapping="Wrap">
+            <TextBlock x:Name="StatusText"
+                       Grid.Row="1"
+                       Margin="0,0,0,12"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Text="Загрузка…"/>
+
+            <!-- Вкладки -->
+            <Grid Grid.Row="2" Margin="0,0,0,12">
+                <Border Style="{StaticResource SegmentBar}">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="FixTab"
+                                     GroupName="DsTkTabs"
+                                     Style="{StaticResource SegmentTab}"
+                                     IsChecked="True"
+                                     ToolTip="Что мешает отправке и что правится в MySpace"
+                                     Checked="Tab_Checked">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Исправить" VerticalAlignment="Center"/>
+                                <Border x:Name="FixTabCountBorder" Style="{StaticResource SegmentCount}">
+                                    <TextBlock x:Name="FixTabCountText" Text="—" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                </Border>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="SendTab"
+                                     GroupName="DsTkTabs"
+                                     Style="{StaticResource SegmentTab}"
+                                     ToolTip="Какие объёмы уйдут в ДС: было → станет"
+                                     Checked="Tab_Checked">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Уйдёт в ДС" VerticalAlignment="Center"/>
+                                <Border Style="{StaticResource SegmentCount}" Background="{StaticResource InfoSoftBrush}">
+                                    <TextBlock x:Name="SendTabCountText" Text="—" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource InfoTextBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="TableTab"
+                                     GroupName="DsTkTabs"
+                                     Style="{StaticResource SegmentTab}"
+                                     Margin="0"
+                                     ToolTip="Полная сверка состава и объёмов по комнатам"
+                                     Checked="Tab_Checked">
+                            <TextBlock Text="Таблица сверки" VerticalAlignment="Center"/>
+                        </RadioButton>
+                    </StackPanel>
+                </Border>
+                <CheckBox x:Name="ProblemsOnlyCheckBox"
+                          Content="Только проблемы"
+                          ToolTip="Нет в модели, лишнее в модели и объёмы, которые не уйдут в ДС"
+                          IsChecked="True"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center"
+                          Visibility="Collapsed"
+                          Checked="ProblemsOnlyCheckBox_Changed"
+                          Unchecked="ProblemsOnlyCheckBox_Changed"/>
+            </Grid>
+
+            <Grid Grid.Row="3">
+                <!-- Вкладка «Исправить» -->
+                <ScrollViewer x:Name="FixPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <ItemsControl x:Name="WarningGroupsItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource CardBackgroundBrush}"
+                                            BorderBrush="{StaticResource CardBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="18,14"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="16" Margin="0,1,12,0" VerticalAlignment="Top">
                                                 <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IconGlyph}">
+                                                        <Setter Property="Text" Value="&#xE7BA;"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsBlocking}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
+                                                                <Setter Property="Text" Value="&#xEA39;"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <ItemsControl ItemsSource="{Binding Items}" Margin="12,2,0,0">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <StackPanel Margin="0,3,0,0">
-                                                            <TextBlock Text="{Binding Text}"
-                                                                       FontSize="12"
-                                                                       TextWrapping="Wrap"
-                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                            <TextBlock Text="{Binding Detail}"
-                                                                       FontSize="12"
-                                                                       TextWrapping="Wrap"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding Detail}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-                <TextBlock x:Name="StatusText"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Text="Загрузка…"/>
-            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Title}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBlocking}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Hint}"
+                                                           Style="{StaticResource CaptionText}"
+                                                           Margin="0,2,0,0"
+                                                           TextWrapping="Wrap"/>
+                                                <ItemsControl ItemsSource="{Binding Items}" Margin="0,6,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="{StaticResource DividerBrush}"
+                                                                    BorderThickness="0,1,0,0"
+                                                                    Padding="0,9,0,0"
+                                                                    Margin="0,9,0,0">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Text}"
+                                                                               FontSize="13"
+                                                                               TextWrapping="Wrap"
+                                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                    <ItemsControl ItemsSource="{Binding Lines}" Margin="0,3,0,0">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Text="{Binding}"
+                                                                                           FontSize="12"
+                                                                                           Margin="0,1,0,0"
+                                                                                           TextWrapping="Wrap"
+                                                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel x:Name="FixEmptyPanel"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,40"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="&#xE73E;"
+                                       Style="{StaticResource IconGlyph}"
+                                       FontSize="28"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{StaticResource SuccessBrush}"/>
+                            <TextBlock Text="Исправлять нечего"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Margin="0,8,0,0"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="Модель считается без ошибок. Что уйдёт — на вкладке «Уйдёт в ДС»."
+                                       Style="{StaticResource CaptionText}"
+                                       Margin="0,4,0,0"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
 
-            <!-- Помещения -->
-            <Grid Grid.Row="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0" Margin="0,0,0,10">
-                    <TextBlock Text="ПОМЕЩЕНИЯ" Style="{StaticResource SectionLabel}" Margin="0" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="ProblemsOnlyCheckBox"
-                              Content="Только проблемы"
-                              ToolTip="Нет в модели, лишнее в модели и объёмы, которые не уйдут в ДС"
-                              IsChecked="True"
-                              HorizontalAlignment="Right"
-                              Checked="ProblemsOnlyCheckBox_Changed"
-                              Unchecked="ProblemsOnlyCheckBox_Changed"/>
+                <!-- Вкладка «Уйдёт в ДС» -->
+                <Grid x:Name="SendPanel" Visibility="Collapsed">
+                    <DataGrid x:Name="SendGrid"
+                              Style="{StaticResource ModernDataGrid}"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow"
+                              AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Комната" Binding="{Binding RoomName}" Width="1*" MinWidth="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Конструктив" Binding="{Binding WorkSetName}" Width="1.2*" MinWidth="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Материал" Binding="{Binding MaterialName}" Width="2.6*" MinWidth="180">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Было (ДС)" Binding="{Binding FromDisplay}" Width="90" MinWidth="70">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Станет" Binding="{Binding ToDisplay}" Width="90" MinWidth="70">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="{StaticResource InfoTextBrush}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="60" MinWidth="44">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Примечание" Binding="{Binding Note}" Width="1.4*" MinWidth="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock x:Name="SendEmptyText"
+                               Style="{StaticResource EmptyStateText}"
+                               Margin="0,40"
+                               Visibility="Collapsed"
+                               Text="Отправлять нечего."/>
                 </Grid>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <!-- Вкладка «Таблица сверки» -->
+                <ScrollViewer x:Name="TablePanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <ItemsControl x:Name="RoomsItemsControl">
                             <ItemsControl.ItemTemplate>

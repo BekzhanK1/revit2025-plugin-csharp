@@ -47,6 +47,13 @@ namespace SmartRemont.ExportRooms.Services
         public string SourceTitle { get; init; }
         public DsTkTargetStatus Status { get; init; }
         public string Reason { get; init; }
+        /// <summary>Какие строки или материалы модели дали причину — отдельно от того, что делать.</summary>
+        public string ReasonDetail { get; init; }
+
+        public string FullReason => string.IsNullOrWhiteSpace(ReasonDetail)
+            ? Reason
+            : $"{Reason} ({ReasonDetail})";
+
         /// <summary>Ведомость, из-за строк без помещения которой позиция заблокирована.</summary>
         public string BlockedBySourceCode { get; init; }
         public DsTkTargetLine Head { get; init; }
@@ -234,9 +241,11 @@ namespace SmartRemont.ExportRooms.Services
             var sourceTitle = string.Join(" + ", entries.Select(e => e.Title));
 
             DsTkTargetPosition Make(DsTkTargetStatus status, string reason, DsTkTargetLine headLine = null,
-                List<DsTkTargetLine> memberLines = null, string blockedBySourceCode = null) => new()
+                List<DsTkTargetLine> memberLines = null, string blockedBySourceCode = null,
+                string reasonDetail = null) => new()
             {
                 BlockedBySourceCode = blockedBySourceCode,
+                ReasonDetail = reasonDetail,
                 ClientMaterialId = row.ClientMaterialId,
                 MaterialSetId = row.MaterialSetId,
                 WorkSetId = row.WorkSetId,
@@ -291,15 +300,17 @@ namespace SmartRemont.ExportRooms.Services
                 if (problems.BadRooms.TryGetValue(code, out var bad))
                 {
                     return Make(DsTkTargetStatus.Blocked,
-                        $"в ведомости «{TitleOf(code)}» есть строки без помещения или с помещением, которого нет в модели: "
-                        + $"{Short(bad)} — исправьте ведомость",
-                        blockedBySourceCode: code);
+                        $"в ведомости «{TitleOf(code)}» {bad.Count} {RowsWord(bad.Count)} без помещения или с помещением, "
+                        + "которого нет в модели — укажите помещение в Revit",
+                        blockedBySourceCode: code,
+                        reasonDetail: "строки: " + Short(bad));
                 }
 
                 if (problems.MissingId.TryGetValue((code.ToUpperInvariant(), roomKey), out var noId))
                 {
                     return Make(DsTkTargetStatus.Blocked,
-                        $"в ведомости «{TitleOf(code)}» в этой комнате есть строки без ID: {Short(noId)} — добавьте ID в модели");
+                        $"в ведомости «{TitleOf(code)}» в этой комнате {noId.Count} {RowsWord(noId.Count)} без ID — добавьте ID в модели",
+                        reasonDetail: "строки: " + Short(noId));
                 }
             }
 
@@ -409,9 +420,9 @@ namespace SmartRemont.ExportRooms.Services
                 if (foreign.Count > 0)
                 {
                     return Make(DsTkTargetStatus.Blocked,
-                        $"материала ДС нет в модели, а в этой комнате в модели другой материал: {Short(foreign)} — "
-                        + "проверьте ID в модели или замените материал в MySpace",
-                        head, members);
+                        "материала ДС нет в модели, в комнате стоит другой — проверьте ID в модели или замените материал в MySpace",
+                        head, members,
+                        reasonDetail: "в модели: " + Short(foreign));
                 }
             }
 
@@ -562,6 +573,20 @@ namespace SmartRemont.ExportRooms.Services
             TkQtyScheduleMapping.All.FirstOrDefault(e =>
                 string.Equals(e.Code, code, StringComparison.OrdinalIgnoreCase))?.Title ?? code;
 
+        static string RowsWord(int n)
+        {
+            var mod100 = n % 100;
+            var mod10 = n % 10;
+            if (mod100 is >= 11 and <= 14)
+                return "строк";
+            return mod10 switch
+            {
+                1 => "строка",
+                >= 2 and <= 4 => "строки",
+                _ => "строк"
+            };
+        }
+
         static string Short(IReadOnlyCollection<string> items) =>
             string.Join(", ", items.Take(3)) + (items.Count > 3 ? $" и ещё {items.Count - 3}" : string.Empty);
 
@@ -671,6 +696,8 @@ namespace SmartRemont.ExportRooms.Services
                     };
                     if (!string.IsNullOrWhiteSpace(p.Reason))
                         o["reason"] = p.Reason;
+                    if (!string.IsNullOrWhiteSpace(p.ReasonDetail))
+                        o["reason_detail"] = p.ReasonDetail;
                     if (p.Head != null)
                         o["head"] = Line(p.Head);
                     if (p.Members.Count > 0)

@@ -15,6 +15,12 @@
 - Меню «⋯» (`MoreButton` + ContextMenu): сканирование, JSON отправки, экспорт JSON.
 - Токены `Extra*`, `Blocked*` в `AppStyles.xaml`; `SetBadgeColors` берёт ключи ресурсов.
 
+## Доработка: вкладки
+
+- Плашка заменена вкладками `FixTab` / `SendTab` / `TableTab` (RadioButton `SegmentTab`), панели `FixPanel` / `SendPanel` / `TablePanel`, переключение в `ApplyTab`, автовыбор в `SelectDefaultTab` (флаги `_tabChosenByUser`, `_settingTab`).
+- «Уйдёт в ДС» — `SendGrid` из `_target.ToSend[].ChangedLines` (`BindSendGrid`).
+- Группировка блокировок по `(Reason, ReasonDetail)`; `WarningItemVm.Lines` — строки подробностей.
+
 ## Дальше
 
 Этапы 2–3 — в `PROGRESS.md` (раздел «F11: окно «ДС ТК», UX этап 1»).

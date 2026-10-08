@@ -35,6 +35,8 @@ namespace SmartRemont.ExportRooms.Views
         List<string> _modelRoomNames = new();
         bool _loading;
         bool _dsBusy;
+        bool _tabChosenByUser;
+        bool _settingTab;
 
         public DsTkChangeWindow(Document doc)
         {
@@ -459,12 +461,13 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ExportRoomsApplication._logger?.Warning(ex, "DS TK compare failed");
                 StatusText.Text = ex.Message;
-                HideMismatchWarning();
                 _result = null;
                 _target = null;
                 _scheduleQty = null;
                 _tkSnapshot = null;
                 _tkFlattened = null;
+                HideMismatchWarning();
+                BindSendGrid();
                 UpdateStats();
                 BindRooms();
             }
@@ -481,6 +484,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 StatusText.Text = "Нет данных сверки.";
                 HideMismatchWarning();
+                BindSendGrid();
                 return;
             }
 
@@ -491,9 +495,19 @@ namespace SmartRemont.ExportRooms.Views
             else
             {
                 var positions = _target.ToSend.Count;
-                StatusText.Text = positions > 0
-                    ? $"Уйдёт в ДС №{_boundDs.DsId}: {positions} поз. ({_target.ChangedLineCount} строк) + замеры комнат."
-                    : $"Объёмы модели совпадают с ДС №{_boundDs.DsId}.";
+                var stopped = _target.Blocked.Count > 0 || _openRoomChange != null;
+                if (stopped)
+                {
+                    StatusText.Text = positions > 0
+                        ? $"Отправка остановлена — см. «Исправить». Готово к отправке в ДС №{_boundDs.DsId}: {positions} поз."
+                        : "Отправка остановлена — см. «Исправить».";
+                }
+                else
+                {
+                    StatusText.Text = positions > 0
+                        ? $"Уйдёт в ДС №{_boundDs.DsId}: {positions} поз. ({_target.ChangedLineCount} строк) + замеры комнат."
+                        : $"Объёмы модели совпадают с ДС №{_boundDs.DsId}.";
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(materialsError) && !materialsOk)
@@ -501,16 +515,29 @@ namespace SmartRemont.ExportRooms.Views
 
             var groups = BuildWarningGroups();
             if (groups.Count == 0)
-            {
                 HideMismatchWarning();
-                return;
-            }
+            else
+                ShowFixGroups(groups);
 
-            if (MismatchWarningPanel == null || WarningGroupsItemsControl == null)
+            BindSendGrid();
+            SelectDefaultTab(groups);
+        }
+
+        void ShowFixGroups(List<WarningGroupVm> groups)
+        {
+            if (WarningGroupsItemsControl == null || FixEmptyPanel == null)
                 return;
 
             WarningGroupsItemsControl.ItemsSource = groups;
-            MismatchWarningPanel.Visibility = System.Windows.Visibility.Visible;
+            FixEmptyPanel.Visibility = System.Windows.Visibility.Collapsed;
+
+            var count = groups.Sum(g => g.IssueCount);
+            var blocking = groups.Any(g => g.IsBlocking);
+            FixTabCountText.Text = count.ToString(CultureInfo.InvariantCulture);
+            FixTabCountBorder.Background = (System.Windows.Media.Brush)FindResource(
+                blocking ? "ErrorBackgroundBrush" : "WarningSoftBrush");
+            FixTabCountText.Foreground = (System.Windows.Media.Brush)FindResource(
+                blocking ? "ErrorTextBrush" : "WarningTextBrush");
         }
 
         /// <summary>
@@ -526,8 +553,9 @@ namespace SmartRemont.ExportRooms.Views
                 groups.Add(new WarningGroupVm
                 {
                     IsBlocking = true,
-                    Title = $"ДС «Изменение площади» №{_openRoomChange.DsId} не утверждена ({_openRoomChange.StatusDisplay}). "
-                            + "Сначала утвердите её: при утверждении она пересчитает ТК и затрёт объёмы ДС ТК."
+                    IssueCount = 1,
+                    Title = $"Утвердите ДС «Изменение площади» №{_openRoomChange.DsId} ({_openRoomChange.StatusDisplay})",
+                    Hint = "При утверждении она пересчитает ТК и затрёт объёмы ДС ТК, поэтому отправка остановлена до утверждения."
                 });
             }
 
@@ -540,9 +568,11 @@ namespace SmartRemont.ExportRooms.Views
                 groups.Add(new WarningGroupVm
                 {
                     IsBlocking = true,
-                    Title = $"Исправьте модель — отправка остановлена: {blockedCauses.Count} "
-                            + Plural(blockedCauses.Count, "причина", "причины", "причин")
-                            + $", {_target.Blocked.Count} поз.",
+                    IssueCount = blockedCauses.Count,
+                    Title = $"Исправьте модель: {blockedCauses.Count} "
+                            + Plural(blockedCauses.Count, "проблема", "проблемы", "проблем")
+                            + $" ({_target.Blocked.Count} поз.)",
+                    Hint = "Отправка остановлена. Исправьте в Revit и нажмите «Обновить».",
                     Items = LimitItems(blockedCauses)
                 });
             }
@@ -552,7 +582,9 @@ namespace SmartRemont.ExportRooms.Views
             {
                 groups.Add(new WarningGroupVm
                 {
-                    Title = $"Не уйдёт из модели, правится в MySpace: {_target.Skipped.Count} поз.",
+                    IssueCount = skippedCauses.Count,
+                    Title = $"Не уйдёт из модели: {_target.Skipped.Count} поз.",
+                    Hint = "Объём правится вручную в MySpace. Отправку остальных не останавливает.",
                     Items = LimitItems(skippedCauses)
                 });
             }
@@ -562,14 +594,16 @@ namespace SmartRemont.ExportRooms.Views
                 .Select(g => new WarningItemVm
                 {
                     Text = g.Key,
-                    Detail = JoinRooms(g.Select(i => i.RoomName))
+                    Lines = { JoinRooms(g.Select(i => i.RoomName)) }
                 })
                 .ToList();
             if (extra.Count > 0)
             {
                 groups.Add(new WarningGroupVm
                 {
-                    Title = $"В модели есть, в ТК нет — замените или добавьте в MySpace: {extra.Count}",
+                    IssueCount = extra.Count,
+                    Title = $"В модели есть, в ТК нет: {extra.Count}",
+                    Hint = "Замените или добавьте материал в MySpace — или уберите его из модели. Отправку не останавливает.",
                     Items = LimitItems(extra)
                 });
             }
@@ -581,13 +615,15 @@ namespace SmartRemont.ExportRooms.Views
                 StringComparer.OrdinalIgnoreCase);
             var unassigned = _target.Unassigned
                 .Where(i => string.IsNullOrWhiteSpace(i.SourceCode) || !reportedSources.Contains(i.SourceCode))
-                .Select(i => new WarningItemVm { Text = i.MaterialName ?? "—", Detail = i.Text })
+                .Select(i => new WarningItemVm { Text = i.MaterialName ?? "—", Lines = { Capitalize(i.Text) } })
                 .ToList();
             if (unassigned.Count > 0)
             {
                 groups.Add(new WarningGroupVm
                 {
-                    Title = $"Строки ведомостей без помещения — объём не учтён: {unassigned.Count}",
+                    IssueCount = unassigned.Count,
+                    Title = $"Строки ведомостей без помещения: {unassigned.Count}",
+                    Hint = "Их объём никуда не попал. Укажите помещение в Revit.",
                     Items = LimitItems(unassigned)
                 });
             }
@@ -595,26 +631,28 @@ namespace SmartRemont.ExportRooms.Views
             return groups;
         }
 
+        /// <summary>Одна причина + одни и те же строки модели — один пункт со списком затронутых позиций.</summary>
         static List<WarningItemVm> GroupByReason(IEnumerable<DsTkTargetPosition> positions) =>
             positions
-                .GroupBy(p => p.Reason ?? "—")
+                .GroupBy(p => (p.Reason ?? "—", p.ReasonDetail ?? string.Empty))
                 .Select(g =>
                 {
+                    var item = new WarningItemVm { Text = Capitalize(g.Key.Item1) };
+                    if (!string.IsNullOrWhiteSpace(g.Key.Item2))
+                        item.Lines.Add(Capitalize(g.Key.Item2));
+
                     var materials = g.Select(p => StripId(p.MaterialName)).Distinct().ToList();
                     var rooms = JoinRooms(g.Select(p => p.RoomName));
-                    return new WarningItemVm
-                    {
-                        Text = Capitalize(g.Key),
-                        Detail = materials.Count == 1
-                            ? $"{materials[0]} — {rooms}"
-                            : $"{g.Count()} поз. — {rooms}"
-                    };
+                    item.Lines.Add(materials.Count == 1
+                        ? $"В ДС: {materials[0]} — {rooms}"
+                        : $"Затронуто {g.Count()} поз.: {rooms}");
+                    return item;
                 })
                 .ToList();
 
         static List<WarningItemVm> LimitItems(List<WarningItemVm> items)
         {
-            const int maxPerGroup = 6;
+            const int maxPerGroup = 30;
             if (items.Count <= maxPerGroup)
                 return items;
             var shown = items.Take(maxPerGroup).ToList();
@@ -656,10 +694,103 @@ namespace SmartRemont.ExportRooms.Views
 
         void HideMismatchWarning()
         {
-            if (MismatchWarningPanel != null)
-                MismatchWarningPanel.Visibility = System.Windows.Visibility.Collapsed;
             if (WarningGroupsItemsControl != null)
                 WarningGroupsItemsControl.ItemsSource = null;
+            if (FixEmptyPanel != null)
+                FixEmptyPanel.Visibility = _target == null
+                    ? System.Windows.Visibility.Collapsed
+                    : System.Windows.Visibility.Visible;
+            if (FixTabCountText != null)
+            {
+                FixTabCountText.Text = _target == null ? "—" : "0";
+                FixTabCountBorder.Background = (System.Windows.Media.Brush)FindResource("DividerBrush");
+                FixTabCountText.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
+            }
+        }
+
+        void BindSendGrid()
+        {
+            if (SendGrid == null || SendEmptyText == null)
+                return;
+
+            var rows = new List<SendLineVm>();
+            foreach (var position in _target?.ToSend ?? Array.Empty<DsTkTargetPosition>())
+            {
+                foreach (var line in position.ChangedLines)
+                {
+                    rows.Add(new SendLineVm
+                    {
+                        RoomName = position.RoomName,
+                        WorkSetName = position.WorkSetName,
+                        MaterialName = line.IsSetMember
+                            ? "в наборе: " + StripId(line.MaterialName)
+                            : StripId(line.MaterialName),
+                        FromDisplay = FormatQty(line.CurrentQty),
+                        ToDisplay = FormatQty(line.TargetQty),
+                        Unit = line.MyspaceUnit,
+                        Note = line.Note
+                    });
+                }
+            }
+
+            SendGrid.ItemsSource = rows;
+            SendTabCountText.Text = _target == null
+                ? "—"
+                : _target.ToSend.Count.ToString(CultureInfo.InvariantCulture);
+
+            var empty = rows.Count == 0;
+            SendGrid.Visibility = empty ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+            SendEmptyText.Visibility = empty ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            SendEmptyText.Text = _target == null
+                ? "Расчёт ещё не готов — привяжите черновик ДС или нажмите «Обновить»."
+                : "Объёмы модели совпадают с ДС — отправлять нечего.";
+        }
+
+        static string FormatQty(double? value) =>
+            value == null ? "—" : value.Value.ToString("0.##", CultureInfo.InvariantCulture);
+
+        /// <summary>После загрузки — туда, где есть дело; выбор пользователя не перебиваем.</summary>
+        void SelectDefaultTab(List<WarningGroupVm> groups)
+        {
+            if (_tabChosenByUser || FixTab == null)
+                return;
+
+            var target = groups.Count > 0
+                ? FixTab
+                : (_target?.ToSend.Count ?? 0) > 0 ? SendTab : TableTab;
+
+            _settingTab = true;
+            try
+            {
+                target.IsChecked = true;
+            }
+            finally
+            {
+                _settingTab = false;
+            }
+            ApplyTab();
+        }
+
+        void Tab_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_settingTab && IsLoaded)
+                _tabChosenByUser = true;
+            ApplyTab();
+        }
+
+        void ApplyTab()
+        {
+            // Checked стреляет ещё в InitializeComponent — панели ниже по XAML могут быть null.
+            if (FixPanel == null || SendPanel == null || TablePanel == null || ProblemsOnlyCheckBox == null)
+                return;
+
+            static System.Windows.Visibility Show(bool on) =>
+                on ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+            FixPanel.Visibility = Show(FixTab.IsChecked == true);
+            SendPanel.Visibility = Show(SendTab.IsChecked == true);
+            TablePanel.Visibility = Show(TableTab.IsChecked == true);
+            ProblemsOnlyCheckBox.Visibility = Show(TableTab.IsChecked == true);
         }
 
         async Task RebuildCompareAsync()
@@ -704,6 +835,7 @@ namespace SmartRemont.ExportRooms.Views
                     BindRooms();
                     UpdateDsActionButtons();
                     HideMismatchWarning();
+                    BindSendGrid();
                     StatusText.Text = $"Не удалось прочитать материалы ДС №{_boundDs.DsId}: {ex.Message}. "
                         + "Сверка остановлена, отправка недоступна. Нажмите «Обновить».";
                     return;
@@ -1081,10 +1213,11 @@ namespace SmartRemont.ExportRooms.Views
                 if (brief)
                 {
                     return $"Отправка недоступна: {causes.Count} {Plural(causes.Count, "проблема", "проблемы", "проблем")} "
-                           + $"в модели ({_target.Blocked.Count} поз.) — список выше.";
+                           + $"в модели ({_target.Blocked.Count} поз.) — вкладка «Исправить».";
                 }
                 return "Есть позиции, которые нельзя посчитать по модели. Исправьте модель и нажмите «Обновить»:\n\n"
-                       + string.Join("\n", causes.Take(10).Select(c => $"— {c.Text}\n   {c.Detail}"))
+                       + string.Join("\n", causes.Take(10).Select(c =>
+                           $"— {c.Text}" + string.Concat(c.Lines.Select(l => "\n   " + l))))
                        + (causes.Count > 10 ? $"\n… и ещё {causes.Count - 10}" : string.Empty);
             }
             if (_target.ToSend.Count == 0)
@@ -1230,14 +1363,28 @@ namespace SmartRemont.ExportRooms.Views
         sealed class WarningGroupVm
         {
             public string Title { get; init; }
+            public string Hint { get; init; }
             public bool IsBlocking { get; init; }
+            /// <summary>Сколько пунктов исправлять — для счётчика на вкладке.</summary>
+            public int IssueCount { get; init; }
             public List<WarningItemVm> Items { get; init; } = new();
         }
 
         sealed class WarningItemVm
         {
             public string Text { get; init; }
-            public string Detail { get; init; }
+            public List<string> Lines { get; } = new();
+        }
+
+        sealed class SendLineVm
+        {
+            public string RoomName { get; init; }
+            public string WorkSetName { get; init; }
+            public string MaterialName { get; init; }
+            public string FromDisplay { get; init; }
+            public string ToDisplay { get; init; }
+            public string Unit { get; init; }
+            public string Note { get; init; }
         }
     }
 }
