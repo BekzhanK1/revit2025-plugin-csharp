@@ -59,6 +59,8 @@
 
 ### 08.10.2026 — F11: ДС ТК из модели
 
+PR: backend #203 (`master`), #204 (`dev`, ветка `feature/revit-ds-tk-from-model-dev`); плагин #2 (`dev1.0.1`), #3 (`main`, не мёржить до чеклиста релиза). Плагин закоммичен двумя коммитами: F10 (53cecbb) и F11 (dc73091).
+
 Backend: ветка `feature/revit-ds-tk-from-model` от `origin/master`. В неё перенесены из `dev` коммиты 813386c (откат замеров и ДС площади) и 900d96e (ручка `ds/tk-change/apply/`) — в `master` их не было. Свои правки не закоммичены, `py_compile` прошёл, на стенде не запускалось.
 
 - `ds/tk-change/apply/`: обязательный `measure_rooms` (формат как у `measures/apply`), право `OA__RemontFormMeasureSave`. Замеры и объёмы пишутся в одной транзакции, замеры первыми.
@@ -148,7 +150,7 @@ Backend: ветка `feature/revit-ds-tk-from-model` от `origin/master`. В н
 - [ ] Кнопка «Заменить в ДС» в ТК MySpace
 - [ ] Выкатка `dev` → `master` по списку выше
 - [ ] F10: собрать плагин `fix/project-init` в Windows и пройти init на тестовой заявке (новый файл, существующий файл, отмена, «Продолжить без исправления»)
-- [ ] F11: прогнать backend `feature/revit-ds-tk-from-model` на тесте; сделать `-dev` ветку для `dev`
+- [ ] F11: прогнать backend #204 на тесте, потом мёржить #203
 - [ ] F11: собрать плагин и проверить на 3–5 заявках, где ДС ТК уже утверждена вручную: сравнить с расчётом плагина
 - [ ] F11: ответы бизнеса — материалы набора двери, HDMI 0,5, строки с вводом не из модели
 - [ ] F10: накатить `../myspace/sql/revit-project-init/01_read_revit_material_by_client_request_tk_only.sql` на тестовую БД
