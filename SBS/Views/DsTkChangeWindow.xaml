@@ -64,7 +64,7 @@
 
                 <StackPanel Grid.Column="1" Margin="0,0,16,0">
                     <TextBlock Text="ДС на изменение ТК" Style="{StaticResource PageTitle}"/>
-                    <TextBlock Text="Сверка состава с договором: чего нет в проекте и что лишнее. Из Revit в ДС уходят только объёмы; удалить, добавить или заменить материал можно только в MySpace."
+                    <TextBlock Text="Из модели в черновик ДС уходят объёмы и замеры комнат. Добавить, удалить или заменить материал — только в MySpace."
                                Style="{StaticResource PageSubtitle}"/>
 
                     <WrapPanel Orientation="Horizontal" Margin="0,12,0,0">
@@ -91,10 +91,6 @@
                                 Style="{StaticResource CompactSecondaryButton}"
                                 Margin="0,0,12,0"
                                 Click="PickDsButton_Click"/>
-                        <TextBlock x:Name="ScanInfoText"
-                                   Style="{StaticResource CaptionText}"
-                                   VerticalAlignment="Center"
-                                   Text=""/>
                     </WrapPanel>
                 </StackPanel>
 
@@ -107,23 +103,22 @@
                             <TextBlock Text="Обновить" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="CopySendJsonButton"
+                    <Button x:Name="MoreButton"
                             Style="{StaticResource GhostButton}"
-                            Margin="0,0,4,0"
-                            ToolTip="Копирует в буфер JSON: тело запроса, который уйдёт в ДС (замеры + объёмы), расчёт по каждой строке ДС и строки ведомостей"
-                            Click="CopySendJsonButton_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE8C8;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
-                            <TextBlock Text="JSON отправки" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="ExportJsonButton"
-                            Style="{StaticResource GhostButton}"
-                            Click="ExportJsonButton_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE896;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
-                            <TextBlock Text="Экспорт JSON" VerticalAlignment="Center"/>
-                        </StackPanel>
+                            ToolTip="Диагностика и JSON"
+                            Click="MoreButton_Click">
+                        <TextBlock Text="&#xE712;" Style="{StaticResource IconGlyph}" FontSize="13"/>
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem x:Name="ScanInfoMenuItem" Header="Сканирование модели: —" IsEnabled="False"/>
+                                <Separator/>
+                                <MenuItem Header="Скопировать JSON отправки"
+                                          ToolTip="Тело запроса в ДС (замеры + объёмы), расчёт по каждой строке ДС и строки ведомостей. Ничего не отправляет."
+                                          Click="CopySendJsonButton_Click"/>
+                                <MenuItem Header="Сохранить JSON сверки…"
+                                          Click="ExportJsonButton_Click"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
                     </Button>
                 </StackPanel>
             </Grid>
@@ -170,16 +165,16 @@
                         <TextBlock x:Name="StatMissingRevitValue" Style="{StaticResource StatValue}" Foreground="{StaticResource WarningTextBrush}" Text="—"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                             <Border Style="{StaticResource StatDot}" Background="{StaticResource WarningBrush}"/>
-                            <TextBlock Text="нет в проекте" Style="{StaticResource StatLabel}"/>
+                            <TextBlock Text="нет в модели" Style="{StaticResource StatLabel}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
                 <Border Grid.Column="3" Style="{StaticResource StatBadge}">
                     <StackPanel>
-                        <TextBlock x:Name="StatExtraValue" Style="{StaticResource StatValue}" Foreground="#C2410C" Text="—"/>
+                        <TextBlock x:Name="StatExtraValue" Style="{StaticResource StatValue}" Foreground="{StaticResource ExtraTextBrush}" Text="—"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <Border Style="{StaticResource StatDot}" Background="#F97316"/>
-                            <TextBlock Text="лишнее" Style="{StaticResource StatLabel}"/>
+                            <Border Style="{StaticResource StatDot}" Background="{StaticResource ExtraBrush}"/>
+                            <TextBlock Text="лишнее в модели" Style="{StaticResource StatLabel}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -188,7 +183,7 @@
                         <TextBlock x:Name="StatQtyMismatchValue" Style="{StaticResource StatValue}" Foreground="{StaticResource InfoTextBrush}" Text="—"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                             <Border Style="{StaticResource StatDot}" Background="{StaticResource InfoBrush}"/>
-                            <TextBlock x:Name="StatQtyMismatchLabel" Text="к отправке" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="StatQtyMismatchLabel" Text="позиций к отправке" Style="{StaticResource StatLabel}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -206,12 +201,60 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="&#xE7BA;" Style="{StaticResource CalloutIcon}" Foreground="{StaticResource WarningBrush}"/>
-                        <TextBlock x:Name="MismatchWarningText"
-                                   Grid.Column="1"
-                                   FontSize="13"
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource WarningTextBrush}"
-                                   Text=""/>
+                        <ScrollViewer Grid.Column="1"
+                                      MaxHeight="200"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="WarningGroupsItemsControl">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsBlocking}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <ItemsControl ItemsSource="{Binding Items}" Margin="12,2,0,0">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,3,0,0">
+                                                            <TextBlock Text="{Binding Text}"
+                                                                       FontSize="12"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding Detail}"
+                                                                       FontSize="12"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Detail}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </Grid>
                 </Border>
                 <TextBlock x:Name="StatusText"
@@ -231,7 +274,8 @@
                 <Grid Grid.Row="0" Margin="0,0,0,10">
                     <TextBlock Text="ПОМЕЩЕНИЯ" Style="{StaticResource SectionLabel}" Margin="0" VerticalAlignment="Center"/>
                     <CheckBox x:Name="ProblemsOnlyCheckBox"
-                              Content="Только «нет» и «лишнее»"
+                              Content="Только проблемы"
+                              ToolTip="Нет в модели, лишнее в модели и объёмы, которые не уйдут в ДС"
                               IsChecked="True"
                               HorizontalAlignment="Right"
                               Checked="ProblemsOnlyCheckBox_Changed"
@@ -281,16 +325,16 @@
                                                             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding StatusKey}" Value="extra">
-                                                            <Setter Property="Background" Value="#FFF4EC"/>
+                                                            <Setter Property="Background" Value="{StaticResource ExtraSoftBrush}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_mismatch">
-                                                            <Setter Property="Background" Value="{StaticResource ErrorBackgroundBrush}"/>
+                                                            <Setter Property="Background" Value="{StaticResource InfoSoftBrush}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_project_alert">
-                                                            <Setter Property="Background" Value="#FFF4EC"/>
+                                                            <Setter Property="Background" Value="{StaticResource ExtraSoftBrush}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_blocked">
-                                                            <Setter Property="Background" Value="#F5F3FF"/>
+                                                            <Setter Property="Background" Value="{StaticResource BlockedSoftBrush}"/>
                                                         </DataTrigger>
                                                         <Trigger Property="IsSelected" Value="True">
                                                             <Setter Property="Background" Value="{StaticResource SelectionBrush}"/>
@@ -320,21 +364,21 @@
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
                                                 <DataGridTextColumn Header="ДС/ТК" Binding="{Binding TkQtyDisplay}" Width="70" MinWidth="56"/>
-                                                <DataGridTextColumn Header="Проект" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="56"/>
+                                                <DataGridTextColumn Header="Модель" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="56"/>
                                                 <DataGridTextColumn Header="Объём" Binding="{Binding QtyStatusDisplay}" Width="150" MinWidth="110">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_mismatch">
-                                                                    <Setter Property="Foreground" Value="#B91C1C"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource InfoTextBrush}"/>
                                                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_project_alert">
-                                                                    <Setter Property="Foreground" Value="#C2410C"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource ExtraTextBrush}"/>
                                                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_blocked">
-                                                                    <Setter Property="Foreground" Value="#6D28D9"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource BlockedTextBrush}"/>
                                                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding QtyStatusKey}" Value="qty_match">
@@ -349,7 +393,7 @@
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTextColumn Header="Кол-во" Binding="{Binding Quantity}" Width="60" MinWidth="48"/>
+                                                <DataGridTextColumn Header="Элементов" Binding="{Binding Quantity}" Width="76" MinWidth="60"/>
                                                 <DataGridTextColumn Header="Статус" Binding="{Binding StatusDisplay}" Width="120" MinWidth="90">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
@@ -401,7 +445,15 @@
                     <TextBlock x:Name="QtyModeHintText"
                                Style="{StaticResource CaptionText}"
                                Margin="0,4,0,0"
-                               Text="Уходят замеры комнат и объёмы строк, которые в MySpace вводят вручную, — в последний черновик ДС. Работы и сумму MySpace посчитает сам. Лишнее или недостающее в модели меняйте в MySpace."/>
+                               TextWrapping="Wrap"
+                               Text="Замеры комнат и объёмы строк с ручным вводом. Работы и сумму MySpace посчитает сам."/>
+                    <TextBlock x:Name="SendBlockText"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,4,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource ErrorTextBrush}"
+                               Visibility="Collapsed"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

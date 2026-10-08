@@ -47,6 +47,8 @@ namespace SmartRemont.ExportRooms.Services
         public string SourceTitle { get; init; }
         public DsTkTargetStatus Status { get; init; }
         public string Reason { get; init; }
+        /// <summary>Ведомость, из-за строк без помещения которой позиция заблокирована.</summary>
+        public string BlockedBySourceCode { get; init; }
         public DsTkTargetLine Head { get; init; }
         public List<DsTkTargetLine> Members { get; init; } = new();
 
@@ -59,6 +61,7 @@ namespace SmartRemont.ExportRooms.Services
         public string RoomName { get; init; }
         public string MaterialName { get; init; }
         public string Text { get; init; }
+        public string SourceCode { get; init; }
 
         public string Display =>
             $"{(string.IsNullOrWhiteSpace(RoomName) ? "—" : RoomName)}: {MaterialName} — {Text}";
@@ -231,8 +234,9 @@ namespace SmartRemont.ExportRooms.Services
             var sourceTitle = string.Join(" + ", entries.Select(e => e.Title));
 
             DsTkTargetPosition Make(DsTkTargetStatus status, string reason, DsTkTargetLine headLine = null,
-                List<DsTkTargetLine> memberLines = null) => new()
+                List<DsTkTargetLine> memberLines = null, string blockedBySourceCode = null) => new()
             {
+                BlockedBySourceCode = blockedBySourceCode,
                 ClientMaterialId = row.ClientMaterialId,
                 MaterialSetId = row.MaterialSetId,
                 WorkSetId = row.WorkSetId,
@@ -288,7 +292,8 @@ namespace SmartRemont.ExportRooms.Services
                 {
                     return Make(DsTkTargetStatus.Blocked,
                         $"в ведомости «{TitleOf(code)}» есть строки без помещения или с помещением, которого нет в модели: "
-                        + $"{Short(bad)} — исправьте ведомость");
+                        + $"{Short(bad)} — исправьте ведомость",
+                        blockedBySourceCode: code);
                 }
 
                 if (problems.MissingId.TryGetValue((code.ToUpperInvariant(), roomKey), out var noId))
@@ -449,7 +454,8 @@ namespace SmartRemont.ExportRooms.Services
                 result.Unassigned.Add(new DsTkTargetIssue
                 {
                     MaterialName = skippedRow.Text,
-                    Text = $"строка ведомости «{skippedRow.ScheduleName}» без ID и без помещения"
+                    Text = $"строка ведомости «{skippedRow.ScheduleName}» без ID и без помещения",
+                    SourceCode = skippedRow.SourceCode
                 });
             }
 
@@ -464,7 +470,8 @@ namespace SmartRemont.ExportRooms.Services
                     result.Unassigned.Add(new DsTkTargetIssue
                     {
                         MaterialName = Name(line),
-                        Text = $"строка ведомости «{line.ScheduleName}» без помещения"
+                        Text = $"строка ведомости «{line.ScheduleName}» без помещения",
+                        SourceCode = line.SourceCode
                     });
                     continue;
                 }

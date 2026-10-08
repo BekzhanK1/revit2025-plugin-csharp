@@ -70,9 +70,9 @@ namespace SmartRemont.ExportRooms.Services
         public string StatusDisplay => Status switch
         {
             DsTkCompareStatus.Match => "Совпадает",
-            DsTkCompareStatus.MissingInRevit => "Нет в проекте",
+            DsTkCompareStatus.MissingInRevit => "Нет в модели",
             DsTkCompareStatus.NotExpectedInModel => "Не ожидается в модели",
-            DsTkCompareStatus.ExtraInRevit => "Лишнее в проекте",
+            DsTkCompareStatus.ExtraInRevit => "Лишнее в модели",
             _ => "—"
         };
 
@@ -87,6 +87,9 @@ namespace SmartRemont.ExportRooms.Services
 
         /// <summary>Объём расходится, но из Revit его отправить нельзя — причина в QtyStatusDisplay.</summary>
         public bool IsQtyBlocked => QtyStatusKey == "qty_blocked";
+
+        /// <summary>Расхождение состава или объём, который не уйдёт в ДС.</summary>
+        public bool NeedsAttention => IsProblem || IsQtyBlocked || IsProjectQtyAlert;
     }
 
     public sealed class DsTkCompareRoom
@@ -100,13 +103,16 @@ namespace SmartRemont.ExportRooms.Services
             {
                 var missing = Rows.Count(r => r.Status == DsTkCompareStatus.MissingInRevit);
                 var extra = Rows.Count(r => r.Status == DsTkCompareStatus.ExtraInRevit);
-                if (missing == 0 && extra == 0)
+                var blocked = Rows.Count(r => r.IsQtyBlocked);
+                if (missing == 0 && extra == 0 && blocked == 0)
                     return "состав совпадает";
                 var parts = new List<string>();
                 if (missing > 0)
-                    parts.Add($"нет в проекте {missing}");
+                    parts.Add($"нет в модели {missing}");
                 if (extra > 0)
                     parts.Add($"лишнее {extra}");
+                if (blocked > 0)
+                    parts.Add($"объём не уйдёт {blocked}");
                 return string.Join(" · ", parts);
             }
         }

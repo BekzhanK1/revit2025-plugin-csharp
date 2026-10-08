@@ -62,6 +62,16 @@
     <SolidColorBrush x:Key="ErrorBorderBrush" Color="#FBCACA"/>
     <SolidColorBrush x:Key="ErrorTextBrush" Color="#991B1B"/>
 
+    <!-- Semantic: extra (лишнее в модели) -->
+    <SolidColorBrush x:Key="ExtraBrush" Color="#F97316"/>
+    <SolidColorBrush x:Key="ExtraSoftBrush" Color="#FFF4EC"/>
+    <SolidColorBrush x:Key="ExtraTextBrush" Color="#C2410C"/>
+
+    <!-- Semantic: blocked (из модели не отправить) -->
+    <SolidColorBrush x:Key="BlockedBrush" Color="#7C3AED"/>
+    <SolidColorBrush x:Key="BlockedSoftBrush" Color="#F5F3FF"/>
+    <SolidColorBrush x:Key="BlockedTextBrush" Color="#6D28D9"/>
+
     <!-- Financial summary -->
     <SolidColorBrush x:Key="FinancialStatPositiveBrush" Color="#15803D"/>
     <SolidColorBrush x:Key="FinancialStatNegativeBrush" Color="#DC2626"/>
