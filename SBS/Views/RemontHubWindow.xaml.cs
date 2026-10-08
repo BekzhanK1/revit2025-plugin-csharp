@@ -207,8 +207,8 @@ namespace SmartRemont.ExportRooms.Views
                 ? "Все этапы пройдены"
                 : $"Этап {process.CurrentStepNumber} из 4";
 
-            ProjectApprovedOverlay.Visibility = projectApproved ? Visibility.Visible : Visibility.Collapsed;
-            MaterialsPanel.Visibility = isInitialized ? Visibility.Visible : Visibility.Collapsed;
+            ProjectApprovedOverlay.Visibility = projectApproved ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            MaterialsPanel.Visibility = isInitialized ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
             RevitMaterialsButton.IsEnabled = !_initInProgress;
         }
 
@@ -282,7 +282,7 @@ namespace SmartRemont.ExportRooms.Views
 
         void ApplyMaterialsChip(string text, string bgKey, string borderKey, string fgKey, string hint)
         {
-            MaterialsChip.Visibility = Visibility.Visible;
+            MaterialsChip.Visibility = System.Windows.Visibility.Visible;
             MaterialsChip.Background = (Brush)FindResource(bgKey);
             MaterialsChip.BorderBrush = (Brush)FindResource(borderKey);
             MaterialsChipText.Foreground = (Brush)FindResource(fgKey);
@@ -333,7 +333,7 @@ namespace SmartRemont.ExportRooms.Views
             {
                 ClientRequestIdHeroText.Text = "Заявка #—";
                 RemontIdHeroText.Text = string.Empty;
-                RemontIdHeroText.Visibility = Visibility.Collapsed;
+                RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
                 ClientNameText.Text = "Клиент не указан";
                 ResidentNameText.Text = "ЖК —";
                 FlatNumText.Text = "кв. —";
@@ -349,12 +349,12 @@ namespace SmartRemont.ExportRooms.Views
             if (remont.RemontId is int remontId && remontId > 0)
             {
                 RemontIdHeroText.Text = $"Ремонт #{remontId}";
-                RemontIdHeroText.Visibility = Visibility.Visible;
+                RemontIdHeroText.Visibility = System.Windows.Visibility.Visible;
             }
             else
             {
                 RemontIdHeroText.Text = string.Empty;
-                RemontIdHeroText.Visibility = Visibility.Collapsed;
+                RemontIdHeroText.Visibility = System.Windows.Visibility.Collapsed;
             }
 
             ClientNameText.Text = string.IsNullOrWhiteSpace(remont.ClientName) ? "Клиент не указан" : remont.ClientName.Trim();
@@ -373,11 +373,11 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (metadata == null || metadata.ClientRequestId <= 0)
             {
-                InitializedProjectPanel.Visibility = Visibility.Collapsed;
+                InitializedProjectPanel.Visibility = System.Windows.Visibility.Collapsed;
                 return;
             }
 
-            InitializedProjectPanel.Visibility = Visibility.Visible;
+            InitializedProjectPanel.Visibility = System.Windows.Visibility.Visible;
             InitializedProjectPathText.Text = string.IsNullOrWhiteSpace(_doc?.PathName)
                 ? "Путь к файлу не сохранён — выполните Save."
                 : Path.GetFileName(_doc.PathName);
@@ -401,11 +401,11 @@ namespace SmartRemont.ExportRooms.Views
         {
             if (metadata == null || metadata.ClientRequestId <= 0)
             {
-                ProjectInitializedBadge.Visibility = Visibility.Collapsed;
+                ProjectInitializedBadge.Visibility = System.Windows.Visibility.Collapsed;
                 return;
             }
 
-            ProjectInitializedBadge.Visibility = Visibility.Visible;
+            ProjectInitializedBadge.Visibility = System.Windows.Visibility.Visible;
             ProjectInitializedBadgeText.Text = $"#{metadata.ClientRequestId}";
         }
 
