@@ -78,8 +78,10 @@
                             <TextBlock x:Name="DsBadgeText" Style="{StaticResource ChipText}" Text="ДС: —"/>
                         </Border>
                         <Button x:Name="CreateDsButton"
-                                Style="{StaticResource CompactSecondaryButton}"
+                                Style="{StaticResource CompactPrimaryButton}"
                                 Margin="0,0,6,0"
+                                Visibility="Collapsed"
+                                ToolTipService.ShowOnDisabled="True"
                                 Click="CreateDsButton_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE710;" Style="{StaticResource IconGlyph}" FontSize="11" Margin="0,0,6,0"/>
@@ -87,9 +89,11 @@
                             </StackPanel>
                         </Button>
                         <Button x:Name="PickDsButton"
-                                Content="Выбрать…"
+                                Content="Сменить ДС…"
                                 Style="{StaticResource CompactSecondaryButton}"
                                 Margin="0,0,12,0"
+                                Visibility="Collapsed"
+                                ToolTipService.ShowOnDisabled="True"
                                 Click="PickDsButton_Click"/>
                     </WrapPanel>
                 </StackPanel>
@@ -140,7 +144,6 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0" Style="{StaticResource StatBadge}">
@@ -170,7 +173,7 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="3" Style="{StaticResource StatBadge}">
+                <Border Grid.Column="3" Style="{StaticResource StatBadge}" Margin="0">
                     <StackPanel>
                         <TextBlock x:Name="StatExtraValue" Style="{StaticResource StatValue}" Foreground="{StaticResource ExtraTextBrush}" Text="—"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
@@ -179,24 +182,26 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="4" Style="{StaticResource StatBadge}" Margin="0">
-                    <StackPanel>
-                        <TextBlock x:Name="StatQtyMismatchValue" Style="{StaticResource StatValue}" Foreground="{StaticResource InfoTextBrush}" Text="—"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <Border Style="{StaticResource StatDot}" Background="{StaticResource InfoBrush}"/>
-                            <TextBlock x:Name="StatQtyMismatchLabel" Text="строк к отправке" Style="{StaticResource StatLabel}"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
             </Grid>
 
+            <!-- Только временные сообщения (загрузка, ошибки, результат действий); состояние отправки — в подвале. -->
             <TextBlock x:Name="StatusText"
                        Grid.Row="1"
                        Margin="0,0,0,12"
                        FontSize="12"
                        TextWrapping="Wrap"
                        Foreground="{StaticResource TextSecondaryBrush}"
-                       Text="Загрузка…"/>
+                       Text="Загрузка…">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
 
             <!-- Вкладки -->
             <Grid Grid.Row="2" Margin="0,0,0,12">
@@ -366,14 +371,33 @@
                               SelectionMode="Single"
                               SelectionUnit="FullRow"
                               AutoGenerateColumns="False">
+                        <DataGrid.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Margin="10,14,0,6"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </DataGrid.GroupStyle>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsZeroing}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource WarningSoftBrush}"/>
+                                        <Setter Property="ToolTip" Value="В ДС был объём, из модели уходит 0 — проверьте модель"/>
+                                    </DataTrigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource SelectionBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Комната" Binding="{Binding RoomName}" Width="1*" MinWidth="100">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
                             <DataGridTextColumn Header="Конструктив" Binding="{Binding WorkSetName}" Width="1.2*" MinWidth="110">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
@@ -384,22 +408,22 @@
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Было (ДС)" Binding="{Binding FromDisplay}" Width="90" MinWidth="70">
+                            <DataGridTextColumn Header="Сейчас в ДС" Binding="{Binding FromDisplay}" Width="110" MinWidth="80">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}"/>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Станет" Binding="{Binding ToDisplay}" Width="90" MinWidth="70">
+                            <DataGridTextColumn Header="Из модели" Binding="{Binding ToDisplay}" Width="110" MinWidth="80">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                         <Setter Property="Foreground" Value="{StaticResource InfoTextBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsZeroing}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
                                     </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="60" MinWidth="44">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}"/>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Примечание" Binding="{Binding Note}" Width="1.4*" MinWidth="110">
@@ -609,6 +633,7 @@
                             ToolTip="Только для теста: в ДС уйдут готовые позиции, проблемные пропускаются"
                             Click="ForceSendButton_Click"/>
                     <Button x:Name="ApplyQtyButton"
+                            ToolTipService.ShowOnDisabled="True"
                             Content="Проверить и отправить"
                             Style="{StaticResource ModernPrimaryButton}"
                             MinWidth="190"

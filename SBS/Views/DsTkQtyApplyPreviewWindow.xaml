@@ -122,12 +122,12 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Было (ДС)" Binding="{Binding TkQtyDisplay}" Width="78" MinWidth="64">
+                <DataGridTextColumn Header="Сейчас в ДС" Binding="{Binding TkQtyDisplay}" Width="90" MinWidth="64">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCellText}"/>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Станет" Binding="{Binding ScheduleQtyDisplay}" Width="70" MinWidth="64">
+                <DataGridTextColumn Header="Из модели" Binding="{Binding ScheduleQtyDisplay}" Width="84" MinWidth="64">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource NumericCellText}">
                             <Setter Property="FontWeight" Value="SemiBold"/>

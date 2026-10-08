@@ -488,31 +488,10 @@ namespace SmartRemont.ExportRooms.Views
                 return;
             }
 
-            if (_boundDs == null)
-                StatusText.Text = "Нет черновика ДС на изменение ТК — создайте его, чтобы сверить объёмы.";
-            else if (_target == null)
-                StatusText.Text = "Объёмы ДС не прочитаны — нажмите «Обновить».";
-            else
-            {
-                var positions = _target.ToSend.Count;
-                var sendText = DescribeToSend();
-                var stopped = _target.Blocked.Count > 0 || _openRoomChange != null;
-                if (stopped)
-                {
-                    StatusText.Text = positions > 0
-                        ? $"Отправка остановлена — см. «Исправить». Готово к отправке в ДС №{_boundDs.DsId}: {sendText}."
-                        : "Отправка остановлена — см. «Исправить».";
-                }
-                else
-                {
-                    StatusText.Text = positions > 0
-                        ? $"Уйдёт в ДС №{_boundDs.DsId}: {sendText} + замеры комнат."
-                        : $"Объёмы модели совпадают с ДС №{_boundDs.DsId}.";
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(materialsError) && !materialsOk)
-                StatusText.Text += $" Тип файла: {materialsError}";
+            // Нет черновика, расчёт не готов, блокировка, «нечего отправлять» и объём к отправке — в подвале.
+            StatusText.Text = !string.IsNullOrWhiteSpace(materialsError) && !materialsOk
+                ? $"Тип файла: {materialsError}"
+                : string.Empty;
 
             var groups = BuildWarningGroups();
             if (groups.Count == 0)
@@ -715,26 +694,36 @@ namespace SmartRemont.ExportRooms.Views
                 return;
 
             var rows = new List<SendLineVm>();
-            foreach (var position in _target?.ToSend ?? Array.Empty<DsTkTargetPosition>())
+            var toSend = _target?.ToSend ?? Array.Empty<DsTkTargetPosition>();
+            var positionsByRoom = toSend
+                .GroupBy(p => RoomTitle(p.RoomName), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var position in toSend)
             {
-                foreach (var line in position.ChangedLines)
-                {
-                    rows.Add(new SendLineVm
+                var room = RoomTitle(position.RoomName);
+                var header = $"{room} · {positionsByRoom[room]} поз.";
+                var head = position.Head;
+                var changedMembers = position.Members.Where(m => m.IsChanged).ToList();
+
+                // Шапка позиции — всегда одна строка; изменённые материалы набора — под ней.
+                rows.Add(head?.IsChanged == true
+                    ? BuildSendLine(header, position.WorkSetName, StripId(head.MaterialName), head)
+                    : new SendLineVm
                     {
-                        RoomName = position.RoomName,
+                        RoomHeader = header,
                         WorkSetName = position.WorkSetName,
-                        MaterialName = line.IsSetMember
-                            ? "в наборе: " + StripId(line.MaterialName)
-                            : StripId(line.MaterialName),
-                        FromDisplay = FormatQty(line.CurrentQty),
-                        ToDisplay = FormatQty(line.TargetQty),
-                        Unit = line.MyspaceUnit,
-                        Note = line.Note
+                        MaterialName = StripId(head?.MaterialName ?? position.MaterialName),
+                        Note = "меняются материалы набора"
                     });
-                }
+
+                foreach (var member in changedMembers)
+                    rows.Add(BuildSendLine(header, null, "└ " + StripId(member.MaterialName), member));
             }
 
-            SendGrid.ItemsSource = rows;
+            var view = new System.Windows.Data.ListCollectionView(rows);
+            view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(SendLineVm.RoomHeader)));
+            SendGrid.ItemsSource = view;
             // Счётчик — по строкам, как в таблице: одна позиция ТК (набор) — несколько строк.
             SendTabCountText.Text = _target == null
                 ? "—"
@@ -747,6 +736,25 @@ namespace SmartRemont.ExportRooms.Views
                 ? "Расчёт ещё не готов — привяжите черновик ДС или нажмите «Обновить»."
                 : "Объёмы модели совпадают с ДС — отправлять нечего.";
         }
+
+        static SendLineVm BuildSendLine(string header, string workSetName, string materialName, DsTkTargetLine line) => new()
+        {
+            RoomHeader = header,
+            WorkSetName = workSetName,
+            MaterialName = materialName,
+            FromDisplay = FormatQtyWithUnit(line.CurrentQty, line.MyspaceUnit),
+            ToDisplay = FormatQtyWithUnit(line.TargetQty, line.MyspaceUnit),
+            Note = line.Note,
+            IsZeroing = line.CurrentQty is > 0d && line.TargetQty is not null && line.TargetQty.Value == 0d
+        };
+
+        static string FormatQtyWithUnit(double? value, string unit) =>
+            value == null || string.IsNullOrWhiteSpace(unit)
+                ? FormatQty(value)
+                : $"{FormatQty(value)} {unit.Trim()}";
+
+        static string RoomTitle(string roomName) =>
+            string.IsNullOrWhiteSpace(roomName) ? "Без помещения" : roomName.Trim();
 
         /// <summary>«14 строк в 5 позициях»: позиция ТК (например, набор электрики) — несколько строк.</summary>
         string DescribeToSend()
@@ -1226,7 +1234,8 @@ namespace SmartRemont.ExportRooms.Views
                 await RefreshDsBindAsync(preferDsId: dsId).ConfigureAwait(true);
                 await RebuildCompareAsync().ConfigureAwait(true);
                 UpdateStatusAndAlerts(true, null);
-                StatusText.Text = $"Отправлено в ДС №{dsId}: {apply.Applied} поз. · " + StatusText.Text;
+                StatusText.Text = $"Отправлено в ДС №{dsId}: {apply.Applied} поз."
+                                  + (string.IsNullOrEmpty(StatusText.Text) ? string.Empty : " · " + StatusText.Text);
 
                 AppMessageBox.Show(
                     this,
@@ -1305,13 +1314,20 @@ namespace SmartRemont.ExportRooms.Views
             var hasDraft = _dsItems.Any(i => i.CanEdit);
             var hasAny = _dsItems.Count > 0;
 
+            // Создавать нужно, только когда черновика нет; пока список ДС грузится — не показываем.
+            CreateDsButton.Visibility = hasRequest && !_loading && !hasDraft
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
             CreateDsButton.IsEnabled = hasRequest && hasAdd && !busy && !hasDraft;
+            CreateDsButton.ToolTip = hasAdd
+                ? "Создать пустой черновик ДС на изменение ТК"
+                : "Нет права создавать ДС";
+
+            // Менять есть на что, только если ДС несколько или ни одна не привязана.
+            PickDsButton.Visibility = hasRequest && (_dsItems.Count > 1 || (hasAny && _boundDs == null))
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
             PickDsButton.IsEnabled = hasRequest && !busy && hasAny;
-            CreateDsButton.ToolTip = !hasAdd
-                ? "Нет права создавать ДС"
-                : hasDraft
-                    ? "Черновик уже есть — объёмы уйдут в последний"
-                    : "Создать пустой черновик ДС на изменение ТК";
             PickDsButton.ToolTip = "По умолчанию берётся последний черновик. Лишние черновики удалите в MySpace.";
 
             if (QtyCandidateBadgeText != null)
@@ -1378,7 +1394,6 @@ namespace SmartRemont.ExportRooms.Views
                 StatMatchValue.Text = "0";
                 StatMissingRevitValue.Text = "0";
                 StatExtraValue.Text = "0";
-                StatQtyMismatchValue.Text = "0";
                 return;
             }
 
@@ -1386,10 +1401,6 @@ namespace SmartRemont.ExportRooms.Views
             StatMatchValue.Text = _result.MatchCount.ToString(CultureInfo.InvariantCulture);
             StatMissingRevitValue.Text = _result.MissingInRevitCount.ToString(CultureInfo.InvariantCulture);
             StatExtraValue.Text = _result.ExtraInRevitCount.ToString(CultureInfo.InvariantCulture);
-            StatQtyMismatchValue.Text = _target == null
-                ? "—"
-                : _target.ChangedLineCount.ToString(CultureInfo.InvariantCulture);
-            StatQtyMismatchValue.ToolTip = _target == null ? null : DescribeToSend();
         }
 
         void BindRooms()
@@ -1452,13 +1463,14 @@ namespace SmartRemont.ExportRooms.Views
 
         sealed class SendLineVm
         {
-            public string RoomName { get; init; }
+            public string RoomHeader { get; init; }
             public string WorkSetName { get; init; }
             public string MaterialName { get; init; }
             public string FromDisplay { get; init; }
             public string ToDisplay { get; init; }
-            public string Unit { get; init; }
             public string Note { get; init; }
+            /// <summary>В ДС был объём, из модели уходит 0 — самое рискованное изменение.</summary>
+            public bool IsZeroing { get; init; }
         }
     }
 }
