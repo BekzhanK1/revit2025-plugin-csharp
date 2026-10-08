@@ -94,7 +94,9 @@ namespace SmartRemont.ExportRooms.Services
 
             sanitized = CollapseWhitespaceToUnderscores(builder.ToString());
             sanitized = CollapseRepeatedUnderscores(sanitized);
-            return sanitized.Trim('_', ' ');
+            // Точка в конце недопустима для имени папки в Windows — система её молча отрезает,
+            // и путь плагина перестаёт совпадать с реальным (flat_num «67.» → папка «…_67»).
+            return sanitized.Trim('_', ' ', '.');
         }
 
         static string TruncateBaseName(string baseName, int clientRequestId, string sanitizedResident)

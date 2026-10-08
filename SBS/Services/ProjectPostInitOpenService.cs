@@ -46,7 +46,7 @@ namespace SmartRemont.ExportRooms.Services
                         TaskDialog.Show(
                             "Smart Remont",
                             "Проект создан и сохранён, но Revit не смог открыть его автоматически.\n\n"
-                            + "Откройте файл через Файл → Открыть:\n" + projectPath);
+                            + "Откройте файл через Файл → Открыть:\n" + NormalizePath(projectPath));
                         return;
                     }
 
@@ -75,6 +75,10 @@ namespace SmartRemont.ExportRooms.Services
         {
             if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
                 return false;
+
+            // Путь как его видит Windows: без точек и пробелов в конце имён папок.
+            // Revit по «сырому» пути с такой папкой файл не находит.
+            projectPath = NormalizePath(projectPath);
 
             if (TryOpenAndActivate(uiApp, projectPath))
                 return true;
@@ -156,7 +160,7 @@ namespace SmartRemont.ExportRooms.Services
             if (uiApp == null || projectDoc == null || !projectDoc.IsValidObject)
                 return;
 
-            var projectPath = projectDoc.PathName;
+            var projectPath = NormalizePath(projectDoc.PathName);
             if (string.IsNullOrWhiteSpace(projectPath) || !File.Exists(projectPath))
                 return;
 
