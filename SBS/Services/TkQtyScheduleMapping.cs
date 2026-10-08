@@ -64,6 +64,12 @@ namespace SmartRemont.ExportRooms.Services
             /// </summary>
             public string CountFromCode { get; set; }
 
+            /// <summary>
+            /// ID брать только из «ID_название» в колонках имени, колонку ID не читать
+            /// (электрика: «ID материала» в семействах заполнен неверно).
+            /// </summary>
+            public bool? IdFromNameOnly { get; set; }
+
             [JsonIgnore]
             public bool IsDerived => !string.IsNullOrWhiteSpace(CountFromCode);
         }
@@ -156,6 +162,9 @@ namespace SmartRemont.ExportRooms.Services
             if (MergeMissingWorkSets(loaded, defaults))
                 changed = true;
 
+            if (MergeMissingIdFromName(loaded, defaults))
+                changed = true;
+
             if (changed)
             {
                 try
@@ -236,6 +245,31 @@ namespace SmartRemont.ExportRooms.Services
             return changed;
         }
 
+        /// <summary>Старый AppData-конфиг без IdFromNameOnly получает его из дефолтов.</summary>
+        static bool MergeMissingIdFromName(List<Entry> loaded, List<Entry> defaults)
+        {
+            var changed = false;
+            foreach (var entry in loaded)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Code) || entry.IdFromNameOnly != null)
+                    continue;
+                var def = defaults.FirstOrDefault(d =>
+                    string.Equals(d?.Code, entry.Code.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (def?.IdFromNameOnly == null)
+                    continue;
+
+                entry.IdFromNameOnly = def.IdFromNameOnly;
+                foreach (var name in def.MaterialNameColumnsExact ?? new List<string>())
+                {
+                    if (!entry.MaterialNameColumnsExact.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase)))
+                        entry.MaterialNameColumnsExact.Add(name);
+                }
+                changed = true;
+            }
+
+            return changed;
+        }
+
         /// <summary>Источники, привязанные к конструктиву.</summary>
         public static IReadOnlyList<Entry> ForWorkSet(int workSetId) =>
             All.Where(e => e.Enabled && e.WorkSetIds != null && e.WorkSetIds.Contains(workSetId)).ToList();
@@ -273,6 +307,7 @@ namespace SmartRemont.ExportRooms.Services
                 Code = "ELECTRICS",
                 WorkSetIds = new List<int> { 42 },
                 ZeroMissingSetItems = true,
+                IdFromNameOnly = true,
                 Title = "Электрические приборы (с ID)",
                 ScheduleNamesExact = new List<string>
                 {
@@ -282,7 +317,7 @@ namespace SmartRemont.ExportRooms.Services
                 },
                 Mode = ParseMode.GroupedByRoomHeader,
                 MaterialIdColumnsExact = new List<string> { "ID материала" },
-                MaterialNameColumnsExact = new List<string> { "Наименование", "Описание" },
+                MaterialNameColumnsExact = new List<string> { "Описание", "Наименование" },
                 QuantityColumnsExact = new List<string> { "Кол-во, шт.", "Кол-во, шт", "Число, шт", "Кол-во" },
                 RoomColumnsExact = new List<string> { "Помещение", "Помещения", "Комната" },
                 QuantityUnit = "шт"

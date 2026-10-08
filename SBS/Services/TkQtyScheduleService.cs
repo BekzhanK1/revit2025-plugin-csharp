@@ -18,6 +18,16 @@ namespace SmartRemont.ExportRooms.Services
         public string Unit { get; init; }
     }
 
+    /// <summary>Строка ведомости с количеством, но без ID материала: её объём никуда не попал.</summary>
+    public sealed class TkQtyScheduleSkippedRow
+    {
+        public string SourceCode { get; init; }
+        public string ScheduleName { get; init; }
+        public string RoomName { get; init; }
+        public string Text { get; init; }
+        public double Quantity { get; init; }
+    }
+
     public sealed class TkQtyScheduleSourceInfo
     {
         public string Code { get; set; }
@@ -35,6 +45,7 @@ namespace SmartRemont.ExportRooms.Services
     {
         public List<TkQtyScheduleLine> Lines { get; set; } = new();
         public List<TkQtyScheduleSourceInfo> Sources { get; set; } = new();
+        public List<TkQtyScheduleSkippedRow> SkippedRows { get; set; } = new();
 
         /// <summary>Сумма qty по roomKey → materialId.</summary>
         public Dictionary<string, Dictionary<int, double>> SumByRoomAndMaterial { get; set; }
@@ -53,8 +64,8 @@ namespace SmartRemont.ExportRooms.Services
     {
         static readonly Regex NumberRegex = new(@"[-+]?\d+(?:[.,]\d+)?", RegexOptions.Compiled);
         static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
-        /// <summary>В ведомости электрики ID сидит в имени: 12133_Рамка на 1 пост.</summary>
-        static readonly Regex IdInNameRegex = new(@"^(\d+)_(.+)$", RegexOptions.Compiled);
+        /// <summary>В ведомости электрики ID сидит в имени: 12133_Рамка на 1 пост (бывает «12102 _…»).</summary>
+        static readonly Regex IdInNameRegex = new(@"^(\d+)\s*_\s*(.+)$", RegexOptions.Compiled);
 
         public static TkQtyScheduleSnapshot Collect(Document doc)
         {
@@ -122,11 +133,11 @@ namespace SmartRemont.ExportRooms.Services
                     && colRoom != null
                     && colId != null)
                 {
-                    lines = ParseFlat(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom.Value, effectiveScale);
+                    lines = ParseFlat(schedule, rowCount, headers, entry, colId.Value, colName, colQty, colRoom.Value, effectiveScale, snapshot.SkippedRows);
                 }
                 else
                 {
-                    lines = ParseGrouped(schedule, rowCount, headers, entry, colId, colName, colQty, colRoom, effectiveScale);
+                    lines = ParseGrouped(schedule, rowCount, headers, entry, colId, colName, colQty, colRoom, effectiveScale, snapshot.SkippedRows);
                 }
 
                 source.LineCount = lines.Count;
@@ -209,7 +220,8 @@ namespace SmartRemont.ExportRooms.Services
             int? colName,
             int? colQty,
             int colRoom,
-            double scale)
+            double scale,
+            List<TkQtyScheduleSkippedRow> skipped)
         {
             var lines = new List<TkQtyScheduleLine>();
             for (var r = 1; r < rowCount; r++)
@@ -217,15 +229,20 @@ namespace SmartRemont.ExportRooms.Services
                 if (IsNoiseRow(schedule, r, headers))
                     continue;
 
+                // Строка без помещения не теряется: её объём должен остановить отправку, а не пропасть.
                 var room = GetCell(schedule, r, colRoom).Trim();
-                if (string.IsNullOrWhiteSpace(room) || IsNoiseLabel(room))
+                if (IsNoiseLabel(room))
                     continue;
 
-                if (!TryParseMaterialId(GetCell(schedule, r, colId), out var materialId))
+                var idCell = GetCell(schedule, r, colId).Trim();
+                if (!TryParseMaterialId(idCell, out var materialId))
                 {
                     var nameCell = colName is int cn0 ? GetCell(schedule, r, cn0).Trim() : null;
                     if (!TryParseIdFromName(nameCell, out materialId, out _))
+                    {
+                        AddSkipped(skipped, schedule, entry, r, colQty, room, FirstNonEmpty(nameCell, idCell));
                         continue;
+                    }
                 }
 
                 var qty = ResolveQuantity(schedule, r, colQty, scale);
@@ -235,7 +252,7 @@ namespace SmartRemont.ExportRooms.Services
                 {
                     SourceCode = entry.Code,
                     ScheduleName = schedule.Name,
-                    RoomName = room,
+                    RoomName = string.IsNullOrWhiteSpace(room) ? null : room,
                     MaterialId = materialId,
                     MaterialName = string.IsNullOrWhiteSpace(name) ? null : name,
                     Quantity = qty,
@@ -255,7 +272,8 @@ namespace SmartRemont.ExportRooms.Services
             int? colName,
             int? colQty,
             int? colRoom,
-            double scale)
+            double scale,
+            List<TkQtyScheduleSkippedRow> skipped)
         {
             var lines = new List<TkQtyScheduleLine>();
             string currentRoom = null;
@@ -282,7 +300,13 @@ namespace SmartRemont.ExportRooms.Services
                 if (!hasMaterialId)
                 {
                     if (hasQtyNumber)
+                    {
+                        var room = !string.IsNullOrWhiteSpace(roomFromCol) && !IsNoiseLabel(roomFromCol)
+                            ? roomFromCol
+                            : currentRoom;
+                        AddSkipped(skipped, schedule, entry, r, colQty, room, FirstNonEmpty(name, idRaw));
                         continue;
+                    }
 
                     var roomHeader = FirstNonEmpty(roomFromCol, name, idRaw);
                     if (!string.IsNullOrWhiteSpace(roomHeader) && !IsNoiseLabel(roomHeader))
@@ -306,6 +330,31 @@ namespace SmartRemont.ExportRooms.Services
             }
 
             return lines;
+        }
+
+        /// <summary>Пустые строки и служебные «Не для спецификации!» не в счёт.</summary>
+        static void AddSkipped(
+            List<TkQtyScheduleSkippedRow> skipped,
+            ViewSchedule schedule,
+            TkQtyScheduleMapping.Entry entry,
+            int row,
+            int? colQty,
+            string room,
+            string text)
+        {
+            if (skipped == null || string.IsNullOrWhiteSpace(text) || IsNoiseLabel(text))
+                return;
+            if (text.IndexOf("не для спецификации", StringComparison.OrdinalIgnoreCase) >= 0)
+                return;
+
+            skipped.Add(new TkQtyScheduleSkippedRow
+            {
+                SourceCode = entry.Code,
+                ScheduleName = schedule.Name,
+                RoomName = string.IsNullOrWhiteSpace(room) ? null : room.Trim(),
+                Text = text.Trim(),
+                Quantity = ResolveQuantity(schedule, row, colQty, 1d)
+            });
         }
 
         static bool TryParseIdFromName(string raw, out int materialId, out string rest)
@@ -420,7 +469,10 @@ namespace SmartRemont.ExportRooms.Services
                 if (!TryReadTable(candidate, out var candidateHeaders, out var candidateRows))
                     continue;
 
-                var id = ResolveColumnExact(candidateHeaders, entry.MaterialIdColumnsExact, out _);
+                // Электрика: колонка «ID материала» в модели заполнена неверно, верный ID — в «Описании».
+                var id = entry.IdFromNameOnly == true
+                    ? null
+                    : ResolveColumnExact(candidateHeaders, entry.MaterialIdColumnsExact, out _);
                 var nameCol = ResolveColumnExact(candidateHeaders, entry.MaterialNameColumnsExact, out _);
                 var qtyCol = ResolveColumnExact(candidateHeaders, entry.QuantityColumnsExact, out var qtyHdr);
                 var roomCol = ResolveColumnExact(candidateHeaders, entry.RoomColumnsExact, out _);
@@ -440,10 +492,27 @@ namespace SmartRemont.ExportRooms.Services
                 }
 
                 sawMissingId = true;
-                if (nameCol == null || qtyCol == null)
+                if (qtyCol == null)
                     continue;
 
-                var hits = CountIdInNameHits(candidate, candidateRows, nameCol.Value);
+                // Колонка имени — та, где больше всего «ID_название».
+                var hits = -1;
+                nameCol = null;
+                foreach (var nameName in entry.MaterialNameColumnsExact ?? new List<string>())
+                {
+                    var col = ResolveColumnExact(candidateHeaders, new[] { nameName }, out _);
+                    if (col == null)
+                        continue;
+                    var colHits = CountIdInNameHits(candidate, candidateRows, col.Value);
+                    if (colHits > hits)
+                    {
+                        hits = colHits;
+                        nameCol = col;
+                    }
+                }
+
+                if (nameCol == null)
+                    continue;
                 if (hits <= idInNameHits)
                     continue;
 
@@ -471,9 +540,11 @@ namespace SmartRemont.ExportRooms.Services
                 return true;
             }
 
-            error = sawMissingId
-                ? "Нет колонки ID материала (добавьте «ID материала» в ведомость или отключите источник в конфиге)"
-                : "Не удалось прочитать таблицу";
+            error = entry.IdFromNameOnly == true
+                ? $"Нет колонки «{string.Join("» / «", entry.MaterialNameColumnsExact ?? new List<string>())}» с «ID_название»"
+                : sawMissingId
+                    ? "Нет колонки ID материала (добавьте «ID материала» в ведомость или отключите источник в конфиге)"
+                    : "Не удалось прочитать таблицу";
             return false;
         }
 

@@ -831,6 +831,14 @@ namespace SmartRemont.ExportRooms.Views
                     ["qty"] = l.Quantity,
                     ["unit"] = l.Unit
                 }));
+                root["schedule_rows_without_id"] = new JArray(_scheduleQty.SkippedRows.Select(r => new JObject
+                {
+                    ["source"] = r.SourceCode,
+                    ["schedule"] = r.ScheduleName,
+                    ["room_name"] = r.RoomName,
+                    ["text"] = r.Text,
+                    ["qty"] = r.Quantity
+                }));
             }
 
             try

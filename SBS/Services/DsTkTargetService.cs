@@ -98,6 +98,25 @@ namespace SmartRemont.ExportRooms.Services
     {
         const double QtyEps = 0.005d;
 
+        /// <summary>Что в ведомостях не так по источнику и комнате — из-за этого объём не посчитать.</summary>
+        sealed class ModelProblems
+        {
+            /// <summary>source → строки без помещения или с помещением, которого нет в модели.</summary>
+            public Dictionary<string, List<string>> BadRooms { get; } = new(StringComparer.OrdinalIgnoreCase);
+            /// <summary>(source, room) → строки с количеством, но без ID.</summary>
+            public Dictionary<(string, string), List<string>> MissingId { get; } = new();
+            /// <summary>(source, room) → материалы модели, которых нет в ДС этой комнаты.</summary>
+            public Dictionary<(string, string), List<string>> Foreign { get; } = new();
+
+            public static void Add<TKey>(Dictionary<TKey, List<string>> map, TKey key, string text)
+            {
+                if (!map.TryGetValue(key, out var list))
+                    map[key] = list = new List<string>();
+                if (!list.Contains(text))
+                    list.Add(text);
+            }
+        }
+
         public static bool QtyEquals(double? a, double? b)
         {
             if (a == null || b == null)
@@ -146,6 +165,9 @@ namespace SmartRemont.ExportRooms.Services
                 .Where(r => r.IsMaterialCntInput && r.ActionType != 1)
                 .ToList();
 
+            var inDsByRoom = MaterialsInDsByRoom(rows);
+            var problems = FindModelProblems(schedule, modelRooms, inDsByRoom);
+
             // Один материал одной ведомости в двух позициях комнаты — объём не разделить.
             var usage = new Dictionary<(string, string, int), HashSet<int>>();
             foreach (var row in inputRows)
@@ -188,10 +210,10 @@ namespace SmartRemont.ExportRooms.Services
                          .OrderBy(r => r.RoomName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                          .ThenBy(r => r.WorkSetName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             {
-                result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage));
+                result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage, problems));
             }
 
-            CollectModelOnly(result, schedule, rows);
+            CollectModelOnly(result, schedule, inDsByRoom);
             return result;
         }
 
@@ -201,7 +223,8 @@ namespace SmartRemont.ExportRooms.Services
             HashSet<string> readable,
             Dictionary<(string, string, int), double> qtyByKey,
             Dictionary<(string, string), double> totalByRoom,
-            Dictionary<(string, string, int), HashSet<int>> usage)
+            Dictionary<(string, string, int), HashSet<int>> usage,
+            ModelProblems problems)
         {
             var entries = TkQtyScheduleMapping.ForWorkSet(row.WorkSetId ?? 0);
             var roomKey = RoomKey(row.RoomName);
@@ -254,6 +277,25 @@ namespace SmartRemont.ExportRooms.Services
                     countFromCode = code;
                 else
                     scheduleCodes.Add(code);
+            }
+
+            var usedCodes = scheduleCodes
+                .Concat(countFromCode != null ? new[] { countFromCode } : Array.Empty<string>())
+                .ToList();
+            foreach (var code in usedCodes)
+            {
+                if (problems.BadRooms.TryGetValue(code, out var bad))
+                {
+                    return Make(DsTkTargetStatus.Blocked,
+                        $"в ведомости «{TitleOf(code)}» есть строки без помещения или с помещением, которого нет в модели: "
+                        + $"{Short(bad)} — исправьте ведомость");
+                }
+
+                if (problems.MissingId.TryGetValue((code.ToUpperInvariant(), roomKey), out var noId))
+                {
+                    return Make(DsTkTargetStatus.Blocked,
+                        $"в ведомости «{TitleOf(code)}» в этой комнате есть строки без ID: {Short(noId)} — добавьте ID в модели");
+                }
             }
 
             var zeroMissing = entries.Any(e => e.ZeroMissingSetItems);
@@ -309,6 +351,11 @@ namespace SmartRemont.ExportRooms.Services
                     : headFound ? null : "нет в модели → 0"
             };
 
+            // Объём, который уйдёт в 0 только потому, что материала ДС нет в ведомости.
+            var zeroedByMissing = row.MaterialCnt is > 0d
+                                  && headTarget is not null && QtyEquals(headTarget, 0d)
+                                  && (countFromCode != null || !headFound);
+
             var members = new List<DsTkTargetLine>();
             foreach (var item in row.SetItems ?? new List<ClientMaterialSetItemDto>())
             {
@@ -320,7 +367,11 @@ namespace SmartRemont.ExportRooms.Services
                 if (countFromCode != null)
                     note = "по числу дверей комнаты в ТК";
                 else if (!found && zeroMissing)
+                {
                     note = "нет в ведомости → 0";
+                    if (item.MaterialCnt is > 0d)
+                        zeroedByMissing = true;
+                }
                 else if (!found)
                 {
                     target = null;
@@ -338,6 +389,25 @@ namespace SmartRemont.ExportRooms.Services
                     TargetQty = target,
                     Note = note
                 });
+            }
+
+            // В модели у этой комнаты другой материал того же источника, а материала ДС нет:
+            // скорее всего неверный ID в модели. Ноль в ДС тут хуже, чем остановка.
+            if (zeroedByMissing)
+            {
+                var foreign = usedCodes
+                    .SelectMany(c => problems.Foreign.TryGetValue((c.ToUpperInvariant(), roomKey), out var list)
+                        ? (IEnumerable<string>)list
+                        : Enumerable.Empty<string>())
+                    .Distinct()
+                    .ToList();
+                if (foreign.Count > 0)
+                {
+                    return Make(DsTkTargetStatus.Blocked,
+                        $"материала ДС нет в модели, а в этой комнате в модели другой материал: {Short(foreign)} — "
+                        + "проверьте ID в модели или замените материал в MySpace",
+                        head, members);
+                }
             }
 
             var changed = new[] { head }.Concat(members).Where(l => l.IsChanged).ToList();
@@ -369,22 +439,18 @@ namespace SmartRemont.ExportRooms.Services
         static void CollectModelOnly(
             DsTkTargetResult result,
             TkQtyScheduleSnapshot schedule,
-            List<DsTkChangeService.DsTkMaterialRow> rows)
+            Dictionary<string, HashSet<int>> inDsByRoom)
         {
-            var mappedCodes = new HashSet<string>(
-                TkQtyScheduleMapping.All
-                    .Where(e => e.Enabled && e.WorkSetIds is { Count: > 0 })
-                    .Select(e => e.IsDerived ? e.CountFromCode.Trim() : e.Code),
-                StringComparer.OrdinalIgnoreCase);
+            var mappedCodes = MappedCodes();
 
-            var inDsByRoom = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in rows.Where(r => r.ActionType != 1))
+            foreach (var skippedRow in schedule.SkippedRows.Where(r =>
+                         mappedCodes.Contains(r.SourceCode ?? string.Empty) && string.IsNullOrWhiteSpace(r.RoomName)))
             {
-                var roomKey = RoomKey(row.RoomName);
-                if (!inDsByRoom.TryGetValue(roomKey, out var set))
-                    inDsByRoom[roomKey] = set = new HashSet<int>();
-                foreach (var id in MaterialIdsOf(row))
-                    set.Add(id);
+                result.Unassigned.Add(new DsTkTargetIssue
+                {
+                    MaterialName = skippedRow.Text,
+                    Text = $"строка ведомости «{skippedRow.ScheduleName}» без ID и без помещения"
+                });
             }
 
             var seen = new HashSet<(string, int)>();
@@ -417,6 +483,80 @@ namespace SmartRemont.ExportRooms.Services
                 });
             }
         }
+
+        /// <summary>Источники, привязанные к конструктивам ДС (у фурнитуры — ведомость дверей).</summary>
+        static HashSet<string> MappedCodes() => new(
+            TkQtyScheduleMapping.All
+                .Where(e => e.Enabled && e.WorkSetIds is { Count: > 0 })
+                .Select(e => e.IsDerived ? e.CountFromCode.Trim() : e.Code),
+            StringComparer.OrdinalIgnoreCase);
+
+        static Dictionary<string, HashSet<int>> MaterialsInDsByRoom(IEnumerable<DsTkChangeService.DsTkMaterialRow> rows)
+        {
+            var map = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows.Where(r => r.ActionType != 1))
+            {
+                var roomKey = RoomKey(row.RoomName);
+                if (!map.TryGetValue(roomKey, out var set))
+                    map[roomKey] = set = new HashSet<int>();
+                foreach (var id in MaterialIdsOf(row))
+                    set.Add(id);
+            }
+
+            return map;
+        }
+
+        static ModelProblems FindModelProblems(
+            TkQtyScheduleSnapshot schedule,
+            HashSet<string> modelRooms,
+            Dictionary<string, HashSet<int>> inDsByRoom)
+        {
+            var problems = new ModelProblems();
+            var mappedCodes = MappedCodes();
+
+            foreach (var line in schedule.Lines)
+            {
+                var code = line.SourceCode ?? string.Empty;
+                if (line.MaterialId <= 0 || !mappedCodes.Contains(code))
+                    continue;
+
+                var roomKey = RoomKey(line.RoomName);
+                if (string.IsNullOrWhiteSpace(line.RoomName) || !modelRooms.Contains(roomKey))
+                {
+                    var where = string.IsNullOrWhiteSpace(line.RoomName) ? "без помещения" : $"«{line.RoomName}»";
+                    ModelProblems.Add(problems.BadRooms, code, $"{Name(line)} ({where})");
+                    continue;
+                }
+
+                if (!inDsByRoom.TryGetValue(roomKey, out var ids) || !ids.Contains(line.MaterialId))
+                    ModelProblems.Add(problems.Foreign, (code.ToUpperInvariant(), roomKey), Name(line));
+            }
+
+            foreach (var row in schedule.SkippedRows)
+            {
+                var code = row.SourceCode ?? string.Empty;
+                if (!mappedCodes.Contains(code))
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(row.RoomName) || !modelRooms.Contains(RoomKey(row.RoomName)))
+                {
+                    var where = string.IsNullOrWhiteSpace(row.RoomName) ? "без помещения" : $"«{row.RoomName}»";
+                    ModelProblems.Add(problems.BadRooms, code, $"«{row.Text}» без ID ({where})");
+                    continue;
+                }
+
+                ModelProblems.Add(problems.MissingId, (code.ToUpperInvariant(), RoomKey(row.RoomName)), $"«{row.Text}»");
+            }
+
+            return problems;
+        }
+
+        static string TitleOf(string code) =>
+            TkQtyScheduleMapping.All.FirstOrDefault(e =>
+                string.Equals(e.Code, code, StringComparison.OrdinalIgnoreCase))?.Title ?? code;
+
+        static string Short(IReadOnlyCollection<string> items) =>
+            string.Join(", ", items.Take(3)) + (items.Count > 3 ? $" и ещё {items.Count - 3}" : string.Empty);
 
         static IEnumerable<int> MaterialIdsOf(DsTkChangeService.DsTkMaterialRow row)
         {
