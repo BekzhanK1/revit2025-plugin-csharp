@@ -159,13 +159,17 @@ namespace SmartRemont.ExportRooms.Services
 
                 if (header?.IsAccept == 1)
                 {
-                    if (diff.Known && diff.Differences.Count > 0)
+                    // С утверждённой ДС сравниваем её площади, а не планировку: MySpace пишет в планировку
+                    // новую площадь, только если комната изменилась на порог грейда (ROOM_AREA_SQM, напр. 0.5 м²).
+                    // Мелкие правки остаются в ДС, а в планировке — старая площадь; это не расхождение.
+                    var dsDiff = CompareAreaMap(input.RevitRooms, BuildDsAreaMap(ds.Rooms));
+                    if (dsDiff.Known && dsDiff.Differences.Count > 0)
                     {
                         return new HubStepStatus
                         {
                             State = HubStepState.Warning,
                             Chip = $"Утверждена {number} · площади изменились",
-                            Hint = "После утверждения площади в модели изменились: " + diff.Describe()
+                            Hint = "После утверждения площади в модели изменились: " + dsDiff.Describe()
                                    + ". Решите в MySpace.",
                             ActionText = "Открыть",
                             Passed = true
@@ -393,12 +397,13 @@ namespace SmartRemont.ExportRooms.Services
         }
 
         /// <summary>
-        /// Площади модели против FLOOR_AREA текущей планировки. После утверждения ДС планировка
-        /// пересоздаётся с новыми площадями, поэтому это же сравнение ловит правки после утверждения.
+        /// Площади модели против FLOOR_AREA текущей планировки — пока ДС нет. После утверждения ДС
+        /// сравниваем с самой ДС (<see cref="BuildDsAreaMap"/>): изменения меньше порога грейда
+        /// MySpace в планировку не пишет.
         /// </summary>
         static AreaDiff CompareAreas(IReadOnlyList<RoomAreaItem> revitRooms, IReadOnlyList<MeasureRoomInfoDto> measureRooms)
         {
-            if (revitRooms == null || revitRooms.Count == 0 || measureRooms == null)
+            if (measureRooms == null)
                 return new AreaDiff { Known = false };
 
             var planRooms = measureRooms.Where(r => r != null && r.PlanirovkaRoomId > 0).ToList();
@@ -412,6 +417,20 @@ namespace SmartRemont.ExportRooms.Services
                 if (!string.IsNullOrEmpty(key) && !systemByKey.ContainsKey(key))
                     systemByKey[key] = room.RoomArea is > 0d ? Math.Round(room.RoomArea.Value, 2) : null;
             }
+
+            return CompareAreaMap(revitRooms, systemByKey);
+        }
+
+        /// <summary>Площади комнат утверждённой ДС; удалённые в ДС комнаты не считаются.</summary>
+        static Dictionary<string, double?> BuildDsAreaMap(IEnumerable<DsRoomChangeRoomDto> rooms) =>
+            DsAreaCompareService.BuildSystemAreaByKey(
+                (rooms ?? Enumerable.Empty<DsRoomChangeRoomDto>())
+                    .Where(r => !string.Equals(r?.ActionCode, "DELETED", StringComparison.OrdinalIgnoreCase)));
+
+        static AreaDiff CompareAreaMap(IReadOnlyList<RoomAreaItem> revitRooms, Dictionary<string, double?> systemByKey)
+        {
+            if (revitRooms == null || revitRooms.Count == 0 || systemByKey == null || systemByKey.Count == 0)
+                return new AreaDiff { Known = false };
 
             // Как в окне ДС квадратуры: каждое помещение модели сравниваем с комнатой системы,
             // комнаты системы без помещения в модели — только с площадью > 0.
