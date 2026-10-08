@@ -87,13 +87,15 @@ namespace SmartRemont.ExportRooms.Services
             if (results == null || results.Count == 0)
                 return null;
 
+            // Только точное совпадение заявки: иначе ApplyEnrichment перепишет ClientRequestId
+            // привязанного проекта на чужую заявку.
             foreach (var item in results)
             {
                 if (item.ClientRequestId == bound.ClientRequestId)
                     return item;
             }
 
-            return results.Count == 1 ? results[0] : null;
+            return null;
         }
 
         static void ApplyEnrichment(RemontOption target, RemontOption source)

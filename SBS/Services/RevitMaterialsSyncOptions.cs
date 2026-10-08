@@ -22,12 +22,14 @@ namespace SmartRemont.ExportRooms.Services
         };
 
         /// <summary>
-        /// Init после «игнорировать preflight»: SR_ID не проверяем до импорта, но скачивание должно пройти.
+        /// Init после «Продолжить без исправления»: SR_ID до импорта не проверяем, материалы с
+        /// ошибкой (в том числе скачивания) пропускаем и грузим остальные — как обещает диалог.
+        /// Init считается успешным, если загружен хотя бы один материал.
         /// </summary>
         public static RevitMaterialsSyncOptions InitSkipSrIdValidation { get; } = new RevitMaterialsSyncOptions
         {
             ValidateSrIdBeforeImport = false,
-            AbortBeforeImportOnErrors = true
+            AbortBeforeImportOnErrors = false
         };
     }
 }

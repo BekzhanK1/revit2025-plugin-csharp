@@ -17,6 +17,8 @@
 | 7 | В git лежат `bin/`, `obj/`, `.vs/`, включая Revit DLL | Низкая |
 | 8 | Высота потолка не обновляется у существующей ДС площади | Низкая (известное MVP-ограничение) |
 | 9 | `PLUGIN_API.md` устарел | Низкая |
+| 10 | Имя файла проекта зависит от загрузки карточки заявки | Низкая |
+| 11 | Тяжёлые вызовы Revit API при init остаются синхронными | Низкая |
 
 ---
 
@@ -81,3 +83,14 @@
 - **Где:** [agents-external-memory/client-request-primary-revit-api/PLUGIN_API.md:87](agents-external-memory/client-request-primary-revit-api/PLUGIN_API.md#L87): поиск описан как `POST /client_request/quick_search/`, логин — как `{login, password}`.
 - **Факт:** плагин использует `POST /revit/plugin/client-request/search/` (только назначенные на сотрудника заявки с `grade_id = 8`) и шлёт `{email, password}`.
 - **Исправление:** обновить документ или пометить его как исторический со ссылкой на `Configs.cs`.
+
+## 10. Имя файла проекта зависит от загрузки карточки заявки
+
+- **Где:** [SBS/Views/RemontHubWindow.xaml.cs](SBS/Views/RemontHubWindow.xaml.cs), `InitProjectButton_Click` → `ProjectFileNamingService.BuildFullPath(client_request_id, remont_id, ResidentName, FlatNum)`.
+- **Последствие:** если `quick_search` не ответил и `ResidentName` / `FlatNum` пустые, путь получается другим, и у одной заявки может появиться второй `.rvt` в соседней папке.
+- **Исправление:** искать существующий файл по префиксу `{client_request_id}_{remont_id}` в `Documents\SmartRemont\Projects` или не давать init без загруженной карточки.
+
+## 11. Тяжёлые вызовы Revit API при init остаются синхронными
+
+- **Где:** `OpenDocumentFile`, `LoadFamily`, `NewProjectDocument`, импорт `surfaces.rvt` в одной транзакции.
+- **Состояние:** с F10 (`fix/project-init`) между семействами окно перерисовывается и отмена срабатывает, повторные открытия RFA и `surfaces.rvt` убраны кэшем. Но один вызов (например, открытие большого `surfaces.rvt` или создание проекта из шаблона) по-прежнему блокирует Revit на время своей работы — это ограничение Revit API.

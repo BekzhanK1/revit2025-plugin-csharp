@@ -39,8 +39,17 @@ namespace SmartRemont.ExportRooms.Views
             _doc = doc;
             ApplyHubMenuVisibility(ProjectRemontMetadataService.CanUseHubWorkFeatures(_doc));
             Loaded += RemontHubWindow_Loaded;
-            Closing += (_, _) =>
+            Closing += (_, e) =>
             {
+                // Крестик / Alt+F4 во время init или re-sync: окно не закрываем, иначе процесс
+                // продолжит работать с Revit без окна и упадёт на DialogResult закрытого окна.
+                if (_initInProgress)
+                {
+                    e.Cancel = true;
+                    SetStatus("Дождитесь окончания или нажмите «Отмена» на индикаторе.", isSuccess: false);
+                    return;
+                }
+
                 // Гарантируем Result.Succeeded, чтобы Revit не откатил транзакции сессии.
                 if (DialogResult == null)
                     DialogResult = true;
@@ -756,6 +765,10 @@ namespace SmartRemont.ExportRooms.Views
 
             HideInitProgress();
 
+            // Окно закрыли, пока читались шаблон и материалы — превью открывать некуда.
+            if (!IsVisible)
+                return;
+
             if (ProjectInitMaterialsPreflightService.CountSyncableMaterials(materialsResponse.Data) <= 0)
             {
                 SetStatus(ProjectInitMaterialsPreflightService.BuildZeroSyncableMessage(), isSuccess: false);
@@ -894,7 +907,11 @@ namespace SmartRemont.ExportRooms.Views
             if (result.IsWorksharedWarning)
                 lines.Add(ProjectCopyService.WorksharedUnsupportedMessage);
 
-            lines.Add("Нажмите «Закрыть» — Revit завершит работу.");
+            if (!string.IsNullOrWhiteSpace(result.BackupPath))
+                lines.Add("Прежний файл проекта сохранён как: " + result.BackupPath);
+
+            lines.Add("Нажмите «Закрыть» — Revit завершит работу. "
+                      + "Если в других открытых файлах есть несохранённые изменения, Revit спросит, сохранить ли их.");
             lines.Add("Затем откройте сохранённый файл вручную через Файл → Открыть.");
 
             return string.Join("\n\n", lines);
@@ -956,7 +973,7 @@ namespace SmartRemont.ExportRooms.Views
                 return;
 
             var remont = ExportRoomsApplication.SelectedRemont;
-            if (remont?.ClientRequestId <= 0)
+            if (remont == null || remont.ClientRequestId <= 0)
             {
                 SetStatus("Не указан ID заявки", isSuccess: false);
                 return;

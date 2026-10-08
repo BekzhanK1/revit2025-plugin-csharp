@@ -41,6 +41,7 @@ namespace SmartRemont.ExportRooms.Services
     public static class RevitMaterialsSyncOrchestrator
     {
         static Task _preDownloadTask = Task.CompletedTask;
+        static CancellationTokenSource _preDownloadCts;
 
         public static Task PreDownloadTask => _preDownloadTask;
 
@@ -60,7 +61,29 @@ namespace SmartRemont.ExportRooms.Services
             string surfacesFileUrl,
             string surfacesFileHash)
         {
-            _preDownloadTask = PreDownloadAsync(clientRequestId, materials, surfacesFileUrl, surfacesFileHash);
+            // Прошлая фоновая загрузка (превью открывали и закрывали) пишет в те же файлы кэша —
+            // останавливаем её, иначе два скачивания одного RFA мешают друг другу.
+            CancelBackgroundPreDownload();
+            var cts = new CancellationTokenSource();
+            _preDownloadCts = cts;
+            _preDownloadTask = PreDownloadAsync(clientRequestId, materials, surfacesFileUrl, surfacesFileHash, cts.Token);
+        }
+
+        /// <summary>Останавливает фоновое скачивание (превью закрыто без init).</summary>
+        public static void CancelBackgroundPreDownload()
+        {
+            var cts = _preDownloadCts;
+            _preDownloadCts = null;
+            if (cts == null)
+                return;
+
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         public static async Task PreDownloadAsync(
@@ -117,6 +140,13 @@ namespace SmartRemont.ExportRooms.Services
                         surfacesDownload.Skipped,
                         sw.ElapsedMilliseconds);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                ExportRoomsApplication._logger?.Information(
+                    "Materials pre-download cancelled after {ElapsedMs} ms for client_request_id={ClientRequestId}",
+                    sw.ElapsedMilliseconds,
+                    clientRequestId);
             }
             catch (Exception ex)
             {
@@ -338,14 +368,14 @@ namespace SmartRemont.ExportRooms.Services
             if (options?.ValidateSrIdBeforeImport == true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                RunSrIdPreflightValidation(
+                await RunSrIdPreflightValidationAsync(
                     doc,
                     downloadResults,
                     surfacesRvtPath,
                     surfaceRows,
                     itemResults,
                     progress,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(true);
             }
 
             if (options?.AbortBeforeImportOnErrors == true && itemResults.Any(i => !i.Success))
@@ -403,11 +433,12 @@ namespace SmartRemont.ExportRooms.Services
                         $"Импорт {p.done}/{importTotal}: {p.label}");
                 });
 
-                var familyResults = RevitFamilyImportService.LoadFamiliesIntoDocument(
+                var familyResults = await RevitFamilyImportService.LoadFamiliesIntoDocumentAsync(
                     doc,
                     importItems,
                     familyImportProgress,
-                    rfaNames);
+                    rfaNames,
+                    cancellationToken).ConfigureAwait(true);
 
                 foreach (var fr in familyResults)
                 {
@@ -454,6 +485,10 @@ namespace SmartRemont.ExportRooms.Services
 
             if (surfaceRows.Count > 0 && !string.IsNullOrWhiteSpace(surfacesRvtPath))
             {
+                Report(progress, "import", importDone, Math.Max(importTotal, 1), "Импорт surface-типов из surfaces.rvt…");
+                await UiYield.ToUiAsync().ConfigureAwait(true);
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var surfaceImportSw = Stopwatch.StartNew();
                 var surfaceResults = RevitSurfaceImportService.CopyMaterialsIntoDocument(
                     doc,
@@ -624,7 +659,7 @@ namespace SmartRemont.ExportRooms.Services
                 .Where(r => r != null && r.MaterialId.HasValue && IsSurfaceRow(r))
                 .ToList();
 
-        static void RunSrIdPreflightValidation(
+        static async Task RunSrIdPreflightValidationAsync(
             Document doc,
             IReadOnlyList<DownloadResult> downloadResults,
             string surfacesRvtPath,
@@ -654,6 +689,7 @@ namespace SmartRemont.ExportRooms.Services
 
             foreach (var download in downloadResults.Where(r => r.Success && !string.IsNullOrWhiteSpace(r.FilePath)))
             {
+                await UiYield.ToUiAsync().ConfigureAwait(true);
                 cancellationToken.ThrowIfCancellationRequested();
                 validationDone++;
                 Report(

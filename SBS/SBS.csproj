@@ -82,6 +82,7 @@
     <Compile Include="Services\TkQtyScheduleService.cs" />
     <Compile Include="Services\RoomPaintScheduleService.cs" />
     <Compile Include="Services\TypeParameterChangeService.cs" />
+    <Compile Include="Services\UiYield.cs" />
     <Compile Include="Services\RoomNameMatcher.cs" />
     <Compile Include="Services\MeasuresService.cs" />
     <Compile Include="Services\DsRoomChangeService.cs" />
