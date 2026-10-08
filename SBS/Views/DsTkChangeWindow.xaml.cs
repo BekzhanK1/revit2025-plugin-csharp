@@ -746,6 +746,107 @@ namespace SmartRemont.ExportRooms.Views
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(fg));
         }
 
+        async Task<List<MeasureApplyRoomDto>> CollectMeasureRoomsAsync()
+        {
+            StatusText.Text = "Сбор замеров комнат из модели…";
+            var measures = RoomMeasurementsService.Collect(_doc);
+            var systemRooms = await MeasuresService.ReadAsync(_clientRequestId).ConfigureAwait(true);
+            return MeasuresService.BuildPayloadRooms(
+                measures?.Rooms,
+                MeasuresService.BuildRoomIdsByKey(systemRooms));
+        }
+
+        /// <summary>
+        /// В буфер: тело запроса, который уйдёт при отправке, расчёт по строкам ДС и прочитанные
+        /// строки ведомостей. Ничего не отправляет.
+        /// </summary>
+        async void CopySendJsonButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_dsBusy || _loading)
+                return;
+            if (_target == null)
+            {
+                StatusText.Text = "Расчёт ещё не готов — дождитесь сверки или привяжите ДС.";
+                return;
+            }
+
+            var target = _target;
+            var root = new JObject
+            {
+                ["exported_at"] = DateTime.UtcNow.ToString("o"),
+                ["client_request_id"] = _clientRequestId
+            };
+            SetIfHas(root, "document_title", _doc?.Title);
+            if (_boundDs != null)
+            {
+                root["ds"] = new JObject
+                {
+                    ["ds_id"] = _boundDs.DsId,
+                    ["status"] = _boundDs.StatusDisplay,
+                    ["can_edit"] = _boundDs.CanEdit
+                };
+            }
+            SetIfHas(root, "send_blocked_reason", ResolveSendBlockReason());
+
+            List<MeasureApplyRoomDto> measureRooms = null;
+            try
+            {
+                measureRooms = await CollectMeasureRoomsAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "DS TK copy JSON: measures collect failed");
+                root["measure_error"] = ex.Message;
+            }
+
+            root["request"] = DsTkChangeService.BuildApplyPayload(
+                _clientRequestId,
+                _boundDs?.DsId ?? 0,
+                target.ToSend,
+                measureRooms);
+            root["target"] = DsTkTargetService.BuildDebugJson(target);
+
+            if (_scheduleQty != null)
+            {
+                root["schedule_sources"] = new JArray(_scheduleQty.Sources.Select(s =>
+                {
+                    var o = new JObject
+                    {
+                        ["code"] = s.Code,
+                        ["found"] = s.Found,
+                        ["readable"] = s.Readable,
+                        ["line_count"] = s.LineCount
+                    };
+                    SetIfHas(o, "schedule_found", s.ScheduleNameFound);
+                    SetIfHas(o, "message", s.Message);
+                    return o;
+                }));
+                root["schedule_lines"] = new JArray(_scheduleQty.Lines.Select(l => new JObject
+                {
+                    ["source"] = l.SourceCode,
+                    ["schedule"] = l.ScheduleName,
+                    ["room_name"] = l.RoomName,
+                    ["material_id"] = l.MaterialId,
+                    ["material_name"] = l.MaterialName,
+                    ["qty"] = l.Quantity,
+                    ["unit"] = l.Unit
+                }));
+            }
+
+            try
+            {
+                System.Windows.Clipboard.SetText(root.ToString(Formatting.Indented));
+                StatusText.Text = $"JSON скопирован: {target.ToSend.Count} поз. к отправке, "
+                                  + $"замеров комнат {measureRooms?.Count ?? 0}. Ничего не отправлено.";
+            }
+            catch (Exception ex)
+            {
+                // Буфер бывает занят другим приложением.
+                ExportRoomsApplication._logger?.Warning(ex, "DS TK copy JSON: clipboard failed");
+                StatusText.Text = "Не удалось скопировать в буфер: " + ex.Message;
+            }
+        }
+
         async void ApplyQtyButton_Click(object sender, RoutedEventArgs e)
         {
             if (_dsBusy || _loading || _clientRequestId <= 0)
@@ -762,12 +863,7 @@ namespace SmartRemont.ExportRooms.Views
             List<MeasureApplyRoomDto> measureRooms;
             try
             {
-                StatusText.Text = "Сбор замеров комнат из модели…";
-                var measures = RoomMeasurementsService.Collect(_doc);
-                var systemRooms = await MeasuresService.ReadAsync(_clientRequestId).ConfigureAwait(true);
-                measureRooms = MeasuresService.BuildPayloadRooms(
-                    measures?.Rooms,
-                    MeasuresService.BuildRoomIdsByKey(systemRooms));
+                measureRooms = await CollectMeasureRoomsAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
             {

@@ -474,5 +474,65 @@ namespace SmartRemont.ExportRooms.Services
 
             return items;
         }
+
+        /// <summary>Весь расчёт для разбора: каждая строка ДС с вводом, было/станет и почему.</summary>
+        public static JObject BuildDebugJson(DsTkTargetResult result)
+        {
+            static JObject Line(DsTkTargetLine line)
+            {
+                var o = new JObject
+                {
+                    ["material_id"] = line.MaterialId,
+                    ["material_name"] = line.MaterialName,
+                    ["ds_qty"] = line.CurrentQty,
+                    ["target_qty"] = line.TargetQty,
+                    ["changed"] = line.IsChanged,
+                    ["unit_myspace"] = line.MyspaceUnit,
+                    ["unit_revit"] = line.RevitUnit
+                };
+                if (!string.IsNullOrWhiteSpace(line.Note))
+                    o["note"] = line.Note;
+                return o;
+            }
+
+            static JObject Issue(DsTkTargetIssue issue) => new()
+            {
+                ["room_name"] = issue.RoomName,
+                ["material_name"] = issue.MaterialName,
+                ["text"] = issue.Text
+            };
+
+            result ??= new DsTkTargetResult();
+            return new JObject
+            {
+                ["to_send"] = result.ToSend.Count,
+                ["changed_lines"] = result.ChangedLineCount,
+                ["blocked"] = result.Blocked.Count,
+                ["skipped"] = result.Skipped.Count,
+                ["not_from_model"] = result.NotFromModel.Count,
+                ["positions"] = new JArray(result.Positions.Select(p =>
+                {
+                    var o = new JObject
+                    {
+                        ["status"] = p.Status.ToString(),
+                        ["room_name"] = p.RoomName,
+                        ["work_set_id"] = p.WorkSetId,
+                        ["work_set_name"] = p.WorkSetName,
+                        ["client_material_id"] = p.ClientMaterialId,
+                        ["material_set_id"] = p.MaterialSetId,
+                        ["source"] = p.SourceTitle
+                    };
+                    if (!string.IsNullOrWhiteSpace(p.Reason))
+                        o["reason"] = p.Reason;
+                    if (p.Head != null)
+                        o["head"] = Line(p.Head);
+                    if (p.Members.Count > 0)
+                        o["set_items"] = new JArray(p.Members.Select(Line));
+                    return o;
+                })),
+                ["extra_in_model"] = new JArray(result.ExtraInModel.Select(Issue)),
+                ["unassigned"] = new JArray(result.Unassigned.Select(Issue))
+            };
+        }
     }
 }

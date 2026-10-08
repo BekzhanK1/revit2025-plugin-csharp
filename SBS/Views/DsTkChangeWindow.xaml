@@ -107,6 +107,16 @@
                             <TextBlock Text="Обновить" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <Button x:Name="CopySendJsonButton"
+                            Style="{StaticResource GhostButton}"
+                            Margin="0,0,4,0"
+                            ToolTip="Копирует в буфер JSON: тело запроса, который уйдёт в ДС (замеры + объёмы), расчёт по каждой строке ДС и строки ведомостей"
+                            Click="CopySendJsonButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8C8;" Style="{StaticResource IconGlyph}" FontSize="13" Margin="0,0,8,0"/>
+                            <TextBlock Text="JSON отправки" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="ExportJsonButton"
                             Style="{StaticResource GhostButton}"
                             Click="ExportJsonButton_Click">

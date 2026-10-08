@@ -687,6 +687,19 @@ namespace SmartRemont.ExportRooms.Services
         /// Одним запросом: замеры комнат, затем объёмы ДС. Сервер пишет всё в одной транзакции —
         /// при любой ошибке не записывается ни замер, ни объём.
         /// </summary>
+        /// <summary>Тело POST ds/tk-change/apply/ — то же, что уходит при отправке.</summary>
+        public static JObject BuildApplyPayload(
+            int clientRequestId,
+            int dsId,
+            IReadOnlyList<DsTkTargetPosition> positions,
+            IReadOnlyList<MeasureApplyRoomDto> measureRooms) => new()
+        {
+            ["client_request_id"] = clientRequestId,
+            ["ds_id"] = dsId,
+            ["measure_rooms"] = JArray.FromObject(measureRooms ?? Array.Empty<MeasureApplyRoomDto>()),
+            ["items"] = DsTkTargetService.BuildApplyItems(positions)
+        };
+
         public static async Task<DsTkQtyApplyResult> ApplyFromModelAsync(
             int clientRequestId,
             int dsId,
@@ -707,13 +720,7 @@ namespace SmartRemont.ExportRooms.Services
             if (!session.HasGrant(MeasureSaveGrant))
                 throw new InvalidOperationException("Нет права сохранять замеры.");
 
-            var payload = new JObject
-            {
-                ["client_request_id"] = clientRequestId,
-                ["ds_id"] = dsId,
-                ["measure_rooms"] = JArray.FromObject(measureRooms),
-                ["items"] = DsTkTargetService.BuildApplyItems(positions)
-            };
+            var payload = BuildApplyPayload(clientRequestId, dsId, positions, measureRooms);
             var payloadJson = payload.ToString(Formatting.None);
             var url = Configs.DsTkChangeApplyUrl;
 
