@@ -23,7 +23,6 @@ namespace SmartRemont.ExportRooms.Views
         string _tkFlagsError;
         bool _tkFlagsLoaded;
         bool _hasCompareKit;
-        bool _deleteInProgress;
         string _extraError;
         HashSet<int> _tkMaterialIds = new();
         List<RevitMaterialRowVm> _rows = new();
@@ -205,94 +204,10 @@ namespace SmartRemont.ExportRooms.Views
                 _extraError = ex.Message;
             }
 
-            _extraRows = items.Select(i => new ExtraMaterialRowVm(i, UpdateExtraDeleteButton)).ToList();
+            _extraRows = items.Select(i => new ExtraMaterialRowVm(i)).ToList();
             ExtraDataGrid.ItemsSource = _extraRows;
             UpdateTabCounts();
-            UpdateExtraDeleteButton();
             ApplyTab();
-        }
-
-        void ExtraSelectAllButton_Click(object sender, RoutedEventArgs e)
-        {
-            var deletable = _extraRows.Where(r => r.CanDelete).ToList();
-            var check = deletable.Any(r => !r.IsChecked);
-            foreach (var row in deletable)
-                row.IsChecked = check;
-        }
-
-        void ExtraDeleteButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_deleteInProgress || _syncInProgress)
-                return;
-
-            var selected = _extraRows.Where(r => r.IsChecked && r.CanDelete).Select(r => r.Item).ToList();
-            if (selected.Count == 0)
-                return;
-
-            var preview = string.Join("\n", selected.Take(10).Select(i => $"• {i.SrId} · {i.Label}"));
-            if (selected.Count > 10)
-                preview += $"\n… и ещё {selected.Count - 10}";
-
-            var answer = AppMessageBox.Show(
-                this,
-                $"Удалить из проекта {selected.Count} SR_ID не из ТК?\n\n{preview}\n\n"
-                + "В модели они не размещены. Удаление отменяется в Revit через «Отменить» (Ctrl+Z).",
-                "Удалить материалы не из ТК",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-            if (answer != MessageBoxResult.Yes)
-                return;
-
-            _deleteInProgress = true;
-            UpdateExtraDeleteButton();
-            SyncButton.IsEnabled = false;
-            try
-            {
-                var result = RevitProjectExtraMaterialsService.Delete(_doc, selected);
-                RefreshProjectStatuses();
-                RefreshExtraMaterials();
-                UpdateSummaryStatus();
-                StatusTextBlock.Text += $" · Удалено не из ТК: {result.DeletedCount}";
-
-                if (result.Skipped.Count > 0)
-                {
-                    AppMessageBox.Show(
-                        this,
-                        $"Удалено: {result.DeletedCount}. Не удалось удалить: {result.Skipped.Count}\n\n"
-                        + string.Join("\n", result.Skipped.Take(15))
-                        + (result.Skipped.Count > 15 ? $"\n… и ещё {result.Skipped.Count - 15}" : string.Empty),
-                        "Удаление материалов не из ТК",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                ExportRoomsApplication._logger?.Warning(ex, "Project extra SR_ID delete failed");
-                AppMessageBox.Show(
-                    this,
-                    ex.Message,
-                    "Ошибка удаления",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-            finally
-            {
-                _deleteInProgress = false;
-                UpdateExtraDeleteButton();
-                SyncButton.IsEnabled = _rows.Any(CanSyncRow);
-            }
-        }
-
-        void UpdateExtraDeleteButton()
-        {
-            if (ExtraDeleteButton == null)
-                return;
-
-            var count = _extraRows.Count(r => r.IsChecked && r.CanDelete);
-            ExtraDeleteButton.IsEnabled = count > 0 && !_deleteInProgress && !_syncInProgress;
-            ExtraDeleteButtonText.Text = count > 0 ? $"Удалить из проекта ({count})" : "Удалить из проекта";
-            ExtraSelectAllButton.IsEnabled = _extraRows.Any(r => r.CanDelete) && !_deleteInProgress;
         }
 
         void Tab_Checked(object sender, RoutedEventArgs e) => ApplyTab();
@@ -438,7 +353,6 @@ namespace SmartRemont.ExportRooms.Views
 
             _syncInProgress = true;
             SyncButton.IsEnabled = false;
-            UpdateExtraDeleteButton();
 
             if (!_rows.Any(CanSyncRow))
             {
@@ -486,7 +400,6 @@ namespace SmartRemont.ExportRooms.Views
                 HideSyncProgress();
                 _syncInProgress = false;
                 SyncButton.IsEnabled = _rows.Any(CanSyncRow);
-                UpdateExtraDeleteButton();
             }
         }
 
@@ -838,43 +751,16 @@ namespace SmartRemont.ExportRooms.Views
         static string Dash(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
     }
 
-    /// <summary>Строка «Не из ТК в проекте»: SR_ID в проекте, которого нет в ТК заявки.</summary>
-    sealed class ExtraMaterialRowVm : INotifyPropertyChanged
+    /// <summary>Строка «Не из ТК в проекте»: SR_ID в проекте, которого нет в ТК заявки. Только показ.</summary>
+    sealed class ExtraMaterialRowVm
     {
-        readonly Action _checkedChanged;
-        bool _isChecked;
-
-        public ExtraMaterialRowVm(ProjectExtraSrIdItem item, Action checkedChanged)
-        {
-            Item = item;
-            _checkedChanged = checkedChanged;
-        }
+        public ExtraMaterialRowVm(ProjectExtraSrIdItem item) => Item = item;
 
         public ProjectExtraSrIdItem Item { get; }
-        public bool CanDelete => Item.CanDelete;
+        public bool IsUnused => Item.IsUnused;
         public string SrIdDisplay => Item.SrId.ToString(CultureInfo.InvariantCulture);
         public string Label => Item.Label;
         public string KindDisplay => Item.KindDisplay;
         public string UsageDisplay => Item.UsageDisplay;
-
-        public bool IsChecked
-        {
-            get => _isChecked;
-            set
-            {
-                var next = value && CanDelete;
-                if (_isChecked == next)
-                    return;
-
-                _isChecked = next;
-                OnPropertyChanged();
-                _checkedChanged?.Invoke();
-            }
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        void OnPropertyChanged([CallerMemberName] string propertyName = null) =>
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

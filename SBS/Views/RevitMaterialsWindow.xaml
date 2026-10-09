@@ -165,23 +165,11 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="&#xE7BA;" Style="{StaticResource CalloutIcon}" Foreground="{StaticResource WarningBrush}"/>
                         <TextBlock x:Name="ExtraCalloutText" Grid.Column="1" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
                                    Foreground="{StaticResource WarningTextBrush}"
-                                   Text="Удалить можно только то, что не размещено в модели. Размещённые элементы сначала замените в модели на материал из ТК."/>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-                            <Button x:Name="ExtraSelectAllButton" Style="{StaticResource CompactSecondaryButton}" Margin="0,0,8,0"
-                                    Content="Отметить неиспользуемые" Click="ExtraSelectAllButton_Click"/>
-                            <Button x:Name="ExtraDeleteButton" Style="{StaticResource CompactSecondaryButton}" IsEnabled="False"
-                                    Foreground="{StaticResource ErrorBrush}" Click="ExtraDeleteButton_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE74D;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="ExtraDeleteButtonText" Text="Удалить из проекта" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                                   Text="Этих SR_ID нет в ТК заявки. Плагин их не удаляет: размещённые замените в модели на материал из ТК."/>
                     </Grid>
                 </Border>
 
@@ -379,21 +367,12 @@
                           Grid.Row="2"
                           Style="{StaticResource ModernDataGrid}"
                           Visibility="Collapsed"
+                          IsReadOnly="True"
                           BorderThickness="0"
                           Background="Transparent"
                           HorizontalScrollBarVisibility="Auto"
                           CanUserResizeColumns="True">
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Width="44" CanUserResize="False">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              IsEnabled="{Binding CanDelete}"
-                                              IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="SR_ID" Binding="{Binding SrIdDisplay}" Width="90" IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
@@ -420,7 +399,7 @@
                                     <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
                                     <Setter Property="FontSize" Value="12"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CanDelete}" Value="True">
+                                        <DataTrigger Binding="{Binding IsUnused}" Value="True">
                                             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
