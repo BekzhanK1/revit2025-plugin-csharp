@@ -216,11 +216,26 @@ namespace SmartRemont.ExportRooms.Services
                 kv => kv.Value.Sum(id =>
                     qtyByKey.TryGetValue((kv.Key.Item1, kv.Key.Item2, id), out var qty) ? qty : 0d));
 
+            // Двери комнаты с комментарием «С заверткой» / «Без завертки» — для проверки набора фурнитуры.
+            var latchByRoom = new Dictionary<(string, string), (int With, int Without)>();
+            foreach (var line in schedule.Lines)
+            {
+                var latch = LatchOf(line.Comment);
+                if (latch == null || line.MaterialId <= 0 || string.IsNullOrWhiteSpace(line.RoomName))
+                    continue;
+                var key = ((line.SourceCode ?? string.Empty).ToUpperInvariant(), RoomKey(line.RoomName));
+                if (!countMaterials.TryGetValue(key, out var doorIds) || !doorIds.Contains(line.MaterialId))
+                    continue;
+                latchByRoom.TryGetValue(key, out var counts);
+                var n = Math.Max(1, (int)Math.Round(line.Quantity));
+                latchByRoom[key] = latch.Value ? (counts.With + n, counts.Without) : (counts.With, counts.Without + n);
+            }
+
             foreach (var row in inputRows
                          .OrderBy(r => r.RoomName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                          .ThenBy(r => r.WorkSetName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             {
-                result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage, problems));
+                result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage, problems, latchByRoom));
             }
 
             CollectModelOnly(result, schedule, inDsByRoom, modelRooms);
@@ -234,7 +249,8 @@ namespace SmartRemont.ExportRooms.Services
             Dictionary<(string, string, int), double> qtyByKey,
             Dictionary<(string, string), double> totalByRoom,
             Dictionary<(string, string, int), HashSet<int>> usage,
-            ModelProblems problems)
+            ModelProblems problems,
+            Dictionary<(string, string), (int With, int Without)> latchByRoom)
         {
             var entries = TkQtyScheduleMapping.ForWorkSet(row.WorkSetId ?? 0);
             var roomKey = RoomKey(row.RoomName);
@@ -426,6 +442,28 @@ namespace SmartRemont.ExportRooms.Services
                 }
             }
 
+            // Фурнитура: завертка в наборе должна совпадать с комментарием двери в ведомости.
+            if (countFromCode != null
+                && latchByRoom.TryGetValue((countFromCode.ToUpperInvariant(), roomKey), out var latch))
+            {
+                var setHasLatch = new[] { row.MaterialName }
+                    .Concat((row.SetItems ?? new List<ClientMaterialSetItemDto>()).Select(i => i?.MaterialName))
+                    .Any(IsLatchName);
+                string latchProblem = null;
+                if (latch.With > 0 && latch.Without > 0)
+                    latchProblem = "в комнате двери и с заверткой, и без, а набор фурнитуры один — разделите фурнитуру в MySpace";
+                else if (latch.With > 0 && !setHasLatch)
+                    latchProblem = "у двери в ведомости «С заверткой», а в наборе фурнитуры завертки нет — замените набор в MySpace";
+                else if (latch.Without > 0 && setHasLatch)
+                    latchProblem = "у двери в ведомости «Без завертки», а в наборе фурнитуры есть завертка — замените набор в MySpace";
+
+                if (latchProblem != null)
+                {
+                    return Make(DsTkTargetStatus.Blocked, latchProblem, head, members,
+                        reasonDetail: $"дверей с заверткой: {latch.With}, без: {latch.Without}");
+                }
+            }
+
             var changed = new[] { head }.Concat(members).Where(l => l.IsChanged).ToList();
             if (changed.Count == 0)
                 return Make(DsTkTargetStatus.Same, null, head, members);
@@ -605,6 +643,20 @@ namespace SmartRemont.ExportRooms.Services
                     yield return item.MaterialId.Value;
             }
         }
+
+        /// <summary>«С заверткой» → true, «Без завертки» → false, иначе null.</summary>
+        static bool? LatchOf(string comment)
+        {
+            if (string.IsNullOrWhiteSpace(comment)
+                || comment.IndexOf("заверт", StringComparison.OrdinalIgnoreCase) < 0)
+                return null;
+            return comment.IndexOf("без", StringComparison.OrdinalIgnoreCase) < 0;
+        }
+
+        static bool IsLatchName(string materialName) =>
+            !string.IsNullOrWhiteSpace(materialName)
+            && materialName.IndexOf("заверт", StringComparison.OrdinalIgnoreCase) >= 0
+            && materialName.IndexOf("без заверт", StringComparison.OrdinalIgnoreCase) < 0;
 
         static string RoomKey(string roomName) =>
             DsAreaCompareService.GetRoomCompareKey(roomName ?? string.Empty).ToUpperInvariant();

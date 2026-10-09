@@ -76,6 +76,12 @@ namespace SmartRemont.ExportRooms.Services
             /// </summary>
             public bool? CombineSchedules { get; set; }
 
+            /// <summary>
+            /// Колонка комментария строки (двери: «С заверткой» / «Без завертки») — для проверки
+            /// набора фурнитуры. Пусто — не читается.
+            /// </summary>
+            public List<string> CommentColumnsExact { get; set; }
+
             [JsonIgnore]
             public bool IsDerived => !string.IsNullOrWhiteSpace(CountFromCode);
         }
@@ -172,6 +178,9 @@ namespace SmartRemont.ExportRooms.Services
                 changed = true;
 
             if (MergeMissingCombineSchedules(loaded, defaults))
+                changed = true;
+
+            if (MergeMissingCommentColumns(loaded, defaults))
                 changed = true;
 
             if (changed)
@@ -299,6 +308,26 @@ namespace SmartRemont.ExportRooms.Services
             return changed;
         }
 
+        /// <summary>Старый AppData-конфиг без колонки комментария получает её из дефолтов.</summary>
+        static bool MergeMissingCommentColumns(List<Entry> loaded, List<Entry> defaults)
+        {
+            var changed = false;
+            foreach (var entry in loaded)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Code) || entry.CommentColumnsExact is { Count: > 0 })
+                    continue;
+                var def = defaults.FirstOrDefault(d =>
+                    string.Equals(d?.Code, entry.Code.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (def?.CommentColumnsExact is not { Count: > 0 })
+                    continue;
+
+                entry.CommentColumnsExact = new List<string>(def.CommentColumnsExact);
+                changed = true;
+            }
+
+            return changed;
+        }
+
         /// <summary>Источники, привязанные к конструктиву.</summary>
         public static IReadOnlyList<Entry> ForWorkSet(int workSetId) =>
             All.Where(e => e.Enabled && e.WorkSetIds != null && e.WorkSetIds.Contains(workSetId)).ToList();
@@ -311,6 +340,7 @@ namespace SmartRemont.ExportRooms.Services
             e.MaterialNameColumnsExact ??= new List<string>();
             e.QuantityColumnsExact ??= new List<string>();
             e.RoomColumnsExact ??= new List<string>();
+            e.CommentColumnsExact ??= new List<string>();
             e.WorkSetIds ??= new List<int>();
             if (e.QuantityScale <= 0) e.QuantityScale = 1d;
             if (string.IsNullOrWhiteSpace(e.QuantityUnit)) e.QuantityUnit = "—";
@@ -329,6 +359,7 @@ namespace SmartRemont.ExportRooms.Services
                 MaterialNameColumnsExact = new List<string> { "Наименование" },
                 QuantityColumnsExact = new List<string> { "Кол-во, шт", "Кол-во, шт.", "Кол-во" },
                 RoomColumnsExact = new List<string> { "Помещение", "Помещения" },
+                CommentColumnsExact = new List<string> { "Комментарий", "Комментарии" },
                 QuantityUnit = "шт"
             },
             new Entry
@@ -465,6 +496,8 @@ namespace SmartRemont.ExportRooms.Services
             new Entry
             {
                 Code = "LED",
+                // «Встроенный карниз для натяжного потолка с подсветкой» (подшторник 16469), ввод в мп.
+                WorkSetIds = new List<int> { 623 },
                 Title = "LED-лента",
                 ScheduleNamesExact = new List<string> { "Спецификация LED-ленты", "Спецификация LED лент" },
                 Mode = ParseMode.GroupedByRoomHeader,

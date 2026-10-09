@@ -338,7 +338,8 @@ namespace SmartRemont.ExportRooms.Views
                     ["material_id"] = l.MaterialId,
                     ["material_name"] = l.MaterialName,
                     ["qty"] = l.Quantity,
-                    ["unit"] = l.Unit
+                    ["unit"] = l.Unit,
+                    ["comment"] = l.Comment
                 }));
                 root["schedule_rows_without_id"] = new JArray(_scheduleQty.SkippedRows.Select(r => new JObject
                 {
@@ -1211,7 +1212,8 @@ namespace SmartRemont.ExportRooms.Views
                     ["material_id"] = l.MaterialId,
                     ["material_name"] = l.MaterialName,
                     ["qty"] = l.Quantity,
-                    ["unit"] = l.Unit
+                    ["unit"] = l.Unit,
+                    ["comment"] = l.Comment
                 }));
                 root["schedule_rows_without_id"] = new JArray(_scheduleQty.SkippedRows.Select(r => new JObject
                 {

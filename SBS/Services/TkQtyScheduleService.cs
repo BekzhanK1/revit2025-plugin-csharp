@@ -16,6 +16,8 @@ namespace SmartRemont.ExportRooms.Services
         public string MaterialName { get; init; }
         public double Quantity { get; init; }
         public string Unit { get; init; }
+        /// <summary>Комментарий строки (двери: «С заверткой»), если колонка задана в конфиге.</summary>
+        public string Comment { get; init; }
     }
 
     /// <summary>Строка ведомости с количеством, но без ID материала: её объём никуда не попал.</summary>
@@ -66,6 +68,8 @@ namespace SmartRemont.ExportRooms.Services
         static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
         /// <summary>В ведомости электрики ID сидит в имени: 12133_Рамка на 1 пост (бывает «12102 _…»).</summary>
         static readonly Regex IdInNameRegex = new(@"^(\d+)\s*_\s*(.+)$", RegexOptions.Compiled);
+        /// <summary>Подвал группы с числом элементов: «Ванная: 6».</summary>
+        static readonly Regex GroupFooterRegex = new(@"^(.+?)\s*:\s*(\d+)$", RegexOptions.Compiled);
 
         public static TkQtyScheduleSnapshot Collect(Document doc)
         {
@@ -288,6 +292,7 @@ namespace SmartRemont.ExportRooms.Services
             List<TkQtyScheduleSkippedRow> skipped)
         {
             var lines = new List<TkQtyScheduleLine>();
+            var colComment = ResolveColumnExact(headers, entry.CommentColumnsExact ?? new List<string>(), out _);
             for (var r = 1; r < rowCount; r++)
             {
                 if (IsNoiseRow(schedule, r, headers))
@@ -311,6 +316,7 @@ namespace SmartRemont.ExportRooms.Services
 
                 var qty = ResolveQuantity(schedule, r, colQty, scale);
                 var name = colName is int cn ? GetCell(schedule, r, cn).Trim() : null;
+                var comment = colComment is int cc ? GetCell(schedule, r, cc).Trim() : null;
 
                 lines.Add(new TkQtyScheduleLine
                 {
@@ -320,7 +326,8 @@ namespace SmartRemont.ExportRooms.Services
                     MaterialId = materialId,
                     MaterialName = string.IsNullOrWhiteSpace(name) ? null : name,
                     Quantity = qty,
-                    Unit = entry.QuantityUnit
+                    Unit = entry.QuantityUnit,
+                    Comment = string.IsNullOrWhiteSpace(comment) ? null : comment
                 });
             }
 
@@ -341,6 +348,9 @@ namespace SmartRemont.ExportRooms.Services
         {
             var lines = new List<TkQtyScheduleLine>();
             string currentRoom = null;
+            // Начало текущей группы — для подвала «Комната: N», который идёт после строк группы.
+            var groupStart = 0;
+            var skippedStart = skipped?.Count ?? 0;
 
             for (var r = 1; r < rowCount; r++)
             {
@@ -363,6 +373,24 @@ namespace SmartRemont.ExportRooms.Services
                 // Строка-заголовок группы: комната без ID и без qty (как электрика по помещениям).
                 if (!hasMaterialId)
                 {
+                    // Подвал «Ванная: 6» относится к строкам над ним, а не под ним.
+                    if (TryParseGroupFooter(FirstNonEmpty(roomFromCol, name, idRaw), out var footerRoom, out var footerCount))
+                    {
+                        // Под заголовком комнаты подвал другой группы («Светильник: 6») — комнату не меняет.
+                        if (currentRoom != null
+                            && !string.Equals(
+                                DsAreaCompareService.GetRoomCompareKey(currentRoom),
+                                DsAreaCompareService.GetRoomCompareKey(footerRoom),
+                                StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        ApplyGroupFooter(lines, groupStart, skipped, skippedStart, footerRoom, footerCount, colQty == null);
+                        groupStart = lines.Count;
+                        skippedStart = skipped?.Count ?? 0;
+                        currentRoom = null;
+                        continue;
+                    }
+
                     if (hasQtyNumber)
                     {
                         var room = !string.IsNullOrWhiteSpace(roomFromCol) && !IsNoiseLabel(roomFromCol)
@@ -395,6 +423,84 @@ namespace SmartRemont.ExportRooms.Services
 
             return lines;
         }
+
+        static bool TryParseGroupFooter(string text, out string room, out int count)
+        {
+            room = null;
+            count = 0;
+            if (string.IsNullOrWhiteSpace(text) || IsNoiseLabel(text.Trim()))
+                return false;
+
+            var m = GroupFooterRegex.Match(text.Trim());
+            if (!m.Success || !int.TryParse(m.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out count))
+                return false;
+
+            room = m.Groups[1].Value.Trim();
+            return room.Length > 0;
+        }
+
+        /// <summary>
+        /// Строки группы получают комнату из подвала. Без колонки количества строка — это тип, а не
+        /// экземпляр, поэтому число берётся из подвала, если материал в группе один. Несколько
+        /// материалов без количества не разделить — строки остаются с текстом подвала вместо
+        /// комнаты, и позиции источника останавливаются.
+        /// </summary>
+        static void ApplyGroupFooter(
+            List<TkQtyScheduleLine> lines,
+            int start,
+            List<TkQtyScheduleSkippedRow> skipped,
+            int skippedStart,
+            string room,
+            int count,
+            bool noQtyColumn)
+        {
+            var group = lines.Skip(start).ToList();
+            if (group.Count > 0)
+            {
+                lines.RemoveRange(start, group.Count);
+                var ids = group.Select(l => l.MaterialId).Distinct().ToList();
+                if (noQtyColumn && ids.Count == 1)
+                {
+                    lines.Add(WithRoom(group[0], room, count));
+                }
+                else
+                {
+                    var roomName = noQtyColumn && !QtyEquals(group.Sum(l => l.Quantity), count)
+                        ? $"{room}: {count}"
+                        : room;
+                    lines.AddRange(group.Select(l => WithRoom(l, roomName, l.Quantity)));
+                }
+            }
+
+            if (skipped == null)
+                return;
+            for (var i = skippedStart; i < skipped.Count; i++)
+            {
+                var row = skipped[i];
+                skipped[i] = new TkQtyScheduleSkippedRow
+                {
+                    SourceCode = row.SourceCode,
+                    ScheduleName = row.ScheduleName,
+                    RoomName = room,
+                    Text = row.Text,
+                    Quantity = row.Quantity
+                };
+            }
+        }
+
+        static TkQtyScheduleLine WithRoom(TkQtyScheduleLine line, string room, double quantity) => new()
+        {
+            SourceCode = line.SourceCode,
+            ScheduleName = line.ScheduleName,
+            RoomName = room,
+            MaterialId = line.MaterialId,
+            MaterialName = line.MaterialName,
+            Quantity = quantity,
+            Unit = line.Unit,
+            Comment = line.Comment
+        };
+
+        static bool QtyEquals(double a, double b) => Math.Abs(a - b) < 0.0001d;
 
         /// <summary>Пустые строки и служебные «Не для спецификации!» не в счёт.</summary>
         static void AddSkipped(
