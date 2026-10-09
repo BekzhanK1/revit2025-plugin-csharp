@@ -954,7 +954,7 @@ namespace SmartRemont.ExportRooms.Views
                         .ConfigureAwait(true);
                     DsTkChangeService.ApplyDsQtyOverlay(tkForCompare, dsRows);
                     fromDs = true;
-                    _target = DsTkTargetService.Build(dsRows, _scheduleQty, _modelRoomNames);
+                    _target = DsTkTargetService.Build(dsRows, _scheduleQty, _modelRoomNames, NoModelMaterialIds());
                     ExportRoomsApplication._logger?.Information(
                         "DS TK target ds={DsId} send={Send} lines={Lines} blocked={Blocked} skipped={Skipped} not_from_model={NotFromModel} extra={Extra}",
                         _boundDs.DsId,
@@ -1495,6 +1495,12 @@ namespace SmartRemont.ExportRooms.Views
                     brief == NothingToSendReason ? "TextSecondaryBrush" : "ErrorTextBrush");
             }
         }
+
+        /// <summary>Материалы с типом Revit «без модели» — у них нет семейства, объём не из модели.</summary>
+        HashSet<int> NoModelMaterialIds() => _materialMeta
+            .Where(kv => string.Equals(kv.Value?.RevitFileType?.Trim(), "no_model", StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv.Key)
+            .ToHashSet();
 
         static Dictionary<int, RevitMaterialRowDto> BuildMaterialMeta(RevitMaterialReadResponse materials)
         {

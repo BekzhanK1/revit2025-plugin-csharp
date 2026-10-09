@@ -137,9 +137,11 @@ namespace SmartRemont.ExportRooms.Services
         public static DsTkTargetResult Build(
             IReadOnlyList<DsTkChangeService.DsTkMaterialRow> dsRows,
             TkQtyScheduleSnapshot schedule,
-            IEnumerable<string> modelRoomNames)
+            IEnumerable<string> modelRoomNames,
+            ISet<int> noModelMaterialIds = null)
         {
             var result = new DsTkTargetResult();
+            noModelMaterialIds ??= new HashSet<int>();
             dsRows ??= Array.Empty<DsTkChangeService.DsTkMaterialRow>();
             schedule ??= new TkQtyScheduleSnapshot();
 
@@ -235,7 +237,7 @@ namespace SmartRemont.ExportRooms.Services
                          .OrderBy(r => r.RoomName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                          .ThenBy(r => r.WorkSetName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             {
-                result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage, problems, latchByRoom));
+                result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage, problems, latchByRoom, noModelMaterialIds));
             }
 
             CollectModelOnly(result, schedule, inDsByRoom, modelRooms);
@@ -250,7 +252,8 @@ namespace SmartRemont.ExportRooms.Services
             Dictionary<(string, string), double> totalByRoom,
             Dictionary<(string, string, int), HashSet<int>> usage,
             ModelProblems problems,
-            Dictionary<(string, string), (int With, int Without)> latchByRoom)
+            Dictionary<(string, string), (int With, int Without)> latchByRoom,
+            ISet<int> noModelMaterialIds)
         {
             var entries = TkQtyScheduleMapping.ForWorkSet(row.WorkSetId ?? 0);
             var roomKey = RoomKey(row.RoomName);
@@ -283,6 +286,15 @@ namespace SmartRemont.ExportRooms.Services
 
             if (entries.Count == 0)
                 return Make(DsTkTargetStatus.NotFromModel, "конструктив не берётся из модели — объём как в ДС");
+
+            // Семейства в Revit нет (плафон Балкона 16498, светильник с/у 16332): в ведомости его не будет
+            // никогда, ноль в ДС был бы ошибкой. Фурнитура считается по дверям — её не трогаем.
+            if (row.MaterialId is int headId && noModelMaterialIds.Contains(headId)
+                && entries.All(e => !e.IsDerived))
+            {
+                return Make(DsTkTargetStatus.NotFromModel,
+                    "материала нет в Revit (тип «без модели») — объём как в ДС");
+            }
 
             if (string.IsNullOrWhiteSpace(roomKey) || !modelRooms.Contains(roomKey))
                 return Make(DsTkTargetStatus.Blocked, "комнаты нет в модели Revit (проверьте имя помещения)");
