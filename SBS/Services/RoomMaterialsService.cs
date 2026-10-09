@@ -81,10 +81,16 @@ namespace SmartRemont.ExportRooms.Services
                 if (!RevitMaterialPresenceService.TryGetSrId(element, doc, out var srId, out var sourceLevel))
                     srId = 0;
 
-                var descriptionId = element.Category != null
-                                    && idFromDescriptionCategories.Contains(element.Category.Id.Value)
-                    ? ReadDescriptionId(element, doc)
-                    : 0;
+                var descriptionId = 0;
+                if (element.Category != null && idFromDescriptionCategories.Contains(element.Category.Id.Value))
+                {
+                    var description = ReadDescription(element, doc);
+                    // «Не для спецификации!»: ведомость элемент не считает (механизм внутри рамки и т.п.) —
+                    // сверка тоже, иначе он «совпадает» по своему SR_ID.
+                    if (TkQtyScheduleService.IsNotForSchedule(description))
+                        continue;
+                    TkQtyScheduleService.TryParseIdInName(description, out descriptionId);
+                }
 
                 int? conflictingSrId = null;
                 if (descriptionId > 0 && descriptionId != srId)
@@ -800,8 +806,8 @@ namespace SmartRemont.ExportRooms.Services
             return string.IsNullOrWhiteSpace(name) ? "—" : name;
         }
 
-        /// <summary>ID из «Описания» экземпляра или типа («12133_Рамка на 1 пост» → 12133); нет — 0.</summary>
-        static int ReadDescriptionId(Element element, Document doc)
+        /// <summary>«Описание» экземпляра, иначе типа; пусто — null.</summary>
+        static string ReadDescription(Element element, Document doc)
         {
             var type = doc.GetElement(element.GetTypeId());
             foreach (var source in new[] { element, type })
@@ -812,11 +818,11 @@ namespace SmartRemont.ExportRooms.Services
                 var text = source.get_Parameter(BuiltInParameter.ALL_MODEL_DESCRIPTION)?.AsString();
                 if (string.IsNullOrWhiteSpace(text))
                     text = GetParameterString(source, "Описание");
-                if (TkQtyScheduleService.TryParseIdInName(text, out var id))
-                    return id;
+                if (!string.IsNullOrWhiteSpace(text))
+                    return text.Trim();
             }
 
-            return 0;
+            return null;
         }
 
         static string GetParameterString(Element element, string parameterName)

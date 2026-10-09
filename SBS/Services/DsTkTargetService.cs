@@ -223,7 +223,7 @@ namespace SmartRemont.ExportRooms.Services
                 result.Positions.Add(BuildPosition(row, modelRooms, readable, qtyByKey, totalByRoom, usage, problems));
             }
 
-            CollectModelOnly(result, schedule, inDsByRoom);
+            CollectModelOnly(result, schedule, inDsByRoom, modelRooms);
             return result;
         }
 
@@ -455,7 +455,8 @@ namespace SmartRemont.ExportRooms.Services
         static void CollectModelOnly(
             DsTkTargetResult result,
             TkQtyScheduleSnapshot schedule,
-            Dictionary<string, HashSet<int>> inDsByRoom)
+            Dictionary<string, HashSet<int>> inDsByRoom,
+            HashSet<string> modelRooms)
         {
             var mappedCodes = MappedCodes();
 
@@ -488,6 +489,10 @@ namespace SmartRemont.ExportRooms.Services
                 }
 
                 var roomKey = RoomKey(line.RoomName);
+                // «Ванная: 6» из строки итога — не комната; такие строки уже останавливают позиции
+                // (BadRooms), второй раз как «лишнее в комнате» их не показываем.
+                if (!modelRooms.Contains(roomKey))
+                    continue;
                 if (inDsByRoom.TryGetValue(roomKey, out var ids) && ids.Contains(line.MaterialId))
                     continue;
                 if (!seen.Add((roomKey, line.MaterialId)))

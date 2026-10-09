@@ -564,7 +564,8 @@ namespace SmartRemont.ExportRooms.Services
                 sum += row.MaterialCnt.Value;
             }
 
-            return any ? sum : null;
+            // Сумма нескольких строк ТК даёт хвосты (22.770000000000003).
+            return any ? Math.Round(sum, 4, MidpointRounding.AwayFromZero) : null;
         }
 
         static (string Key, string Display) ResolveQtyStatus(

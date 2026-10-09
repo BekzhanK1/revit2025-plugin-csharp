@@ -208,6 +208,11 @@ namespace SmartRemont.ExportRooms.Services
             return result;
         }
 
+        /// <summary>Служебная пометка «Не для спецификации!» — элемент в ведомости не считается.</summary>
+        public static bool IsNotForSchedule(string text) =>
+            !string.IsNullOrWhiteSpace(text)
+            && text.IndexOf("не для спецификации", StringComparison.OrdinalIgnoreCase) >= 0;
+
         /// <summary>«12133_Рамка на 1 пост» → 12133; не по шаблону — false.</summary>
         public static bool TryParseIdInName(string raw, out int materialId) =>
             TryParseIdFromName(raw, out materialId, out _);
@@ -403,7 +408,7 @@ namespace SmartRemont.ExportRooms.Services
         {
             if (skipped == null || string.IsNullOrWhiteSpace(text) || IsNoiseLabel(text))
                 return;
-            if (text.IndexOf("не для спецификации", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (IsNotForSchedule(text))
                 return;
 
             skipped.Add(new TkQtyScheduleSkippedRow
