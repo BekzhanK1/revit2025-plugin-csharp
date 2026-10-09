@@ -150,6 +150,20 @@ namespace SmartRemont.ExportRooms.Services
             return index;
         }
 
+        /// <summary>SR_ID самого элемента (тип, семейство, материал), без перехода на тип.</summary>
+        public static bool TryReadSrId(Element element, out int srId) =>
+            TryReadSrIdFromElement(element, out srId, out _);
+
+        /// <summary>Подпись элемента как в колонке «Название в Revit».</summary>
+        public static string DescribeElement(Element element) => element switch
+        {
+            FamilySymbol symbol => FormatFamilySymbolLabel(symbol),
+            ElementType elementType => FormatElementTypeLabel(elementType),
+            Material material => material.Name,
+            null => null,
+            _ => element.Name,
+        };
+
         static void TryAddToIndex(Dictionary<int, string> index, Element element, string label)
         {
             if (!TryReadSrIdFromElement(element, out var srId, out _))

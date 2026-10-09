@@ -21,7 +21,14 @@ namespace SmartRemont.ExportRooms.Views
         string _surfacesFileUrl;
         string _surfacesFileHash;
         string _tkFlagsError;
+        bool _tkFlagsLoaded;
+        bool _hasCompareKit;
+        bool _deleteInProgress;
+        string _extraError;
+        HashSet<int> _tkMaterialIds = new();
         List<RevitMaterialRowVm> _rows = new();
+        List<MissingMaterialRowVm> _missingRows = new();
+        List<ExtraMaterialRowVm> _extraRows = new();
 
         public RevitMaterialsWindow(int clientRequestId, Document doc)
         {
@@ -55,6 +62,11 @@ namespace SmartRemont.ExportRooms.Views
                 var response = await RevitMaterialsService.ReadAsync(_clientRequestId).ConfigureAwait(true);
                 _surfacesFileUrl = response.SurfacesFileUrl?.Trim();
                 _surfacesFileHash = response.SurfacesFileHash?.Trim();
+                // Все материалы ТК, в том числе без модели: SR_ID из этого списка не считаются лишними.
+                _tkMaterialIds = (response.Data ?? new List<RevitMaterialRowDto>())
+                    .Where(r => r?.MaterialId != null)
+                    .Select(r => r.MaterialId.Value)
+                    .ToHashSet();
                 _rows = (response.Data ?? new List<RevitMaterialRowDto>())
                     .Where(HasUrlOrSurface)
                     .Select(ToRowVm)
@@ -86,6 +98,7 @@ namespace SmartRemont.ExportRooms.Views
                 }
 
                 RefreshProjectStatuses();
+                RefreshExtraMaterials();
                 ShowData(_rows);
                 UpdateSummaryStatus();
                 SyncButton.IsEnabled = _rows.Any(CanSyncRow);
@@ -115,11 +128,32 @@ namespace SmartRemont.ExportRooms.Views
         {
             var flags = await ClientMaterialFlagsService.TryReadAsync(_clientRequestId).ConfigureAwait(true);
             _tkFlagsError = flags.Status ? null : flags.Error;
+            _tkFlagsLoaded = flags.Status;
             if (!flags.Status)
             {
+                CompareSourceTextBlock.Text = "Сверка с подбором недоступна";
+                _missingRows = new List<MissingMaterialRowVm>();
+                MissingDataGrid.ItemsSource = _missingRows;
+                UpdateTabCounts();
+                ApplyTab();
                 UpdateSummaryStatus();
                 return;
             }
+
+            var etalon = flags.Data.Etalon?.PresetKitId is int ? flags.Data.Etalon : null;
+            _hasCompareKit = etalon != null || flags.Data.KitChecked;
+            CompareSourceTextBlock.Text = BuildCompareSourceText(flags.Data, etalon);
+            _missingRows = (flags.Data.Missing ?? new List<ClientMaterialMissingRowDto>())
+                .Select(m => new MissingMaterialRowVm(m, etalon != null))
+                .ToList();
+            MissingDataGrid.ItemsSource = _missingRows;
+            MissingCalloutText.Text = etalon != null
+                ? $"Эти конструктивы есть в эталонном пакете {FormatKit(etalon)}, но их нет в ТК заявки. "
+                  + "ТК правится в MySpace; после правки откройте это окно заново и синхронизируйте."
+                : "Эти конструктивы есть в подборе заявки, но их нет в ТК. "
+                  + "ТК правится в MySpace; после правки откройте это окно заново и синхронизируйте.";
+            UpdateTabCounts();
+            ApplyTab();
 
             var byMaterial = ClientMaterialFlagsService.BuildByMaterial(flags.Data);
             foreach (var row in _rows)
@@ -155,6 +189,191 @@ namespace SmartRemont.ExportRooms.Views
             }
         }
 
+        /// <summary>SR_ID в проекте, которых нет в ТК. Ошибка поиска не мешает остальному окну.</summary>
+        void RefreshExtraMaterials()
+        {
+            List<ProjectExtraSrIdItem> items;
+            try
+            {
+                items = RevitProjectExtraMaterialsService.Find(_doc, _tkMaterialIds);
+                _extraError = null;
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project extra SR_ID scan failed");
+                items = new List<ProjectExtraSrIdItem>();
+                _extraError = ex.Message;
+            }
+
+            _extraRows = items.Select(i => new ExtraMaterialRowVm(i, UpdateExtraDeleteButton)).ToList();
+            ExtraDataGrid.ItemsSource = _extraRows;
+            UpdateTabCounts();
+            UpdateExtraDeleteButton();
+            ApplyTab();
+        }
+
+        void ExtraSelectAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            var deletable = _extraRows.Where(r => r.CanDelete).ToList();
+            var check = deletable.Any(r => !r.IsChecked);
+            foreach (var row in deletable)
+                row.IsChecked = check;
+        }
+
+        void ExtraDeleteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_deleteInProgress || _syncInProgress)
+                return;
+
+            var selected = _extraRows.Where(r => r.IsChecked && r.CanDelete).Select(r => r.Item).ToList();
+            if (selected.Count == 0)
+                return;
+
+            var preview = string.Join("\n", selected.Take(10).Select(i => $"• {i.SrId} · {i.Label}"));
+            if (selected.Count > 10)
+                preview += $"\n… и ещё {selected.Count - 10}";
+
+            var answer = AppMessageBox.Show(
+                this,
+                $"Удалить из проекта {selected.Count} SR_ID не из ТК?\n\n{preview}\n\n"
+                + "В модели они не размещены. Удаление отменяется в Revit через «Отменить» (Ctrl+Z).",
+                "Удалить материалы не из ТК",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes)
+                return;
+
+            _deleteInProgress = true;
+            UpdateExtraDeleteButton();
+            SyncButton.IsEnabled = false;
+            try
+            {
+                var result = RevitProjectExtraMaterialsService.Delete(_doc, selected);
+                RefreshProjectStatuses();
+                RefreshExtraMaterials();
+                UpdateSummaryStatus();
+                StatusTextBlock.Text += $" · Удалено не из ТК: {result.DeletedCount}";
+
+                if (result.Skipped.Count > 0)
+                {
+                    AppMessageBox.Show(
+                        this,
+                        $"Удалено: {result.DeletedCount}. Не удалось удалить: {result.Skipped.Count}\n\n"
+                        + string.Join("\n", result.Skipped.Take(15))
+                        + (result.Skipped.Count > 15 ? $"\n… и ещё {result.Skipped.Count - 15}" : string.Empty),
+                        "Удаление материалов не из ТК",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                ExportRoomsApplication._logger?.Warning(ex, "Project extra SR_ID delete failed");
+                AppMessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Ошибка удаления",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                _deleteInProgress = false;
+                UpdateExtraDeleteButton();
+                SyncButton.IsEnabled = _rows.Any(CanSyncRow);
+            }
+        }
+
+        void UpdateExtraDeleteButton()
+        {
+            if (ExtraDeleteButton == null)
+                return;
+
+            var count = _extraRows.Count(r => r.IsChecked && r.CanDelete);
+            ExtraDeleteButton.IsEnabled = count > 0 && !_deleteInProgress && !_syncInProgress;
+            ExtraDeleteButtonText.Text = count > 0 ? $"Удалить из проекта ({count})" : "Удалить из проекта";
+            ExtraSelectAllButton.IsEnabled = _extraRows.Any(r => r.CanDelete) && !_deleteInProgress;
+        }
+
+        void Tab_Checked(object sender, RoutedEventArgs e) => ApplyTab();
+
+        void ApplyTab()
+        {
+            // Checked стреляет ещё в InitializeComponent — элементы ниже по XAML могут быть null.
+            if (MaterialsDataGrid == null || MissingDataGrid == null || ExtraDataGrid == null || TabEmptyTextBlock == null)
+                return;
+
+            static System.Windows.Visibility Show(bool on) =>
+                on ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+            var materials = MaterialsTab.IsChecked == true;
+            var missing = MissingTab.IsChecked == true;
+            var extra = ExtraTab.IsChecked == true;
+
+            string emptyText = null;
+            if (missing && _missingRows.Count == 0)
+            {
+                emptyText = !string.IsNullOrWhiteSpace(_tkFlagsError)
+                    ? $"Сверка с подбором недоступна: {_tkFlagsError}"
+                    : !_tkFlagsLoaded
+                        ? "Загрузка сверки…"
+                        : _hasCompareKit
+                            ? "Всё из пакета есть в ТК."
+                            : "У заявки нет подбора — сверять не с чем.";
+            }
+            else if (extra && _extraRows.Count == 0)
+            {
+                emptyText = string.IsNullOrWhiteSpace(_extraError)
+                    ? "В проекте нет элементов с SR_ID не из ТК."
+                    : $"Не удалось проверить проект: {_extraError}";
+            }
+
+            MaterialsDataGrid.Visibility = Show(materials);
+            MissingDataGrid.Visibility = Show(missing && emptyText == null);
+            ExtraDataGrid.Visibility = Show(extra && emptyText == null);
+            MissingCallout.Visibility = Show(missing && _missingRows.Count > 0);
+            ExtraCallout.Visibility = Show(extra && _extraRows.Count > 0);
+            TabEmptyTextBlock.Text = emptyText ?? string.Empty;
+            TabEmptyTextBlock.Visibility = Show(emptyText != null);
+        }
+
+        void UpdateTabCounts()
+        {
+            MaterialsTabCountText.Text = _rows.Count.ToString(CultureInfo.InvariantCulture);
+            MissingTabCountText.Text = _tkFlagsLoaded ? _missingRows.Count.ToString(CultureInfo.InvariantCulture) : "—";
+            ExtraTabCountText.Text = string.IsNullOrWhiteSpace(_extraError)
+                ? _extraRows.Count.ToString(CultureInfo.InvariantCulture)
+                : "—";
+        }
+
+        static string BuildCompareSourceText(ClientMaterialFlagsResponse flags, ClientMaterialEtalonDto etalon)
+        {
+            string text;
+            if (etalon != null)
+                text = $"Сверка с эталонным пакетом {FormatKit(etalon)}";
+            else if (flags.KitChecked)
+                text = "Сверка с подбором заявки (эталонного пакета нет)";
+            else
+                return "У заявки нет подбора — сверять не с чем";
+
+            var stale = ClientMaterialFlagsService.CountStale(flags);
+            if (stale > 0)
+                text += $" · неактуальных строк ТК: {stale}";
+
+            if (etalon != null
+                && flags.Summary != null
+                && flags.Summary.TryGetValue("etalon_missing", out var ownKit)
+                && ownKit > 0)
+                text += $" · {ownKit} сверены с подбором заявки (в эталоне нет конструктива)";
+
+            return text;
+        }
+
+        static string FormatKit(ClientMaterialEtalonDto kit) =>
+            string.IsNullOrWhiteSpace(kit?.PresetKitName)
+                ? $"{kit?.PresetKitId}"
+                : $"{kit.PresetKitId} · {kit.PresetKitName.Trim()}";
+
         void ApplySyncItemResults(IReadOnlyList<RevitMaterialSyncItemResult> items)
         {
             var byId = (items ?? Array.Empty<RevitMaterialSyncItemResult>())
@@ -178,6 +397,8 @@ namespace SmartRemont.ExportRooms.Views
             var inProject = _rows.Count(r => r.IsInProject);
             var missing = _rows.Count - inProject;
             var text = $"В проекте: {inProject} · Нет в проекте: {missing}";
+            if (_extraRows.Count > 0)
+                text += $" · Не из ТК в проекте: {_extraRows.Count}";
             if (!string.IsNullOrWhiteSpace(_tkFlagsError))
                 text += $" · Подбор / наличие недоступны: {_tkFlagsError}";
 
@@ -217,6 +438,7 @@ namespace SmartRemont.ExportRooms.Views
 
             _syncInProgress = true;
             SyncButton.IsEnabled = false;
+            UpdateExtraDeleteButton();
 
             if (!_rows.Any(CanSyncRow))
             {
@@ -251,6 +473,7 @@ namespace SmartRemont.ExportRooms.Views
                 SyncProgressBar.IsIndeterminate = false;
                 ApplySyncItemResults(result.Items);
                 RefreshProjectStatuses();
+                RefreshExtraMaterials();
                 UpdateSummaryStatus(result);
             }
             catch (Exception ex)
@@ -263,6 +486,7 @@ namespace SmartRemont.ExportRooms.Views
                 HideSyncProgress();
                 _syncInProgress = false;
                 SyncButton.IsEnabled = _rows.Any(CanSyncRow);
+                UpdateExtraDeleteButton();
             }
         }
 
@@ -287,7 +511,7 @@ namespace SmartRemont.ExportRooms.Views
             LoadingPanel.Visibility = System.Windows.Visibility.Visible;
             EmptyTextBlock.Visibility = System.Windows.Visibility.Collapsed;
             ErrorPanel.Visibility = System.Windows.Visibility.Collapsed;
-            MaterialsDataGrid.Visibility = System.Windows.Visibility.Collapsed;
+            DataPanel.Visibility = System.Windows.Visibility.Collapsed;
         }
 
         void ShowEmpty()
@@ -295,7 +519,7 @@ namespace SmartRemont.ExportRooms.Views
             LoadingPanel.Visibility = System.Windows.Visibility.Collapsed;
             EmptyTextBlock.Visibility = System.Windows.Visibility.Visible;
             ErrorPanel.Visibility = System.Windows.Visibility.Collapsed;
-            MaterialsDataGrid.Visibility = System.Windows.Visibility.Collapsed;
+            DataPanel.Visibility = System.Windows.Visibility.Collapsed;
         }
 
         void ShowError(string message)
@@ -304,7 +528,7 @@ namespace SmartRemont.ExportRooms.Views
             EmptyTextBlock.Visibility = System.Windows.Visibility.Collapsed;
             ErrorPanel.Visibility = System.Windows.Visibility.Visible;
             ErrorTextBlock.Text = message;
-            MaterialsDataGrid.Visibility = System.Windows.Visibility.Collapsed;
+            DataPanel.Visibility = System.Windows.Visibility.Collapsed;
         }
 
         void ShowData(List<RevitMaterialRowVm> rows)
@@ -313,7 +537,9 @@ namespace SmartRemont.ExportRooms.Views
             EmptyTextBlock.Visibility = System.Windows.Visibility.Collapsed;
             ErrorPanel.Visibility = System.Windows.Visibility.Collapsed;
             MaterialsDataGrid.ItemsSource = rows;
-            MaterialsDataGrid.Visibility = System.Windows.Visibility.Visible;
+            DataPanel.Visibility = System.Windows.Visibility.Visible;
+            UpdateTabCounts();
+            ApplyTab();
         }
 
         static bool IsSurfaceRow(RevitMaterialRowDto row) =>
@@ -572,6 +798,78 @@ namespace SmartRemont.ExportRooms.Views
                 return "Нет Revit-файла (тип none)";
 
             return string.Empty;
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        void OnPropertyChanged([CallerMemberName] string propertyName = null) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    /// <summary>Строка «Нет в ТК»: конструктив пакета сравнения, которого нет ни в одной строке ТК.</summary>
+    sealed class MissingMaterialRowVm
+    {
+        public MissingMaterialRowVm(ClientMaterialMissingRowDto source, bool hasEtalon)
+        {
+            RoomDisplay = Dash(source?.RoomName);
+            WorkSetDisplay = Dash(TkMaterialCompareService.StripHtml(source?.WorkSetName));
+
+            var name = TkMaterialCompareService.StripHtml(source?.KitMaterialName);
+            if (source?.KitMaterialId is int materialId)
+                KitMaterialDisplay = string.IsNullOrWhiteSpace(name) ? $"{materialId}" : $"{materialId} · {name}";
+            else if (source?.KitMaterialSetId is int setId)
+                KitMaterialDisplay = $"Набор {setId}";
+            else
+                KitMaterialDisplay = "—";
+
+            KindDisplay = source?.MissingKind switch
+            {
+                "etalon_new" => "Есть только в эталоне: его дополнили после создания заявки",
+                _ when hasEtalon => "Есть в эталоне и в подборе заявки",
+                _ => "Есть в подборе заявки",
+            };
+        }
+
+        public string RoomDisplay { get; }
+        public string WorkSetDisplay { get; }
+        public string KitMaterialDisplay { get; }
+        public string KindDisplay { get; }
+
+        static string Dash(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+    }
+
+    /// <summary>Строка «Не из ТК в проекте»: SR_ID в проекте, которого нет в ТК заявки.</summary>
+    sealed class ExtraMaterialRowVm : INotifyPropertyChanged
+    {
+        readonly Action _checkedChanged;
+        bool _isChecked;
+
+        public ExtraMaterialRowVm(ProjectExtraSrIdItem item, Action checkedChanged)
+        {
+            Item = item;
+            _checkedChanged = checkedChanged;
+        }
+
+        public ProjectExtraSrIdItem Item { get; }
+        public bool CanDelete => Item.CanDelete;
+        public string SrIdDisplay => Item.SrId.ToString(CultureInfo.InvariantCulture);
+        public string Label => Item.Label;
+        public string KindDisplay => Item.KindDisplay;
+        public string UsageDisplay => Item.UsageDisplay;
+
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set
+            {
+                var next = value && CanDelete;
+                if (_isChecked == next)
+                    return;
+
+                _isChecked = next;
+                OnPropertyChanged();
+                _checkedChanged?.Invoke();
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

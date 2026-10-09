@@ -73,6 +73,7 @@
     <Compile Include="Services\RevitMaterialsSyncOptions.cs" />
     <Compile Include="Services\ProjectInitRollbackService.cs" />
     <Compile Include="Services\RevitMaterialPresenceService.cs" />
+    <Compile Include="Services\RevitProjectExtraMaterialsService.cs" />
     <Compile Include="Services\RevitFamilyImportService.cs" />
     <Compile Include="Services\RevitSurfaceImportService.cs" />
     <Compile Include="Services\TkMaterialCompareService.cs" />

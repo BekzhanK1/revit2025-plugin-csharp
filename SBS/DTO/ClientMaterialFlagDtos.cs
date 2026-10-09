@@ -26,6 +26,54 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("data")]
         public List<ClientMaterialFlagRowDto> Data { get; set; } = new();
+
+        /// <summary>Эталонный пакет подбора заявки: строки ТК сверялись с ним. null — сверка с подбором заявки.</summary>
+        [JsonProperty("etalon")]
+        public ClientMaterialEtalonDto Etalon { get; set; }
+
+        /// <summary>Чего нет в ТК: пары «комната + конструктив» эталона (или подбора заявки), которых нет ни в одной строке ТК.</summary>
+        [JsonProperty("missing")]
+        public List<ClientMaterialMissingRowDto> Missing { get; set; } = new();
+    }
+
+    public class ClientMaterialEtalonDto
+    {
+        [JsonProperty("preset_kit_id")]
+        public int? PresetKitId { get; set; }
+
+        [JsonProperty("preset_kit_name")]
+        public string PresetKitName { get; set; }
+    }
+
+    public class ClientMaterialMissingRowDto
+    {
+        [JsonProperty("room_id")]
+        public int? RoomId { get; set; }
+
+        [JsonProperty("room_name")]
+        public string RoomName { get; set; }
+
+        [JsonProperty("work_set_id")]
+        public int? WorkSetId { get; set; }
+
+        [JsonProperty("work_set_name")]
+        public string WorkSetName { get; set; }
+
+        /// <summary>etalon_new — нет и в подборе заявки (эталон дополнили позже); in_kit — есть в подборе заявки, но не в ТК.</summary>
+        [JsonProperty("missing_kind")]
+        public string MissingKind { get; set; }
+
+        [JsonProperty("compare_kit_id")]
+        public int? CompareKitId { get; set; }
+
+        [JsonProperty("kit_material_id")]
+        public int? KitMaterialId { get; set; }
+
+        [JsonProperty("kit_material_set_id")]
+        public int? KitMaterialSetId { get; set; }
+
+        [JsonProperty("kit_material_name")]
+        public string KitMaterialName { get; set; }
     }
 
     public class ClientMaterialFlagRowDto
@@ -54,6 +102,14 @@ namespace SmartRemont.ExportRooms.DTO
 
         [JsonProperty("kit_material_name")]
         public string KitMaterialName { get; set; }
+
+        /// <summary>Подбор, с которым сверили строку: эталон или подбор заявки.</summary>
+        [JsonProperty("compare_kit_id")]
+        public int? CompareKitId { get; set; }
+
+        /// <summary>true — у подбора есть эталон, но в нём нет пары «комната + конструктив» строки, сверили с подбором заявки.</summary>
+        [JsonProperty("etalon_missing")]
+        public bool? EtalonMissing { get; set; }
 
         /// <summary>ok | owned | inactive | not_avail | no_city_provider</summary>
         [JsonProperty("avail_status")]

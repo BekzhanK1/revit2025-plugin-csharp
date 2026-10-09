@@ -83,9 +83,111 @@
                     </Button>
                 </StackPanel>
 
+            <Grid x:Name="DataPanel" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource SegmentBar}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="MaterialsTab"
+                                         GroupName="MaterialTabs"
+                                         Style="{StaticResource SegmentTab}"
+                                         IsChecked="True"
+                                         ToolTip="Материалы ТК заявки: они загружаются в проект"
+                                         Checked="Tab_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Материалы ТК" VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource SegmentCount}">
+                                        <TextBlock x:Name="MaterialsTabCountText" Text="—" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    </Border>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="MissingTab"
+                                         GroupName="MaterialTabs"
+                                         Style="{StaticResource SegmentTab}"
+                                         ToolTip="Конструктивы эталонного пакета (или подбора заявки), которых нет в ТК"
+                                         Checked="Tab_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Нет в ТК" VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource SegmentCount}" Background="{StaticResource WarningSoftBrush}">
+                                        <TextBlock x:Name="MissingTabCountText" Text="—" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource WarningTextBrush}" HorizontalAlignment="Center"/>
+                                    </Border>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="ExtraTab"
+                                         GroupName="MaterialTabs"
+                                         Style="{StaticResource SegmentTab}"
+                                         ToolTip="Элементы проекта с SR_ID, которого нет в ТК заявки"
+                                         Checked="Tab_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Не из ТК в проекте" VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource SegmentCount}" Background="{StaticResource ErrorBackgroundBrush}">
+                                        <TextBlock x:Name="ExtraTabCountText" Text="—" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource ErrorTextBrush}" HorizontalAlignment="Center"/>
+                                    </Border>
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="CompareSourceTextBlock"
+                               Grid.Column="1"
+                               Margin="16,0,0,0"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"
+                               TextAlignment="Right"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </Grid>
+
+                <Border x:Name="MissingCallout" Grid.Row="1" Style="{StaticResource CalloutInfo}" Margin="0,0,0,12" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#xE946;" Style="{StaticResource CalloutIcon}" Foreground="{StaticResource InfoBrush}"/>
+                        <TextBlock x:Name="MissingCalloutText" Grid.Column="1" FontSize="13" TextWrapping="Wrap" Foreground="{StaticResource InfoTextBrush}"/>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="ExtraCallout" Grid.Row="1" Style="{StaticResource CalloutWarning}" Margin="0,0,0,12" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#xE7BA;" Style="{StaticResource CalloutIcon}" Foreground="{StaticResource WarningBrush}"/>
+                        <TextBlock x:Name="ExtraCalloutText" Grid.Column="1" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Foreground="{StaticResource WarningTextBrush}"
+                                   Text="Удалить можно только то, что не размещено в модели. Размещённые элементы сначала замените в модели на материал из ТК."/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                            <Button x:Name="ExtraSelectAllButton" Style="{StaticResource CompactSecondaryButton}" Margin="0,0,8,0"
+                                    Content="Отметить неиспользуемые" Click="ExtraSelectAllButton_Click"/>
+                            <Button x:Name="ExtraDeleteButton" Style="{StaticResource CompactSecondaryButton}" IsEnabled="False"
+                                    Foreground="{StaticResource ErrorBrush}" Click="ExtraDeleteButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE74D;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="ExtraDeleteButtonText" Text="Удалить из проекта" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
             <DataGrid x:Name="MaterialsDataGrid"
+                              Grid.Row="2"
                               Style="{StaticResource ModernDataGrid}"
-                              Visibility="Collapsed"
                               BorderThickness="0"
                               Background="Transparent"
                               HorizontalScrollBarVisibility="Auto"
@@ -232,6 +334,112 @@
                             </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+
+                <DataGrid x:Name="MissingDataGrid"
+                          Grid.Row="2"
+                          Style="{StaticResource ModernDataGrid}"
+                          Visibility="Collapsed"
+                          IsReadOnly="True"
+                          BorderThickness="0"
+                          Background="Transparent"
+                          HorizontalScrollBarVisibility="Auto"
+                          CanUserResizeColumns="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Комната" Binding="{Binding RoomDisplay}" Width="*" MinWidth="160">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Конструктив" Binding="{Binding WorkSetDisplay}" Width="1.5*" MinWidth="200">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Материал в пакете" Binding="{Binding KitMaterialDisplay}" Width="2*" MinWidth="220">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Почему" Binding="{Binding KindDisplay}" Width="1.5*" MinWidth="200">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <DataGrid x:Name="ExtraDataGrid"
+                          Grid.Row="2"
+                          Style="{StaticResource ModernDataGrid}"
+                          Visibility="Collapsed"
+                          BorderThickness="0"
+                          Background="Transparent"
+                          HorizontalScrollBarVisibility="Auto"
+                          CanUserResizeColumns="True">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Width="44" CanUserResize="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              IsEnabled="{Binding CanDelete}"
+                                              IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="SR_ID" Binding="{Binding SrIdDisplay}" Width="90" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Название в Revit" Binding="{Binding Label}" Width="2*" MinWidth="240" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}"/>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Вид" Binding="{Binding KindDisplay}" Width="*" MinWidth="160" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Использование" Binding="{Binding UsageDisplay}" Width="1.5*" MinWidth="200" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrapCellText}">
+                                    <Setter Property="Foreground" Value="{StaticResource WarningTextBrush}"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CanDelete}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <TextBlock x:Name="TabEmptyTextBlock"
+                           Grid.Row="2"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="520"
+                           Style="{StaticResource EmptyStateText}"
+                           Visibility="Collapsed"/>
+            </Grid>
             </Grid>
         </Border>
 

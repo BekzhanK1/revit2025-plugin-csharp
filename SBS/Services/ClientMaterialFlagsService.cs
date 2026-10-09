@@ -57,6 +57,7 @@ namespace SmartRemont.ExportRooms.Services
 
                 parsed.Data ??= new List<ClientMaterialFlagRowDto>();
                 parsed.Summary ??= new Dictionary<string, int>();
+                parsed.Missing ??= new List<ClientMaterialMissingRowDto>();
                 return (parsed, true, null);
             }
             catch (Exception ex)
