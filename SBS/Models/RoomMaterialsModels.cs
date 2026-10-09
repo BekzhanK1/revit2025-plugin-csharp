@@ -71,6 +71,18 @@ namespace SmartRemont.ExportRooms.Models
         public int ElementsWithSrId { get; set; }
         public int UnassignedElements { get; set; }
         public int SkippedExcludedCategory { get; set; }
+        /// <summary>Типы, у которых SR_ID и ID в «Описании» разные (электрика).</summary>
+        public List<RoomSrIdConflict> IdConflicts { get; set; } = new();
+    }
+
+    /// <summary>SR_ID расходится с ID в «Описании»: элемент учтён по «Описанию», как в ведомости.</summary>
+    public class RoomSrIdConflict
+    {
+        public string Name { get; set; }
+        public int SrId { get; set; }
+        public int DescriptionId { get; set; }
+        public int Count { get; set; }
+        public List<string> RoomNames { get; set; } = new();
     }
 
     public class RoomSrIdRoomRow
@@ -87,5 +99,7 @@ namespace SmartRemont.ExportRooms.Models
         public long? CategoryId { get; set; }
         public string SourceLevel { get; set; }
         public int Quantity { get; set; } = 1;
+        /// <summary>Параметр SR_ID, если он расходится с «Описанием» (SrId тогда взят из «Описания»).</summary>
+        public int? ConflictingSrId { get; set; }
     }
 }

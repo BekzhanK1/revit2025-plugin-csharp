@@ -262,6 +262,17 @@ namespace SmartRemont.ExportRooms.Views
             };
             if ((_revitSnapshot?.UnassignedElements ?? 0) > 0)
                 scan["unassigned_elements"] = _revitSnapshot.UnassignedElements;
+            if (_revitSnapshot?.IdConflicts.Count > 0)
+            {
+                scan["id_conflicts"] = new JArray(_revitSnapshot.IdConflicts.Select(c => new JObject
+                {
+                    ["name"] = c.Name,
+                    ["sr_id"] = c.SrId,
+                    ["description_id"] = c.DescriptionId,
+                    ["count"] = c.Count,
+                    ["rooms"] = new JArray(c.RoomNames)
+                }));
+            }
             root["scan"] = scan;
 
             if (_scheduleQty != null)
@@ -409,6 +420,8 @@ namespace SmartRemont.ExportRooms.Views
             SetIfHas(obj, "kind", row.KindDisplay);
             SetIfHas(obj, "revit_file_type", row.RevitFileType);
             SetIfHas(obj, "revit_name", row.RevitName);
+            if (row.SrIdConflict != null)
+                obj["sr_id_conflict"] = row.SrIdConflict.Value;
             SetIfHas(obj, "category", row.Category);
             SetIfHas(obj, "source_level", row.SourceLevel);
 
@@ -592,8 +605,35 @@ namespace SmartRemont.ExportRooms.Views
                 });
             }
 
+            // Свойство модели, а не ДС — показываем и без черновика.
+            var idConflicts = (_revitSnapshot?.IdConflicts ?? new List<RoomSrIdConflict>())
+                .Select(c => new WarningItemVm
+                {
+                    Text = c.Name ?? "—",
+                    Lines =
+                    {
+                        $"SR_ID {c.SrId}, в «Описании» {c.DescriptionId} · {c.Count} {Plural(c.Count, "элемент", "элемента", "элементов")}"
+                        + (c.RoomNames.Count > 0 ? " · " + JoinRooms(c.RoomNames) : string.Empty)
+                    }
+                })
+                .ToList();
+            var idConflictGroup = idConflicts.Count == 0
+                ? null
+                : new WarningGroupVm
+                {
+                    IssueCount = idConflicts.Count,
+                    Title = "Разный ID в SR_ID и «Описании»",
+                    Hint = "Ведомость электрики и ДС ТК берут ID из «Описания», сверка тоже. Поправьте SR_ID у типа "
+                           + "(или «Описание», если неверно оно). Отправку не останавливают.",
+                    Items = LimitItems(idConflicts)
+                };
+
             if (_target == null)
+            {
+                if (idConflictGroup != null)
+                    groups.Add(idConflictGroup);
                 return groups;
+            }
 
             var blockedCauses = GroupByReason(_target.Blocked);
             if (blockedCauses.Count > 0)
@@ -659,6 +699,9 @@ namespace SmartRemont.ExportRooms.Views
                     Items = LimitItems(unassigned)
                 });
             }
+
+            if (idConflictGroup != null)
+                groups.Add(idConflictGroup);
 
             return groups;
         }

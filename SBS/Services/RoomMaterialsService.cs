@@ -64,6 +64,9 @@ namespace SmartRemont.ExportRooms.Services
             var assignedElementIds = new HashSet<long>();
             var elementsWithSrId = 0;
             var skippedCategory = 0;
+            // Электрика: ведомость (и ДС ТК) берёт ID из «Описания» — сверка берёт его же.
+            var idFromDescriptionCategories = TkQtyScheduleService.CollectIdFromNameCategoryIds(doc);
+            var conflicts = new Dictionary<(string Name, int SrId, int DescriptionId), RoomSrIdConflict>();
 
             foreach (var element in new FilteredElementCollector(doc)
                 .WhereElementIsNotElementType()
@@ -75,24 +78,67 @@ namespace SmartRemont.ExportRooms.Services
                     continue;
                 }
 
-                if (!RevitMaterialPresenceService.TryGetSrId(element, doc, out var srId, out var sourceLevel)
-                    || srId <= 0)
+                if (!RevitMaterialPresenceService.TryGetSrId(element, doc, out var srId, out var sourceLevel))
+                    srId = 0;
+
+                var descriptionId = element.Category != null
+                                    && idFromDescriptionCategories.Contains(element.Category.Id.Value)
+                    ? ReadDescriptionId(element, doc)
+                    : 0;
+
+                int? conflictingSrId = null;
+                if (descriptionId > 0 && descriptionId != srId)
+                {
+                    if (srId > 0)
+                        conflictingSrId = srId;
+                    else
+                        sourceLevel = "описание";
+                    srId = descriptionId;
+                }
+
+                if (srId <= 0)
                     continue;
 
                 elementsWithSrId++;
 
                 var targetRooms = ResolveRoomsForElement(element, doc, phase, rooms, roomIds);
+                var name = GetElementDisplayName(element, doc);
+
+                if (conflictingSrId != null)
+                {
+                    var key = (name, conflictingSrId.Value, descriptionId);
+                    if (!conflicts.TryGetValue(key, out var conflict))
+                    {
+                        conflict = new RoomSrIdConflict
+                        {
+                            Name = name,
+                            SrId = conflictingSrId.Value,
+                            DescriptionId = descriptionId
+                        };
+                        conflicts[key] = conflict;
+                    }
+
+                    conflict.Count++;
+                    foreach (var room in targetRooms)
+                    {
+                        var roomName = RoomAreaService.GetRoomDisplayName(room);
+                        if (!conflict.RoomNames.Contains(roomName, StringComparer.OrdinalIgnoreCase))
+                            conflict.RoomNames.Add(roomName);
+                    }
+                }
+
                 if (targetRooms.Count == 0)
                     continue;
 
                 var item = new RoomSrIdItem
                 {
                     SrId = srId,
-                    Name = GetElementDisplayName(element, doc),
+                    Name = name,
                     Category = element.Category?.Name ?? "—",
                     CategoryId = element.Category?.Id.Value,
                     SourceLevel = sourceLevel,
-                    Quantity = 1
+                    Quantity = 1,
+                    ConflictingSrId = conflictingSrId
                 };
 
                 foreach (var room in targetRooms)
@@ -120,6 +166,9 @@ namespace SmartRemont.ExportRooms.Services
             snapshot.ElementsWithSrId = elementsWithSrId;
             snapshot.UnassignedElements = elementsWithSrId - assignedElementIds.Count;
             snapshot.SkippedExcludedCategory = skippedCategory;
+            snapshot.IdConflicts = conflicts.Values
+                .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             snapshot.Rooms = snapshot.Rooms
                 .OrderBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -137,7 +186,8 @@ namespace SmartRemont.ExportRooms.Services
                     i.SrId.ToString(),
                     i.Name ?? string.Empty,
                     i.Category ?? string.Empty,
-                    i.SourceLevel ?? string.Empty))
+                    i.SourceLevel ?? string.Empty,
+                    i.ConflictingSrId?.ToString() ?? string.Empty))
                 .Select(g =>
                 {
                     var first = g.First();
@@ -148,7 +198,8 @@ namespace SmartRemont.ExportRooms.Services
                         Category = first.Category,
                         CategoryId = first.CategoryId,
                         SourceLevel = first.SourceLevel,
-                        Quantity = g.Sum(x => x.Quantity)
+                        Quantity = g.Sum(x => x.Quantity),
+                        ConflictingSrId = first.ConflictingSrId
                     };
                 })
                 .OrderBy(i => i.Category, StringComparer.OrdinalIgnoreCase)
@@ -747,6 +798,25 @@ namespace SmartRemont.ExportRooms.Services
 
             var name = element.Name?.Trim();
             return string.IsNullOrWhiteSpace(name) ? "—" : name;
+        }
+
+        /// <summary>ID из «Описания» экземпляра или типа («12133_Рамка на 1 пост» → 12133); нет — 0.</summary>
+        static int ReadDescriptionId(Element element, Document doc)
+        {
+            var type = doc.GetElement(element.GetTypeId());
+            foreach (var source in new[] { element, type })
+            {
+                if (source == null)
+                    continue;
+
+                var text = source.get_Parameter(BuiltInParameter.ALL_MODEL_DESCRIPTION)?.AsString();
+                if (string.IsNullOrWhiteSpace(text))
+                    text = GetParameterString(source, "Описание");
+                if (TkQtyScheduleService.TryParseIdInName(text, out var id))
+                    return id;
+            }
+
+            return 0;
         }
 
         static string GetParameterString(Element element, string parameterName)

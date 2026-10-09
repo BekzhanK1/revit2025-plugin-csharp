@@ -174,6 +174,44 @@ namespace SmartRemont.ExportRooms.Services
             return snapshot;
         }
 
+        /// <summary>
+        /// Категории ведомостей, где ID материала берётся из «Описания» (<c>IdFromNameOnly</c>, электрика).
+        /// У элементов этих категорий обход модели тоже должен верить «Описанию»: иначе в ДС уходит
+        /// одно, а таблица сверки находит другое (рамка с SR_ID выключателя «совпадала» с выключателем).
+        /// Ведомость на несколько категорий не учитываем — её категория не определена.
+        /// </summary>
+        public static HashSet<long> CollectIdFromNameCategoryIds(Document doc)
+        {
+            var result = new HashSet<long>();
+            if (doc == null)
+                return result;
+
+            var names = new HashSet<string>(
+                TkQtyScheduleMapping.All
+                    .Where(e => e.Enabled && !e.IsDerived && e.IdFromNameOnly == true)
+                    .SelectMany(e => e.ScheduleNamesExact ?? new List<string>())
+                    .Select(NormalizeName),
+                StringComparer.OrdinalIgnoreCase);
+            if (names.Count == 0)
+                return result;
+
+            foreach (var schedule in new FilteredElementCollector(doc)
+                         .OfClass(typeof(ViewSchedule))
+                         .Cast<ViewSchedule>()
+                         .Where(s => names.Contains(NormalizeName(s.Name))))
+            {
+                var categoryId = schedule.Definition?.CategoryId;
+                if (categoryId != null && categoryId != ElementId.InvalidElementId)
+                    result.Add(categoryId.Value);
+            }
+
+            return result;
+        }
+
+        /// <summary>«12133_Рамка на 1 пост» → 12133; не по шаблону — false.</summary>
+        public static bool TryParseIdInName(string raw, out int materialId) =>
+            TryParseIdFromName(raw, out materialId, out _);
+
         static double ResolveEffectiveScale(double configuredScale, string qtyHeader, string unit)
         {
             var scale = configuredScale <= 0 ? 1d : configuredScale;

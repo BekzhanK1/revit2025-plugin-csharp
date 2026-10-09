@@ -30,6 +30,8 @@ namespace SmartRemont.ExportRooms.Services
         public string MaterialName { get; init; }
         public string WorkSetName { get; init; }
         public string RevitName { get; init; }
+        /// <summary>SR_ID элемента, если он расходится с ID в «Описании» (строка — по «Описанию»).</summary>
+        public int? SrIdConflict { get; init; }
         public string Category { get; init; }
         public string KindDisplay { get; init; }
         public string RevitFileType { get; init; }
@@ -267,6 +269,8 @@ namespace SmartRemont.ExportRooms.Services
                     }
 
                     var revitItem = revitGroup?.FirstOrDefault();
+                    // Электрика: элемент учтён по «Описанию», а SR_ID у него другой — показываем оба.
+                    var conflictingSrId = revitGroup?.FirstOrDefault(i => i.ConflictingSrId != null)?.ConflictingSrId;
                     var qtyUnit = ResolveQtyUnit(materialId, roomKey, scheduleQty);
 
                     if (qtyKey == "qty_mismatch")
@@ -295,7 +299,12 @@ namespace SmartRemont.ExportRooms.Services
                             revitItem?.Name,
                             $"material_id={materialId}"),
                         WorkSetName = Prefer(Strip(tkRow?.WorkSetName), "—"),
-                        RevitName = revitItem?.Name ?? "—",
+                        RevitName = revitItem == null
+                            ? "—"
+                            : conflictingSrId == null
+                                ? revitItem.Name
+                                : $"{revitItem.Name} (SR_ID {conflictingSrId}, ID взят из «Описания»)",
+                        SrIdConflict = conflictingSrId,
                         Category = revitItem?.Category ?? "—",
                         KindDisplay = FormatKind(fileType),
                         RevitFileType = string.IsNullOrWhiteSpace(fileType) ? null : fileType.Trim(),
@@ -490,6 +499,7 @@ namespace SmartRemont.ExportRooms.Services
                         MaterialName = row.MaterialName,
                         WorkSetName = row.WorkSetName,
                         RevitName = row.RevitName,
+                        SrIdConflict = row.SrIdConflict,
                         Category = row.Category,
                         KindDisplay = row.KindDisplay,
                         RevitFileType = row.RevitFileType,
